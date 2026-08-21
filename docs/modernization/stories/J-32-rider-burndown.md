@@ -387,7 +387,26 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     `ExportCommand.registeredEntities()` names, so `PERSON_CATEGORY_ASSIGNMENT` and `AUDIT_LOG`
     stay unscored until the exporter registers them.
 - [x] T-52 — [S1 BLOCKER] T-02 removed the last executing lane for both showcase-seed proofs and `required` scores `skipped` as success, so two surfaces this journey edits are now ungated (supersedes T-42)
-- [ ] T-53 — [S1 BLOCKER] `fan-out parity` is schedule and dispatch only and sits outside `required.needs`, so the mapper edits in T-12 and T-14 would land with no gate; ship this before them (supersedes T-27)
+- [x] T-53 — [S1 BLOCKER] `fan-out parity` is schedule and dispatch only and sits outside `required.needs`, so the mapper edits in T-12 and T-14 would land with no gate; ship this before them (supersedes T-27 and `[FANOUT-RED-IS-INVISIBLE]`)
+  - **The gate blocks, and the aggregator scores it.** `ci.yml` adds the `fan-out parity` job to
+    `required.needs`. The job reads the fan-out workflow's runs through the API and refuses the merge
+    unless one real run covers the producer files the branch changes. A run counts when its commit is
+    an ancestor of the branch head and no producer file changed after it.
+  - **A red now reaches a human on two surfaces.** The job reds the pull request. It also warns on
+    every pull request while the newest fan-out on main is not green, and while the daily schedule
+    stopped producing runs. That second surface is the rider `[FANOUT-RED-IS-INVISIBLE]`.
+  - **The reader tells the classes apart.** `PARITY_DEFECT` means the AlpenFlight parity specs went
+    red over a real legacy export. `COULD_NOT_RUN` means the chain broke first, which is where a cold
+    NuGet cache lands; it blocks, and it never reads as a parity verdict.
+    `NO_RUN_COVERS_THESE_PRODUCER_FILES` means the fan-out did not run. Real historical runs score
+    each class: run 32102550688 reads `PARITY_DEFECT`, run 31775231378 reads `COULD_NOT_RUN`, and run
+    31123658151 reads `COULD_NOT_RUN` from cancelled legacy builds.
+  - **The gate arms on this branch today.** T-51 changed 20 files under `alpenflight/migration-bundle`
+    and `alpenflight/migration-tool`, so the journey needs one green fan-out dispatch on
+    `integration/J-32` before it merges. T-12 and T-14 change the same trees.
+  - **Residual limit, stated in the failure message.** The gate arms only on the two producer trees
+    whose legacy SELECT no synthetic bundle exercises. A server-side ingest change, a Flyway change or
+    a spec change reaches the real fan-out and does not arm this gate.
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
@@ -411,7 +430,6 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-24 — [S2] `e2e/tsconfig.json` module resolution + an e2e lint/typecheck lane
 - [ ] T-25 — [S2] widen the absolute-date guard to the five unread fields
 - [ ] T-26 — [S2] theme guards: protocol-relative URLs + wire or delete `check-theme-load.sh`
-- [ ] T-27 — [S2] make a fan-out red visible
 - [ ] T-28 — [S2] `RequestIdFilter` MDC key matches the logback pattern
 - [ ] T-29 — [S2] give each tenant-isolation IT its own club identity
 - [ ] T-30 — [S2] persons detail route may be shadowed by the list glob

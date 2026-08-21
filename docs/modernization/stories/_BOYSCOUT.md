@@ -145,12 +145,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   user through the Keycloak admin API (`join-request.spec.ts:57-62`). J-19 found this while fixing a
   stale assertion that had named the pre-J-12a landing path. Not J-19's surface (password recovery),
   so it rides the next journey over the signup funnel. *(seam: a real-idp spec for bare `/signup`)*
-- **[FANOUT-RED-IS-INVISIBLE]** [S2] `alpenflight proof fan-out` failed on 8 consecutive scheduled
-  runs (2026-08-08 to 2026-08-15) and nothing surfaced it; the operator learned it from the J-19
-  carve. A scheduled red gates no PR. J-30 gave the nightly loud surfacing and the fan-out never got
-  it. Give the fan-out the same treatment, or fold its verdict into a surface the operator already
-  reads. *(seam: `alpenflight-proof-fanout.yml` result surfacing)*
-  [[project_nightly_e2e_dead_stack_silent_hang]]
 
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 

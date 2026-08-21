@@ -14,7 +14,7 @@ AGGREGATOR_JOB_ID = "required"
 
 FALSY_VALUES = ("", "false", "0")
 
-PRE_FIX_AGGREGATION_THAT_SCORED_EVERY_SKIP_AS_SUCCESS = """
+PRE_GUARD_AGGREGATION_THAT_SCORED_EVERY_SKIP_AS_SUCCESS_AND_AGGREGATED_NO_FANOUT_JOB = """
 fail=0
 for pair in \
     "changes:$R_CHANGES" \
@@ -238,7 +238,7 @@ class Scenario:
     job_results: dict[str, str]
     expect_required_red: bool
     changes_result: str = "success"
-    permits_pre_fix_gate_to_pass: bool = field(default=False)
+    permits_pre_guard_aggregation_to_pass: bool = field(default=False)
 
 
 LANE_LIVE = {"next": "true", "docs_only": "false", "troubleshooting": "false"}
@@ -260,7 +260,7 @@ SCENARIOS = [
         LANE_LIVE,
         {"alpenflight-profile-proof": "skipped"},
         True,
-        permits_pre_fix_gate_to_pass=True,
+        permits_pre_guard_aggregation_to_pass=True,
     ),
     Scenario(
         "live lane, alpenflight-proof SKIPPED",
@@ -268,7 +268,7 @@ SCENARIOS = [
         LANE_LIVE,
         {"alpenflight-proof": "skipped"},
         True,
-        permits_pre_fix_gate_to_pass=True,
+        permits_pre_guard_aggregation_to_pass=True,
     ),
     Scenario(
         "live lane, alpenflight-proof FAILED",
@@ -300,8 +300,25 @@ SCENARIOS = [
         LANE_LIVE,
         {"alpenflight-profile-proof": "skipped"},
         True,
-        permits_pre_fix_gate_to_pass=True,
+        permits_pre_guard_aggregation_to_pass=True,
     ),
+    Scenario(
+        "live lane, fan-out parity FAILED",
+        "pull_request",
+        LANE_LIVE,
+        {"alpenflight-fanout-parity": "failure"},
+        True,
+        permits_pre_guard_aggregation_to_pass=True,
+    ),
+    Scenario(
+        "live lane, fan-out parity SKIPPED",
+        "pull_request",
+        LANE_LIVE,
+        {"alpenflight-fanout-parity": "skipped"},
+        True,
+        permits_pre_guard_aggregation_to_pass=True,
+    ),
+    Scenario("main push, fan-out parity is pull-request-only", "push", LANE_LIVE, {}, False),
     Scenario("detect changes FAILED", "pull_request", LANE_LIVE, {}, True, changes_result="failure"),
     Scenario(
         "detect changes SKIPPED",
@@ -310,7 +327,7 @@ SCENARIOS = [
         {},
         True,
         changes_result="skipped",
-        permits_pre_fix_gate_to_pass=True,
+        permits_pre_guard_aggregation_to_pass=True,
     ),
 ]
 
@@ -382,14 +399,14 @@ def main() -> int:
             continue
         print(f"  ok    {scenario.name:<52} required={verdict}")
 
-        pre_fix_passed, _ = run_gate(PRE_FIX_AGGREGATION_THAT_SCORED_EVERY_SKIP_AS_SUCCESS, env)
-        if scenario.permits_pre_fix_gate_to_pass and not pre_fix_passed:
+        pre_guard_passed, _ = run_gate(PRE_GUARD_AGGREGATION_THAT_SCORED_EVERY_SKIP_AS_SUCCESS_AND_AGGREGATED_NO_FANOUT_JOB, env)
+        if scenario.permits_pre_guard_aggregation_to_pass and not pre_guard_passed:
             failures.append(
-                f"{scenario.name}: the pre-fix aggregation was expected to score this input class "
+                f"{scenario.name}: the pre-guard aggregation was expected to score this input class "
                 "as success; the scenario no longer proves the class was uncovered"
             )
-        if not scenario.permits_pre_fix_gate_to_pass and pre_fix_passed != (not scenario.expect_required_red):
-            failures.append(f"{scenario.name}: the pre-fix aggregation disagrees outside the skip class")
+        if not scenario.permits_pre_guard_aggregation_to_pass and pre_guard_passed != (not scenario.expect_required_red):
+            failures.append(f"{scenario.name}: the pre-guard aggregation disagrees outside the uncovered classes")
 
     if failures:
         print("::error title=required-gate selftest failed::" + failures[0].splitlines()[0], file=sys.stderr)

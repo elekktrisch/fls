@@ -104,6 +104,9 @@ jobs:
       - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
         run: python3 .github/scripts/required-gate-reds-when-a-required-job-skips-its-live-lane.py
 
+      - name: Fan-out verdict-reader guard (J-32 — the reader must still tell a parity defect from a chain that could not run, and must still find the fan-out job and its parity step by name)
+        run: python3 .github/scripts/fanout-parity-verdict.py --selftest
+
       - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
         run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
 
@@ -2423,6 +2426,44 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  alpenflight-fanout-parity:
+    name: fan-out parity
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out every ref so the gate can tell which commit a fan-out run covered
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Warn on every pull request while the newest fan-out on main is not green, so a scheduled red cannot rot unread (informs only, the next step is the gate)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/fanout-parity-verdict.py --report-latest-verdict-on-main
+
+      - name: Refuse the merge unless a real fan-out proved the producer files this branch changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 .github/scripts/fanout-parity-verdict.py \
+            --base-sha "$PULL_REQUEST_BASE_SHA" \
+            --head-sha "$PULL_REQUEST_HEAD_SHA"
+
   # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
@@ -2460,9 +2501,10 @@ jobs:
   # troubleshooting mode gets its own hard-fail step instead of relying on the
   # heavy lane's skips.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge]
+    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge, alpenflight-fanout-parity]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -2506,12 +2548,14 @@ jobs:
           R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
           R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e-merge.result }}
+          R_FANOUT_PARITY: ${{ needs.alpenflight-fanout-parity.result }}
           HEAVY_LANE_STOOD_DOWN: ${{ (needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
           MOCK_E2E_LANE_STOOD_DOWN: ${{ (github.event_name == 'push' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          FANOUT_PARITY_LANE_STOOD_DOWN: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
         run: |
           set -uo pipefail
-          printf "  heavy lane stood down for this event: %s (mock-e2e lane: %s)\n\n" \
-            "$HEAVY_LANE_STOOD_DOWN" "$MOCK_E2E_LANE_STOOD_DOWN"
+          printf "  heavy lane stood down for this event: %s (mock-e2e lane: %s, fan-out parity lane: %s)\n\n" \
+            "$HEAVY_LANE_STOOD_DOWN" "$MOCK_E2E_LANE_STOOD_DOWN" "$FANOUT_PARITY_LANE_STOOD_DOWN"
           fail=0
           for job_result_and_permitted_skip in \
               "changes|$R_CHANGES|false" \
@@ -2520,7 +2564,8 @@ jobs:
               "alpenflight-auth-realm-shape|$R_AUTH|$HEAVY_LANE_STOOD_DOWN" \
               "alpenflight-proof|$R_PROOF|$HEAVY_LANE_STOOD_DOWN" \
               "alpenflight-profile-proof|$R_PROFILE_PROOF|$HEAVY_LANE_STOOD_DOWN" \
-              "alpenflight-mock-e2e-merge|$R_MOCK_E2E|$MOCK_E2E_LANE_STOOD_DOWN" ; do
+              "alpenflight-mock-e2e-merge|$R_MOCK_E2E|$MOCK_E2E_LANE_STOOD_DOWN" \
+              "alpenflight-fanout-parity|$R_FANOUT_PARITY|$FANOUT_PARITY_LANE_STOOD_DOWN" ; do
             IFS='|' read -r name result skip_is_permitted <<< "$job_result_and_permitted_skip"
             case "$result" in
               success)
@@ -2537,6 +2582,6 @@ jobs:
             esac
           done
           if [ "$fail" != "0" ]; then
-            echo "::error title=required is red::A job above failed, or it skipped while next=='true' and docs_only!='true'. RESIDUAL LIMIT — this gate reads JOB RESULTS for the jobs in its own needs list only: it cannot see a step a job swallowed with continue-on-error, it cannot see a spec a job's command never selected, and it does not cover alpenflight-dashboard-proof, which is deliberately non-blocking (its red shows as a red check on the PR, not as a merge block)."
+            echo "::error title=required is red::A job above failed, or it skipped while next=='true' and docs_only!='true'. RESIDUAL LIMIT — this gate reads JOB RESULTS for the jobs in its own needs list only: it cannot see a step a job swallowed with continue-on-error, it cannot see a spec a job's command never selected, it does not cover alpenflight-dashboard-proof, which is deliberately non-blocking (its red shows as a red check on the PR, not as a merge block), and the fan-out parity job it now aggregates arms only on the producer trees that job's own failure message names."
           fi
           [ "$fail" = "0" ]
