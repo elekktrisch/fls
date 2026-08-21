@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class PersonFlightTimeCreditMapper implements Mapper {
@@ -56,6 +57,11 @@ public final class PersonFlightTimeCreditMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.PERSON);
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(PERSON_ID);
     }
 
     @Override

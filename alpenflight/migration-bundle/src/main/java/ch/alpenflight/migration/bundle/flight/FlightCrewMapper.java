@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class FlightCrewMapper implements Mapper {
@@ -57,6 +58,11 @@ public final class FlightCrewMapper implements Mapper {
     @Override
     public List<ReferenceLookup> referenceLookups() {
         return List.of(new ReferenceLookup(FLIGHT_CREW_TYPE_ID, "t_flight_crew_type"));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(PERSON_ID);
     }
 
     @Override

@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class AircraftMapper implements Mapper {
@@ -115,6 +116,11 @@ public final class AircraftMapper implements Mapper {
                         FLIGHT_OPERATING_COUNTER_UNIT_TYPE_ID, "t_counter_unit_type"),
                 new ReferenceLookup(
                         ENGINE_OPERATING_COUNTER_UNIT_TYPE_ID, "t_counter_unit_type"));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(AIRCRAFT_OWNER_PERSON_ID, HOMEBASE_ID);
     }
 
     @Override

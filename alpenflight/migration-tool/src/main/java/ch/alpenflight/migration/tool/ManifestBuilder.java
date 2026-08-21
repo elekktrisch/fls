@@ -2,6 +2,9 @@ package ch.alpenflight.migration.tool;
 
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.KnownMappers;
+import ch.alpenflight.migration.bundle.Manifest;
+import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import ch.alpenflight.migration.bundle.SeedReferenceUuids;
 import ch.alpenflight.migration.bundle.identity.ClubStateMapper;
@@ -13,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 public final class ManifestBuilder {
@@ -31,16 +35,15 @@ public final class ManifestBuilder {
     public static ServerBundleManifestMirror build(LegacyJdbcReader reader,
                                        List<EntityType> registeredEntities,
                                        String deploymentName) {
-        Map<EntityType, EntityPolicy> policies = new EnumMap<>(EntityType.class);
-        for (EntityType entity : registeredEntities) {
-            policies.put(entity, toEntityPolicy(MapperLegacyBindings.portPolicy(entity)));
-        }
+        Map<EntityType, EntityPolicy> policies =
+                entityPoliciesFor(registeredEntities, KnownMappers.all());
         Map<EntityType, String> unmapped = new EnumMap<>(EntityType.class);
         for (EntityType entity : EntityType.values()) {
             if (!policies.containsKey(entity)) {
                 unmapped.put(entity, UNMAPPED_REASON);
             }
         }
+        scoreAgainstTheReviewedCrossTenantGrants(policies, unmapped);
         List<ServerBundleManifestMirror.ClubDeclaration> clubs = readClubDeclarations(reader);
         UUID arbitraryFirstClubAsPrimary =
                 clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
@@ -48,17 +51,77 @@ public final class ManifestBuilder {
                 arbitraryFirstClubAsPrimary, policies, unmapped);
     }
 
-    private static EntityPolicy toEntityPolicy(MapperLegacyBindings.PortPolicy policy) {
+    public static Map<EntityType, EntityPolicy> entityPoliciesFor(
+            List<EntityType> registeredEntities, List<Mapper> producerRegistry) {
+        Map<EntityType, Set<String>> crossTenantColumnsByEntity =
+                crossTenantColumnsDeclaredBy(producerRegistry);
+        Map<EntityType, EntityPolicy> policies = new EnumMap<>(EntityType.class);
+        for (EntityType entity : registeredEntities) {
+            policies.put(entity, toEntityPolicy(
+                    MapperLegacyBindings.portPolicy(entity),
+                    crossTenantColumnsByEntity.getOrDefault(entity, Set.of())));
+        }
+        rejectAnUnverifiableEmptyDeclaration(policies);
+        return policies;
+    }
+
+    static void scoreAgainstTheReviewedCrossTenantGrants(
+            Map<EntityType, EntityPolicy> policies, Map<EntityType, String> unmapped) {
+        try {
+            new Manifest(SCHEMA_VERSION, policies, unmapped);
+        } catch (IllegalArgumentException rejected) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "The manifest this export would write is not accepted by the reviewed "
+                            + "cross-tenant grant table: " + rejected.getMessage(), rejected);
+        }
+    }
+
+    private static Map<EntityType, Set<String>> crossTenantColumnsDeclaredBy(
+            List<Mapper> producerRegistry) {
+        Map<EntityType, Set<String>> byEntity = new EnumMap<>(EntityType.class);
+        for (Mapper mapper : producerRegistry) {
+            byEntity.put(mapper.entityType(), mapper.crossTenantForeignKeyColumns());
+        }
+        return byEntity;
+    }
+
+    private static void rejectAnUnverifiableEmptyDeclaration(
+            Map<EntityType, EntityPolicy> policies) {
+        Set<EntityType> grantedButSilent = new TreeSet<>();
+        for (Map.Entry<EntityType, EntityPolicy> entry : policies.entrySet()) {
+            boolean hasReviewedGrant =
+                    Manifest.reviewedCrossTenantGrantsByEntity().containsKey(entry.getKey());
+            if (hasReviewedGrant && entry.getValue().tenantBypassFks().isEmpty()) {
+                grantedButSilent.add(entry.getKey());
+            }
+        }
+        if (!grantedButSilent.isEmpty()) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Producer emits " + grantedButSilent + " but declares no cross-tenant "
+                            + "foreign-key column for them, while the reviewed grant table names "
+                            + Manifest.reviewedCrossTenantGrantsByEntity().keySet()
+                            + " as cross-tenant. An empty declaration makes the manifest "
+                            + "allow-list check unverifiable: it would pass because nothing "
+                            + "reached it, not because nothing is wrong. Declare the columns on "
+                            + "the mapper's crossTenantForeignKeyColumns(), or remove the entity "
+                            + "from the reviewed grant table. Residual limit: this check scores "
+                            + "only the entities the exporter registers, so an entity absent from "
+                            + "ExportCommand.registeredEntities() stays unscored until it ships.");
+        }
+    }
+
+    private static EntityPolicy toEntityPolicy(
+            MapperLegacyBindings.PortPolicy policy, Set<String> crossTenantForeignKeyColumns) {
         return switch (policy) {
             case FULL_PORT -> new EntityPolicy(
                     EntityPolicy.PortPolicy.FULL_PORT,
                     EntityPolicy.TombstonePolicy.PORT_ALL,
-                    Set.of(),
+                    crossTenantForeignKeyColumns,
                     List.of());
             case SYSTEM_GLOBAL -> new EntityPolicy(
                     EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
                     EntityPolicy.TombstonePolicy.SKIP_DELETED,
-                    Set.of(),
+                    crossTenantForeignKeyColumns,
                     List.of());
         };
     }

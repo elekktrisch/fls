@@ -377,7 +377,15 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **The scheduled-job fixture names the real producer.** `PlanningDayNotificationJob.java:56` writes
     `PlanningNotificationRun` with the club id as the target id, and `PiiRedactor.java:62` writes
     `[redacted]` for every field of an unlisted entity.
-- [ ] T-51 — [S1 BLOCKER] the manifest column-level grant check reads `EntityPolicy.tenantBypassFks`, but `ManifestBuilder.java:56,61` hardcodes `Set.of()`, so the T-06 guard never scores a real bundle
+- [x] T-51 — [S1 BLOCKER] the manifest column-level grant check reads `EntityPolicy.tenantBypassFks`, but `ManifestBuilder.java:56,61` hardcodes `Set.of()`, so the T-06 guard never scores a real bundle
+  - **Confirmed by measurement, then bound to the producer.** Every one of the twelve granted
+    entities declared an empty set. Each mapper now declares the cross-tenant foreign-key columns
+    it puts on the wire, `ManifestBuilder` derives `tenantBypassFks` from that registry, and the
+    exporter scores its own manifest before it writes a bundle.
+  - **Loud where it cannot verify.** An entity that holds a reviewed grant but declares nothing
+    fails the export. The message states the residual limit: the check scores only the entities
+    `ExportCommand.registeredEntities()` names, so `PERSON_CATEGORY_ASSIGNMENT` and `AUDIT_LOG`
+    stay unscored until the exporter registers them.
 - [x] T-52 — [S1 BLOCKER] T-02 removed the last executing lane for both showcase-seed proofs and `required` scores `skipped` as success, so two surfaces this journey edits are now ungated (supersedes T-42)
 - [ ] T-53 — [S1 BLOCKER] `fan-out parity` is schedule and dispatch only and sits outside `required.needs`, so the mapper edits in T-12 and T-14 would land with no gate; ship this before them (supersedes T-27)
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation

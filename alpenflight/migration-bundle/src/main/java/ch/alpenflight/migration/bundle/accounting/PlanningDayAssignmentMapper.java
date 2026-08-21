@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class PlanningDayAssignmentMapper implements Mapper {
@@ -66,6 +67,11 @@ public final class PlanningDayAssignmentMapper implements Mapper {
                 new ForeignKeyColumn(ASSIGNED_PERSON_ID, EntityType.PERSON),
                 new ForeignKeyColumn(
                         ASSIGNMENT_TYPE_ID, EntityType.PLANNING_DAY_ASSIGNMENT_TYPE));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(ASSIGNED_PERSON_ID);
     }
 
     @Override

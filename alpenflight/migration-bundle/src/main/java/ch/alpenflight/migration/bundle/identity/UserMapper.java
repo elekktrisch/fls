@@ -83,6 +83,11 @@ public final class UserMapper implements Mapper {
     }
 
     @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(PERSON_ID);
+    }
+
+    @Override
     public void writeNdjson(ResultSet source, JsonGenerator target)
             throws SQLException, IOException {
         target.writeStartObject();

@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 
 public interface Mapper {
 
@@ -22,6 +23,10 @@ public interface Mapper {
 
     default List<ForeignKeyColumn> foreignKeyColumns() {
         return List.of();
+    }
+
+    default Set<String> crossTenantForeignKeyColumns() {
+        return Set.of();
     }
 
     void writeNdjson(ResultSet source, JsonGenerator target) throws SQLException, IOException;

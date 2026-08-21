@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class AircraftAircraftStateMapper implements Mapper {
@@ -59,6 +60,11 @@ public final class AircraftAircraftStateMapper implements Mapper {
     public List<ReferenceLookup> referenceLookups() {
         return List.of(
                 new ReferenceLookup(AIRCRAFT_STATE_ID, "t_aircraft_state"));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(NOTICED_BY_PERSON_ID);
     }
 
     @Override
