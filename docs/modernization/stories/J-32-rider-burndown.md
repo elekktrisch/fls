@@ -461,6 +461,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **The case now runs in the gating lane.** The skip is deleted, the 180-second budget stays, and the
     case moved after the cross-tenant 404 case: the describe is serial, so the rename is now the last
     case and a rename failure cannot mask the three that pass before it.
+- [ ] T-66 — [S1 BLOCKER] a migrated Location whose legacy ICAO does not match `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$` can never be saved: `LocationMapper.java:103` writes the raw legacy value past `Location.validateIcao`, and both `Location.java:28` and `locations-edit.page.ts:52` then refuse it. The operator chose on 2026-08-21 to keep the stored value and enforce the pattern only when the operator changes the field
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
