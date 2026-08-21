@@ -433,7 +433,21 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Residual limit, stated in the failure message.** A run-time member name, a route installer
     named outside the convention, a renaming re-export outside the lane, and a new lane directory
     that joins the Playwright project but not the two file lists all still pass.
-- [ ] T-64 — [S2] `AuditRedactionConfigStartupGuard.java:29` is wired by `@Component` alone and every test builds it by hand, so deleting the annotation reds nothing
+- [x] T-64 — [S2] `AuditRedactionConfigStartupGuard.java:29` is wired by `@Component` alone and every test builds it by hand, so deleting the annotation reds nothing
+  - **The review is right, and the deletion was scored.** With the annotation deleted, `test` over
+    `ch.alpenflight.audit.*`, `ApplicationContextTest` and `ApplicationModulesTest` stayed green: 125
+    tests, 0 failures. `ApplicationContextTest` boots the real application and it started without the
+    guard. The two guard tests build the object by hand (`AuditRedactionConfigStartupGuardTest.java:138`)
+    or register the class explicitly on an `ApplicationContextRunner`
+    (`AuditRedactionConfigStartupGuardTest.java:102`), so neither reads the annotation.
+  - **AC 4 now has a boot-level assertion.** `ApplicationContextTest.java:45` runs the real
+    `SpringApplication` over `AlpenFlightApplication` with one planted redaction rule that names a type
+    no class declares, and asserts the start fails with the refusal message. The test covers both halves
+    of AC 4: the guard is component-scanned into the production context, and the application refuses to
+    start. Teeth verified: with `@Component` deleted it reds with "Expecting code to raise a throwable".
+  - **Residual limit.** The test runs the real `SpringApplication` on the TEST classpath, not the
+    packaged boot jar. A jar-level regression test costs a `bootJar` plus a process launch plus a health
+    probe on every `check`, so this journey does not add one.
 - [ ] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
