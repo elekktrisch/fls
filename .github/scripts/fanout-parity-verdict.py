@@ -8,7 +8,8 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,6 +29,17 @@ LEGACY_CREATE_FLOW_SPEC_STEP_NAME_PREFIX = "Run T-04 legacy create-flow spec"
 PRODUCER_PATHS_ONLY_THE_REAL_FANOUT_VALIDATES = (
     "alpenflight/migration-bundle",
     "alpenflight/migration-tool",
+)
+
+BRANCHES_A_PUSH_MUST_ARM_THE_FANOUT_ON = ("main", "integration/**")
+BRANCH_PREVIEW_STEP_NAMES_A_PUSH_RUN_MUST_ALSO_REACH = (
+    "Compute fan-out branch-preview destination",
+    "Deploy fan-out gallery to gh-pages (branch preview)",
+    "Emit fan-out preview URL",
+    "Link-check the DEPLOYED branch-preview gallery",
+)
+EVENT_CONDITION_THE_BRANCH_PREVIEW_STEPS_MUST_CARRY = (
+    "(github.event_name == 'workflow_dispatch' || github.event_name == 'push')"
 )
 
 SPECS_OF_THE_PARITY_STEP_THAT_ASSERT_MIGRATED_DATA = (
@@ -74,10 +86,25 @@ PRECEDENCE_WHEN_COVERING_RUNS_DISAGREE = (
     "PRECEDENCE WHEN COVERING RUNS DISAGREE — the newest covering run whose parity step went red "
     "decides, and this gate refuses the merge. An older green run answers only for a newer run "
     "whose parity step passed, or for a newer run that never reached the parity step, such as a "
-    "chain that could not build the legacy stack. A newer green run over the same producer files "
-    "replaces an older red one, so a red never blocks this branch permanently: repair the cause, "
-    "then dispatch the fan-out again. RESIDUAL LIMIT of this rule — a second attempt that passes "
-    "clears a red the first attempt found, so an intermittent parity defect can still reach main."
+    "chain that could not build the legacy stack. A run that is still in flight supersedes every "
+    "older red run, because the commit under test can repair a defect outside the producer trees; "
+    "this gate then waits for the run in flight instead of naming the older red. A newer green run "
+    "over the same producer files replaces an older red one, so a red never blocks this branch "
+    "permanently: repair the cause and push, and the fan-out arms itself again. RESIDUAL LIMIT of "
+    "this rule — a second attempt that passes clears a red the first attempt found, so an "
+    "intermittent parity defect can still reach main."
+)
+
+HOW_THE_FANOUT_ARMS_ITSELF = (
+    "HOW THE FAN-OUT ARMS — a git push arms it, and nobody dispatches it by hand. A push to main "
+    "or to an integration branch that changes "
+    f"{' or '.join(PRODUCER_PATHS_ONLY_THE_REAL_FANOUT_VALIDATES)} starts the fan-out, and this "
+    "gate waits for that run to finish before it reports a verdict. When the branch head moves "
+    "past the covering run that refuses the merge, this gate starts a fresh fan-out on the branch "
+    "head and waits for that one, so a repair outside the producer trees also re-proves itself. A "
+    "push that changes no producer file starts no fan-out, and this gate then reports that the "
+    "fan-out is NOT REQUIRED for that change. It never reports a proven parity for a change no "
+    "fan-out judged."
 )
 
 PARITY_PROVEN = "PARITY_PROVEN"
@@ -87,6 +114,7 @@ PARITY_STEP_RED_SPEC_UNNAMED = "PARITY_STEP_RED_SPEC_UNNAMED"
 PARITY_PROVEN_RUN_RED_ELSEWHERE = "PARITY_PROVEN_RUN_RED_ELSEWHERE"
 COULD_NOT_RUN = "COULD_NOT_RUN"
 STILL_RUNNING = "STILL_RUNNING"
+A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED = "A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED"
 JOB_NAMES_DRIFTED = "JOB_NAMES_DRIFTED"
 NO_RUN_COVERS_THESE_PRODUCER_FILES = "NO_RUN_COVERS_THESE_PRODUCER_FILES"
 NO_PRODUCER_FILE_CHANGED = "NO_PRODUCER_FILE_CHANGED"
@@ -107,9 +135,16 @@ VERDICT_HEADLINE = {
     ),
     COULD_NOT_RUN: "the fan-out COULD NOT RUN — it never reached the AlpenFlight parity specs",
     STILL_RUNNING: "the fan-out is STILL RUNNING over these producer files",
+    A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED: (
+        "a fan-out is STILL RUNNING over these producer files and it supersedes an older red run, "
+        "so no verdict is final yet"
+    ),
     JOB_NAMES_DRIFTED: "the verdict reader COULD NOT FIND the fan-out job or its parity step",
     NO_RUN_COVERS_THESE_PRODUCER_FILES: "NO fan-out run covers the producer files this branch changes",
-    NO_PRODUCER_FILE_CHANGED: "this branch changes no producer file, so the fan-out gates nothing here",
+    NO_PRODUCER_FILE_CHANGED: (
+        "this branch changes no producer file, so the fan-out is NOT REQUIRED for this change and "
+        "this gate proves nothing about it"
+    ),
 }
 
 VERDICT_WHAT_TO_DO = {
@@ -137,16 +172,32 @@ VERDICT_WHAT_TO_DO = {
         "NOT a green. A cold NuGet cache that cannot restore the old legacy packages lands here. "
         "Read the failed run, repair the chain, then dispatch it again."
     ),
-    STILL_RUNNING: "Wait for the run to complete, then push again or re-run this gate.",
+    STILL_RUNNING: (
+        "This gate waited for the run this message names and its wait budget ran out before the "
+        "run finished. The run is not red: it has not answered yet. Push again, or re-run this "
+        "job, once the run this message links has completed."
+    ),
+    A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED: (
+        "Read the run in flight this message names, NOT the older red one. The older red run ran "
+        "over the same producer files, and the commit under test can repair its cause outside the "
+        "producer trees, so that older red decides nothing. This gate waited for the run in flight "
+        "and its wait budget ran out. Push again, or re-run this job, once that run has completed."
+    ),
     JOB_NAMES_DRIFTED: (
         "Somebody renamed a job or a step of the fan-out workflow. Update the names this script "
         "binds and re-run its selftest, which pins every name against the workflow file."
     ),
     NO_RUN_COVERS_THESE_PRODUCER_FILES: (
-        "Dispatch the fan-out on this branch and wait for it: "
-        f"gh workflow run {FANOUT_WORKFLOW_FILE_NAME} --ref <this branch>. "
-        "A run counts once its commit is an ancestor of this branch head and no producer file "
-        "changed after it."
+        "This gate started a fan-out on the branch head and no covering run appeared inside its "
+        "wait budget, or it holds no permission to start one. Push again to arm the fan-out. As a "
+        f"last resort, start it by hand: gh workflow run {FANOUT_WORKFLOW_FILE_NAME} --ref <this "
+        "branch>. A run counts once its commit is an ancestor of this branch head and no producer "
+        "file changed after it."
+    ),
+    NO_PRODUCER_FILE_CHANGED: (
+        "Do nothing. This is NOT a proven parity: no fan-out judged this change, and none is "
+        "required, because the change touches no tree whose legacy SELECT only the real fan-out "
+        "exercises."
     ),
 }
 
@@ -187,6 +238,9 @@ class Decision:
     reading: RunReading | None = None
     newest_run: FanoutRun | None = None
     newest_reading: RunReading | None = None
+    superseded_red_run: FanoutRun | None = None
+    superseded_red_reading: RunReading | None = None
+    the_gate_armed_a_fresh_fanout: str = ""
 
 
 class GithubActionsApi:
@@ -388,6 +442,7 @@ def decide(
     history,
     base_sha: str,
     head_sha: str,
+    readings_of_completed_runs: dict[int, RunReading] | None = None,
 ) -> Decision:
     producer_files = history.producer_files_changed_since_merge_base(base_sha, head_sha)
     if not producer_files:
@@ -404,11 +459,37 @@ def decide(
         return Decision(NO_RUN_COVERS_THESE_PRODUCER_FILES, True, producer_files)
 
     newest_run, newest_reading = None, None
+    run_in_flight, reading_in_flight = None, None
     for run in candidates:
-        reading = read_run(api, run, api.jobs_of(run.run_id))
+        remembered = (
+            readings_of_completed_runs.get(run.run_id)
+            if readings_of_completed_runs is not None
+            else None
+        )
+        reading = remembered or read_run(api, run, api.jobs_of(run.run_id))
+        if (
+            readings_of_completed_runs is not None
+            and remembered is None
+            and run.status == "completed"
+        ):
+            readings_of_completed_runs[run.run_id] = reading
         if newest_reading is None:
             newest_run, newest_reading = run, reading
+        if reading.verdict == STILL_RUNNING and reading_in_flight is None:
+            run_in_flight, reading_in_flight = run, reading
         if reading.verdict in READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR:
+            if reading_in_flight is not None:
+                return Decision(
+                    A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED,
+                    True,
+                    producer_files,
+                    run_in_flight,
+                    reading_in_flight,
+                    newest_run,
+                    newest_reading,
+                    superseded_red_run=run,
+                    superseded_red_reading=reading,
+                )
             return Decision(
                 reading.verdict, True, producer_files, run, reading, newest_run, newest_reading
             )
@@ -416,6 +497,16 @@ def decide(
             return Decision(
                 PARITY_PROVEN, False, producer_files, run, reading, newest_run, newest_reading
             )
+    if reading_in_flight is not None:
+        return Decision(
+            STILL_RUNNING,
+            True,
+            producer_files,
+            run_in_flight,
+            reading_in_flight,
+            newest_run,
+            newest_reading,
+        )
     return Decision(
         newest_reading.verdict,
         True,
@@ -468,15 +559,35 @@ def render(decision: Decision) -> str:
                 "red steps beside the parity step: none — the API names no red step, so the job "
                 "itself timed out or was cancelled after the parity step passed"
             )
-    if decision.newest_reading is not None and decision.newest_reading is not reading:
+    if decision.superseded_red_reading is not None:
+        superseded = decision.superseded_red_reading
+        lines.append(
+            f"the older covering run {decision.superseded_red_run.run_id} at "
+            f"{decision.superseded_red_run.head_sha[:12]} reads {superseded.verdict}, and the run "
+            f"in flight above supersedes it: {decision.superseded_red_run.html_url}"
+        )
+        if superseded.red_producer_specs:
+            lines.append(
+                "red specs of the superseded run that assert migrated data: "
+                + ", ".join(superseded.red_producer_specs)
+            )
+        if superseded.red_specs_that_assert_no_migrated_data:
+            lines.append(
+                "red specs of the superseded run that assert no migrated data: "
+                + ", ".join(superseded.red_specs_that_assert_no_migrated_data)
+            )
+    elif decision.newest_reading is not None and decision.newest_reading is not reading:
         lines.append(
             f"the newest covering run {decision.newest_run.run_id} reads "
             f"{decision.newest_reading.verdict}, and the older covering run {decision.run.run_id} "
             f"decides this verdict: {decision.newest_run.html_url}"
         )
+    if decision.the_gate_armed_a_fresh_fanout:
+        lines.append(decision.the_gate_armed_a_fresh_fanout)
     if decision.verdict in VERDICT_WHAT_TO_DO:
         lines.append(VERDICT_WHAT_TO_DO[decision.verdict])
     lines.append(RESIDUAL_LIMIT)
+    lines.append(HOW_THE_FANOUT_ARMS_ITSELF)
     if decision.newest_reading is not None:
         lines.append(PRECEDENCE_WHEN_COVERING_RUNS_DISAGREE)
     return "\n".join(lines)
@@ -489,8 +600,117 @@ def write_step_summary(text: str) -> None:
             summary.write(text + "\n\n")
 
 
-def gate(base_sha: str, head_sha: str, repository: str) -> int:
-    decision = decide(GithubActionsApi(repository), ProducerFileHistory(), base_sha, head_sha)
+@dataclass(frozen=True)
+class WaitBudget:
+    minutes_until_a_covering_run_must_appear: float
+    minutes_until_the_covering_run_must_finish: float
+    seconds_between_polls: float
+
+
+VERDICTS_A_FINISHING_RUN_RESOLVES = (STILL_RUNNING, A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED)
+
+VERDICTS_A_FRESH_FANOUT_ON_THE_BRANCH_HEAD_CAN_ANSWER = (
+    NO_RUN_COVERS_THESE_PRODUCER_FILES,
+    PARITY_DEFECT,
+    UNRELATED_SPEC_RED,
+    PARITY_STEP_RED_SPEC_UNNAMED,
+    PARITY_PROVEN_RUN_RED_ELSEWHERE,
+    COULD_NOT_RUN,
+)
+
+
+def a_fresh_fanout_on_the_branch_head_can_answer(decision: Decision, head_sha: str) -> bool:
+    if decision.verdict not in VERDICTS_A_FRESH_FANOUT_ON_THE_BRANCH_HEAD_CAN_ANSWER:
+        return False
+    return decision.run is None or decision.run.head_sha != head_sha
+
+
+class FanoutStarter:
+    def __init__(self, repository: str, branch: str):
+        self.repository = repository
+        self.branch = branch
+
+    def start(self) -> str:
+        completed = subprocess.run(
+            [
+                "gh",
+                "workflow",
+                "run",
+                FANOUT_WORKFLOW_FILE_NAME,
+                "--repo",
+                self.repository,
+                "--ref",
+                self.branch,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            return (
+                f"this gate could not start a fan-out on {self.branch}: gh workflow run exited "
+                f"{completed.returncode}: {completed.stderr.strip()}"
+            )
+        return (
+            f"this gate started a fan-out on {self.branch}, because the branch head moved past the "
+            "covering run that refuses the merge"
+        )
+
+
+def resolve(
+    api,
+    history,
+    base_sha: str,
+    head_sha: str,
+    budget: WaitBudget,
+    starter=None,
+    now=time.monotonic,
+    sleep=time.sleep,
+) -> Decision:
+    started_at = now()
+    polls = 0
+    started_a_fanout = ""
+    readings_of_completed_runs: dict[int, RunReading] = {}
+    while True:
+        decision = decide(api, history, base_sha, head_sha, readings_of_completed_runs)
+        if started_a_fanout:
+            decision = replace(decision, the_gate_armed_a_fresh_fanout=started_a_fanout)
+        if decision.verdict in VERDICTS_A_FINISHING_RUN_RESOLVES:
+            deadline = budget.minutes_until_the_covering_run_must_finish
+        elif starter is not None and a_fresh_fanout_on_the_branch_head_can_answer(
+            decision, head_sha
+        ):
+            if not started_a_fanout:
+                if polls > 0:
+                    started_a_fanout = starter.start()
+                polls += 1
+                sleep(budget.seconds_between_polls)
+                continue
+            deadline = budget.minutes_until_a_covering_run_must_appear
+        else:
+            return decision
+        if (now() - started_at) / 60.0 >= deadline:
+            return decision
+        polls += 1
+        sleep(budget.seconds_between_polls)
+
+
+def gate(
+    base_sha: str,
+    head_sha: str,
+    repository: str,
+    budget: WaitBudget,
+    branch_a_fresh_fanout_starts_on: str,
+) -> int:
+    decision = resolve(
+        GithubActionsApi(repository),
+        ProducerFileHistory(),
+        base_sha,
+        head_sha,
+        budget,
+        FanoutStarter(repository, branch_a_fresh_fanout_starts_on)
+        if branch_a_fresh_fanout_starts_on
+        else None,
+    )
     report = render(decision)
     print(report)
     write_step_summary(f"### fan-out parity gate\n\n```\n{report}\n```")
@@ -594,6 +814,110 @@ def specs_the_parity_step_drives() -> tuple[str, ...]:
         if inside_the_parity_step:
             specs.extend(match.group(1) for match in SPEC_PATH_IN_THE_WORKFLOW_STEP.finditer(line))
     return tuple(specs)
+
+
+def push_trigger_of_the_fanout_workflow() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    branches: list[str] = []
+    paths: list[str] = []
+    under_the_trigger_block = False
+    inside_the_push_trigger = False
+    key = ""
+    for line in FANOUT_WORKFLOW.read_text(encoding="utf-8").splitlines():
+        if line.strip().startswith("#") or not line.strip():
+            continue
+        if re.match(r"^\S", line):
+            under_the_trigger_block = line.startswith("on:")
+            inside_the_push_trigger = False
+            key = ""
+            continue
+        if not under_the_trigger_block:
+            continue
+        trigger = re.match(r"^  (\S.*)$", line)
+        if trigger:
+            inside_the_push_trigger = trigger.group(1).strip() == "push:"
+            key = ""
+            continue
+        if not inside_the_push_trigger:
+            continue
+        filter_key = re.match(r"^    (\S+):\s*$", line)
+        if filter_key:
+            key = filter_key.group(1)
+            continue
+        item = re.match(r"^      - (.+)$", line)
+        if item and key in ("branches", "paths"):
+            value = item.group(1).strip().strip("'\"")
+            (branches if key == "branches" else paths).append(value)
+    return tuple(branches), tuple(paths)
+
+
+def if_conditions_by_step_name_of_the_fanout_workflow() -> dict[str, str]:
+    conditions: dict[str, str] = {}
+    step_name = ""
+    for line in FANOUT_WORKFLOW.read_text(encoding="utf-8").splitlines():
+        named_step = re.match(r"^      - name: (.+)$", line)
+        if named_step:
+            step_name = named_step.group(1).strip()
+            continue
+        if re.match(r"^      - ", line):
+            step_name = ""
+            continue
+        condition = re.match(r"^        if: (.+)$", line)
+        if condition and step_name:
+            conditions[step_name] = condition.group(1).strip()
+    return conditions
+
+
+def the_fanout_arms_itself_failures() -> list[str]:
+    failures: list[str] = []
+    branches, paths = push_trigger_of_the_fanout_workflow()
+    if not paths:
+        failures.append(
+            f"{FANOUT_WORKFLOW} declares no on.push trigger with a paths filter, so a push arms no "
+            "fan-out and a human must dispatch it by hand; this gate then refuses every merge that "
+            "changes a producer file until somebody remembers"
+        )
+    for producer_path in PRODUCER_PATHS_ONLY_THE_REAL_FANOUT_VALIDATES:
+        if f"{producer_path}/**" not in paths:
+            failures.append(
+                f"{FANOUT_WORKFLOW} on.push.paths does not arm on {producer_path}/**, which this "
+                "gate reads as a producer tree; a push that changes that tree would start no "
+                "fan-out and this gate would refuse the merge with no run to point at"
+            )
+    for path in paths:
+        if path.startswith("!"):
+            continue
+        if not any(
+            path == producer_path or path.startswith(producer_path + "/")
+            for producer_path in PRODUCER_PATHS_ONLY_THE_REAL_FANOUT_VALIDATES
+        ):
+            failures.append(
+                f"{FANOUT_WORKFLOW} on.push.paths arms on {path}, which lies outside the producer "
+                "trees this gate reads; the fan-out costs a full legacy chain, so it must arm only "
+                "on the trees whose legacy SELECT no synthetic bundle exercises"
+            )
+    for branch in BRANCHES_A_PUSH_MUST_ARM_THE_FANOUT_ON:
+        if branch not in branches:
+            failures.append(
+                f"{FANOUT_WORKFLOW} on.push.branches does not list {branch}, so a push there arms "
+                "no fan-out"
+            )
+    conditions = if_conditions_by_step_name_of_the_fanout_workflow()
+    for step_name in BRANCH_PREVIEW_STEP_NAMES_A_PUSH_RUN_MUST_ALSO_REACH:
+        condition = conditions.get(step_name)
+        if condition is None:
+            failures.append(
+                f"{FANOUT_WORKFLOW} has no step named {step_name!r} carrying an if condition; the "
+                "branch-preview gallery deploy is what a reviewer reads, and this guard can no "
+                "longer tell whether a push-armed run reaches it"
+            )
+        elif EVENT_CONDITION_THE_BRANCH_PREVIEW_STEPS_MUST_CARRY not in condition:
+            failures.append(
+                f"{FANOUT_WORKFLOW} step {step_name!r} does not carry "
+                f"{EVENT_CONDITION_THE_BRANCH_PREVIEW_STEPS_MUST_CARRY}, so a push-armed fan-out "
+                "publishes no branch-preview gallery and a human must dispatch the run by hand to "
+                "see the proof"
+            )
+    return failures
 
 
 class FakeGithubActionsApi:
@@ -866,6 +1190,228 @@ def synthetic_input_classes() -> list[tuple[str, Decision]]:
         ),
         two_covering_runs("newer00", PROVEN_SHA),
     )
+    scored(
+        "the newest covering run is still running and an older covering run found a parity defect",
+        FakeGithubActionsApi(
+            [
+                fanout_run(19, "newer00", status="in_progress", conclusion=""),
+                fanout_run(20, PROVEN_SHA),
+            ],
+            {19: [], 20: fanout_jobs("failure", "failure")},
+            {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+        ),
+        two_covering_runs("newer00", PROVEN_SHA),
+    )
+    scored(
+        "the newest covering run is still running and an older covering run proves parity",
+        FakeGithubActionsApi(
+            [
+                fanout_run(21, "newer00", status="in_progress", conclusion=""),
+                fanout_run(22, PROVEN_SHA, conclusion="success"),
+            ],
+            {21: [], 22: fanout_jobs("success")},
+        ),
+        two_covering_runs("newer00", PROVEN_SHA),
+    )
+    return classes
+
+
+class ClockTheSelftestAdvancesOnEverySleep:
+    def __init__(self):
+        self.seconds = 0.0
+
+    def now(self) -> float:
+        return self.seconds
+
+    def sleep(self, seconds: float) -> None:
+        self.seconds += seconds
+
+
+class ApiThatReplaysOneRunListPerDecision:
+    def __init__(
+        self,
+        run_lists_newest_first: list[list[FanoutRun]],
+        jobs_by_run_id: dict[int, list[dict]],
+        log_by_job_id: dict[int, str] | None = None,
+    ):
+        self.run_lists_newest_first = run_lists_newest_first
+        self.jobs_by_run_id = jobs_by_run_id
+        self.log_by_job_id = log_by_job_id or {}
+        self.decisions = 0
+        self.jobs_read_by_run_id: dict[int, int] = {}
+
+    def fanout_runs_newest_first(self) -> list[FanoutRun]:
+        runs = self.run_lists_newest_first[
+            min(self.decisions, len(self.run_lists_newest_first) - 1)
+        ]
+        self.decisions += 1
+        return runs
+
+    def jobs_of(self, run_id: int) -> list[dict]:
+        self.jobs_read_by_run_id[run_id] = self.jobs_read_by_run_id.get(run_id, 0) + 1
+        return self.jobs_by_run_id.get(run_id, [])
+
+    def job_log(self, job_id: int) -> str:
+        return self.log_by_job_id.get(job_id, "")
+
+
+class StarterTheSelftestCounts:
+    def __init__(self):
+        self.starts = 0
+
+    def start(self) -> str:
+        self.starts += 1
+        return "this gate started a fan-out on integration/J-32, because the branch head moved past the covering run that refuses the merge"
+
+
+SELFTEST_WAIT_BUDGET = WaitBudget(
+    minutes_until_a_covering_run_must_appear=2.0,
+    minutes_until_the_covering_run_must_finish=5.0,
+    seconds_between_polls=60.0,
+)
+
+OLDER_RED_SHA = "oldred0"
+IN_FLIGHT_SHA = "newer00"
+
+
+POLLS_A_FULL_WAIT_BUDGET_SPENDS = int(
+    SELFTEST_WAIT_BUDGET.minutes_until_the_covering_run_must_finish
+    * 60
+    / SELFTEST_WAIT_BUDGET.seconds_between_polls
+)
+
+
+def the_gate_asks_the_api_about_a_completed_run_once_failures() -> list[str]:
+    in_flight = fanout_run(41, IN_FLIGHT_SHA, status="in_progress", conclusion="")
+    completed_red = fanout_run(42, OLDER_RED_SHA)
+    api = ApiThatReplaysOneRunListPerDecision(
+        [[in_flight, completed_red]],
+        {41: [], 42: fanout_jobs("failure", "failure")},
+        {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+    )
+    clock = ClockTheSelftestAdvancesOnEverySleep()
+    decision = resolve(
+        api,
+        FakeProducerFileHistory(
+            {
+                ("base000", HEAD): TOUCHED_MAPPER,
+                (IN_FLIGHT_SHA, HEAD): (),
+                (OLDER_RED_SHA, HEAD): (),
+            }
+        ),
+        "base000",
+        HEAD,
+        SELFTEST_WAIT_BUDGET,
+        None,
+        clock.now,
+        clock.sleep,
+    )
+    failures = []
+    if decision.verdict != A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED:
+        failures.append(
+            f"the gate that waits reads {decision.verdict} while a run is in flight over an older "
+            f"red, expected {A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED}"
+        )
+    if api.jobs_read_by_run_id.get(42) != 1:
+        failures.append(
+            f"the gate asked the API about completed run 42 "
+            f"{api.jobs_read_by_run_id.get(42)} times over "
+            f"{POLLS_A_FULL_WAIT_BUDGET_SPENDS} polls; a completed run never changes its answer, "
+            "and re-reading it spends the GITHUB_TOKEN rate limit that the wait already stretches"
+        )
+    if api.jobs_read_by_run_id.get(41, 0) <= 1:
+        failures.append(
+            "the gate asked the API about the run in flight only once, so it caches a run that has "
+            "not answered yet and would wait out its whole budget over a stale reading"
+        )
+    return failures
+
+
+def wait_input_classes() -> list[tuple[str, Decision, int]]:
+    classes = []
+
+    def resolved(name: str, api, history, starter=None) -> None:
+        clock = ClockTheSelftestAdvancesOnEverySleep()
+        decision = resolve(
+            api,
+            history,
+            "base000",
+            HEAD,
+            SELFTEST_WAIT_BUDGET,
+            starter,
+            clock.now,
+            clock.sleep,
+        )
+        classes.append((name, decision, starter.starts if starter else 0))
+
+    in_flight = fanout_run(31, IN_FLIGHT_SHA, status="in_progress", conclusion="")
+    proven = fanout_run(31, IN_FLIGHT_SHA, conclusion="success")
+    covering_the_run_in_flight = FakeProducerFileHistory(
+        {("base000", HEAD): TOUCHED_MAPPER, (IN_FLIGHT_SHA, HEAD): ()}
+    )
+
+    resolved(
+        "the gate waits for the run in flight and reports the parity it proved",
+        ApiThatReplaysOneRunListPerDecision(
+            [[in_flight], [in_flight], [proven]], {31: fanout_jobs("success")}
+        ),
+        covering_the_run_in_flight,
+    )
+    resolved(
+        "the gate waits for the run in flight and reports the parity defect it found",
+        ApiThatReplaysOneRunListPerDecision(
+            [[in_flight], [in_flight], [fanout_run(31, IN_FLIGHT_SHA)]],
+            {31: fanout_jobs("failure", "failure")},
+            {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+        ),
+        covering_the_run_in_flight,
+    )
+    resolved(
+        "the gate gives up on the run in flight when its wait budget runs out",
+        ApiThatReplaysOneRunListPerDecision([[in_flight]], {31: []}),
+        covering_the_run_in_flight,
+    )
+
+    older_red = fanout_run(32, OLDER_RED_SHA)
+    fresh_in_flight = fanout_run(33, IN_FLIGHT_SHA, status="in_progress", conclusion="")
+    fresh_proven = fanout_run(33, IN_FLIGHT_SHA, conclusion="success")
+    resolved(
+        "the gate starts a fan-out when the branch head moved past the run that refuses the merge",
+        ApiThatReplaysOneRunListPerDecision(
+            [
+                [older_red],
+                [older_red],
+                [fresh_in_flight, older_red],
+                [fresh_proven, older_red],
+            ],
+            {32: fanout_jobs("failure", "failure"), 33: fanout_jobs("success")},
+            {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+        ),
+        FakeProducerFileHistory(
+            {
+                ("base000", HEAD): TOUCHED_MAPPER,
+                (OLDER_RED_SHA, HEAD): (),
+                (IN_FLIGHT_SHA, HEAD): (),
+            }
+        ),
+        StarterTheSelftestCounts(),
+    )
+    resolved(
+        "the gate starts no fan-out when the run that refuses the merge ran on the branch head",
+        ApiThatReplaysOneRunListPerDecision(
+            [[fanout_run(34, HEAD)]],
+            {34: fanout_jobs("failure", "failure")},
+            {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+        ),
+        FakeProducerFileHistory({("base000", HEAD): TOUCHED_MAPPER, (HEAD, HEAD): ()}),
+        StarterTheSelftestCounts(),
+    )
+    resolved(
+        "the gate starts a fan-out when no run covers, and refuses the merge when none appears",
+        ApiThatReplaysOneRunListPerDecision([[]], {}),
+        FakeProducerFileHistory({("base000", HEAD): TOUCHED_MAPPER}),
+        StarterTheSelftestCounts(),
+    )
     return classes
 
 
@@ -958,6 +1504,41 @@ EXPECTED_SELFTEST_VERDICTS = {
     "migrated data and an older covering run proves parity": (UNRELATED_SPEC_RED, True),
     "runs 31123658151 over 30760024409 — the newest covering run could not run and an older "
     "covering run proves parity": (PARITY_PROVEN, False),
+    "the newest covering run is still running and an older covering run found a parity defect": (
+        A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED,
+        True,
+    ),
+    "the newest covering run is still running and an older covering run proves parity": (
+        PARITY_PROVEN,
+        False,
+    ),
+    "the gate waits for the run in flight and reports the parity it proved": (PARITY_PROVEN, False),
+    "the gate waits for the run in flight and reports the parity defect it found": (
+        PARITY_DEFECT,
+        True,
+    ),
+    "the gate gives up on the run in flight when its wait budget runs out": (STILL_RUNNING, True),
+    "the gate starts a fan-out when the branch head moved past the run that refuses the merge": (
+        PARITY_PROVEN,
+        False,
+    ),
+    "the gate starts no fan-out when the run that refuses the merge ran on the branch head": (
+        PARITY_DEFECT,
+        True,
+    ),
+    "the gate starts a fan-out when no run covers, and refuses the merge when none appears": (
+        NO_RUN_COVERS_THESE_PRODUCER_FILES,
+        True,
+    ),
+}
+
+EXPECTED_FAN_OUTS_THE_GATE_STARTS = {
+    "the gate waits for the run in flight and reports the parity it proved": 0,
+    "the gate waits for the run in flight and reports the parity defect it found": 0,
+    "the gate gives up on the run in flight when its wait budget runs out": 0,
+    "the gate starts a fan-out when the branch head moved past the run that refuses the merge": 1,
+    "the gate starts no fan-out when the run that refuses the merge ran on the branch head": 0,
+    "the gate starts a fan-out when no run covers, and refuses the merge when none appears": 1,
 }
 
 
@@ -1038,9 +1619,36 @@ def selftest() -> int:
             f"({len(SPECS_OF_THE_PARITY_STEP_THAT_ASSERT_MIGRATED_DATA)} assert migrated data)"
         )
 
+    arming_failures = the_fanout_arms_itself_failures()
+    failures.extend(arming_failures)
+    if not arming_failures:
+        branches, paths = push_trigger_of_the_fanout_workflow()
+        print(
+            f"  ok    a push arms the fan-out on {', '.join(branches)} over "
+            f"{len([path for path in paths if not path.startswith('!')])} producer path(s), and a "
+            f"push-armed run reaches all {len(BRANCH_PREVIEW_STEP_NAMES_A_PUSH_RUN_MUST_ALSO_REACH)} "
+            "branch-preview gallery steps"
+        )
+
+    rereading_failures = the_gate_asks_the_api_about_a_completed_run_once_failures()
+    failures.extend(rereading_failures)
+    if not rereading_failures:
+        print(
+            f"  ok    over {POLLS_A_FULL_WAIT_BUDGET_SPENDS} polls the gate asks the API about a "
+            "completed run once and about the run in flight every time"
+        )
+
+    fan_outs_started_by_input_class = {}
     messages_by_verdict = {}
     message_by_input_class = {}
-    scored = synthetic_input_classes() + captured_input_classes()
+    waited = wait_input_classes()
+    for name, _, fan_outs_started in waited:
+        fan_outs_started_by_input_class[name] = fan_outs_started
+    scored = (
+        synthetic_input_classes()
+        + captured_input_classes()
+        + [(name, decision) for name, decision, _ in waited]
+    )
     for name, decision in scored:
         if name not in EXPECTED_SELFTEST_VERDICTS:
             failures.append(f"{name}: no expected verdict is recorded for this input class")
@@ -1054,12 +1662,26 @@ def selftest() -> int:
                 f"{name}: blocks={decision.blocks}, expected blocks={expected_blocks}"
             )
             continue
+        expected_fan_outs = EXPECTED_FAN_OUTS_THE_GATE_STARTS.get(name)
+        if expected_fan_outs is not None and (
+            fan_outs_started_by_input_class.get(name) != expected_fan_outs
+        ):
+            failures.append(
+                f"{name}: the gate started {fan_outs_started_by_input_class.get(name)} fan-out(s), "
+                f"expected {expected_fan_outs}"
+            )
+            continue
         message_by_input_class[name] = render(decision)
         messages_by_verdict.setdefault(decision.verdict, message_by_input_class[name])
         print(f"  ok    {name:<74} {decision.verdict} blocks={decision.blocks}")
     for name in EXPECTED_SELFTEST_VERDICTS:
         if name not in {scored_name for scored_name, _ in scored}:
             failures.append(f"{name}: an expected verdict is recorded, but no input class scores it")
+    for name in EXPECTED_FAN_OUTS_THE_GATE_STARTS:
+        if name not in fan_outs_started_by_input_class:
+            failures.append(
+                f"{name}: an expected fan-out count is recorded, but no input class scores it"
+            )
 
     distinct_headlines = {VERDICT_HEADLINE[v] for v in messages_by_verdict}
     if len(distinct_headlines) != len(messages_by_verdict):
@@ -1073,6 +1695,7 @@ def selftest() -> int:
         PARITY_STEP_RED_SPEC_UNNAMED,
         PARITY_PROVEN_RUN_RED_ELSEWHERE,
         COULD_NOT_RUN,
+        A_RUN_IN_FLIGHT_SUPERSEDES_AN_OLDER_RED,
     ):
         if verdict in messages_by_verdict and RESIDUAL_LIMIT not in messages_by_verdict[verdict]:
             failures.append(f"{verdict} renders no residual limit")
@@ -1093,6 +1716,41 @@ def selftest() -> int:
             failures.append(
                 "the parity-proven-run-red-elsewhere verdict does not state that parity holds, so "
                 "it still denies a proven parity"
+            )
+
+    for name, message in message_by_input_class.items():
+        if HOW_THE_FANOUT_ARMS_ITSELF not in message:
+            failures.append(
+                f"{name}: the message does not state that a git push arms the fan-out, so a reader "
+                "who is blocked cannot tell whether somebody must dispatch a run by hand"
+            )
+    not_required = message_by_input_class.get("a branch that changes no producer file", "")
+    if not_required:
+        if "NOT REQUIRED" not in not_required:
+            failures.append(
+                "a branch that changes no producer file does not read as NOT REQUIRED, so a "
+                "skipped fan-out can pass for a proven parity"
+            )
+        for claim in ("proved parity", "PARITY_PROVEN"):
+            if claim in not_required:
+                failures.append(
+                    f"a branch that changes no producer file claims {claim!r}; no fan-out judged "
+                    "this change, so the gate must report that it proves nothing, never a green"
+                )
+    superseded = message_by_input_class.get(
+        "the newest covering run is still running and an older covering run found a parity defect",
+        "",
+    )
+    if superseded:
+        if "supersedes" not in superseded or "still running" not in superseded.lower():
+            failures.append(
+                "the transient verdict does not name the run in flight, so the reader is sent to "
+                "an older failed run over a defect the commit under test may already have repaired"
+            )
+        if A_PRODUCER_SPEC not in superseded:
+            failures.append(
+                "the transient verdict hides what the superseded run found, so a real parity "
+                "defect becomes invisible while the run in flight finishes"
             )
 
     masked_red = message_by_input_class.get(
@@ -1223,6 +1881,10 @@ def main() -> int:
     parser.add_argument("--the-run-still-covers-the-branch-head", action="store_true")
     parser.add_argument("--base-sha")
     parser.add_argument("--head-sha")
+    parser.add_argument("--start-a-fanout-on-branch", default="")
+    parser.add_argument("--minutes-until-a-covering-run-must-appear", type=float, default=8.0)
+    parser.add_argument("--minutes-until-the-covering-run-must-finish", type=float, default=45.0)
+    parser.add_argument("--seconds-between-polls", type=float, default=30.0)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
     arguments = parser.parse_args()
 
@@ -1246,7 +1908,17 @@ def main() -> int:
     if not arguments.base_sha or not arguments.head_sha:
         print("::error::pass --base-sha and --head-sha", file=sys.stderr)
         return 1
-    return gate(arguments.base_sha, arguments.head_sha, arguments.repository)
+    return gate(
+        arguments.base_sha,
+        arguments.head_sha,
+        arguments.repository,
+        WaitBudget(
+            arguments.minutes_until_a_covering_run_must_appear,
+            arguments.minutes_until_the_covering_run_must_finish,
+            arguments.seconds_between_polls,
+        ),
+        arguments.start_a_fanout_on_branch,
+    )
 
 
 if __name__ == "__main__":

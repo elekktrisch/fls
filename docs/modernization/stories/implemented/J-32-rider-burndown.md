@@ -58,6 +58,10 @@ claim that the nightly covered the two showcase-seed proofs. It did not: the nig
 tests from either spec, and `required` scored a skipped job as success. T-52 restored the only
 executing lane, narrowed `skipped`-as-success to three named cases, and put the guard in a graph-root
 job. Four defects were later found inside guards this journey shipped (T-59, T-60, T-62, T-63).
+T-67 found a fifth. The `fan-out parity` gate read evidence that existed only when a person pressed
+a button, and the manager pressed it four times. Its transient read also named an older red run
+while a newer run was in flight, so it refused a merge over a defect the commit under test had
+already repaired. A git push now arms the fan-out, and the gate waits for the run to answer.
 
 **Four riders were stale.** The article-5001, `AccountingRuleFilter` and J-0c Location defects were
 fixed by J-27 on 2026-06-20 and nobody deleted the bullets; the manifest count rider named an innocent
@@ -120,9 +124,11 @@ surface, and the notice says so. Where it publishes stays open.
 
 ## Task record
 
-36 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-66. The
+37 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-67. The
 carve budgeted 15. Task growth came from the gate and from two `gap-hunter` rounds, which is the
 expected shape of a hardening journey.
+
+- [x] T-67 — a git push arms the fan-out, and the gate waits for the run it armed.
 
 33 S2 tasks were re-filed to `_BOYSCOUT.md`, including ten defects that J-32 tasks found and did not
 fix. No finding was dropped.

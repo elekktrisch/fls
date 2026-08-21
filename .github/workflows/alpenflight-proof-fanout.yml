@@ -36,6 +36,15 @@ run-name: fan-out proof — ${{ github.ref_name }}
 # LIVE green is this workflow's own first CI run.
 
 on:
+  push:
+    branches:
+      - main
+      - 'integration/**'
+    paths:
+      - 'alpenflight/migration-bundle/**'
+      - 'alpenflight/migration-tool/**'
+      - '!alpenflight/migration-bundle/**/*.md'
+      - '!alpenflight/migration-tool/**/*.md'
   schedule:
     # 05:00 UTC — after nightly.yml (04:00) and alpenflight-e2e-real-idp (03:00)
     # so a shared-runner-minute spike doesn't stack on the same instant.
@@ -44,7 +53,7 @@ on:
 
 concurrency:
   group: alpenflight-proof-fanout-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ===========================================================================
@@ -1477,7 +1486,7 @@ jobs:
       # page (the fanout's carries the legacy-paired shots when they exist).
       - name: Compute fan-out branch-preview destination
         id: preview
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
@@ -1493,7 +1502,7 @@ jobs:
       # `!cancelled()` so the deploy survives a partial-red parity run; the
       # gallery-outcome gate keeps it from publishing a never-built page.
       - name: Deploy fan-out gallery to gh-pages (branch preview)
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1507,7 +1516,7 @@ jobs:
       # Emit the clickable preview URL to both the job summary and a grep-able
       # ::notice:: log line.
       - name: Emit fan-out preview URL
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
@@ -1523,7 +1532,7 @@ jobs:
       # bookmark + every declared asset resolve 200 and, with a journey id, that the
       # page is that journey's page (not a thin placeholder). Polls for CDN slack.
       - name: Link-check the DEPLOYED branch-preview gallery
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}

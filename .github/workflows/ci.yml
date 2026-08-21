@@ -2435,10 +2435,10 @@ jobs:
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 55
     permissions:
       contents: read
-      actions: read
+      actions: write
     steps:
       - name: Check out every ref so the gate can tell which commit a fan-out run covered
         uses: actions/checkout@v4
@@ -2453,16 +2453,21 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python3 .github/scripts/fanout-parity-verdict.py --report-latest-verdict-on-main
 
-      - name: Refuse the merge unless a real fan-out proved the producer files this branch changes
+      - name: Refuse the merge unless a real fan-out proved the producer files this branch changes, start one when the branch head moved past the run that refuses the merge, and wait for the run in flight to answer
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           python3 .github/scripts/fanout-parity-verdict.py \
             --base-sha "$PULL_REQUEST_BASE_SHA" \
-            --head-sha "$PULL_REQUEST_HEAD_SHA"
+            --head-sha "$PULL_REQUEST_HEAD_SHA" \
+            --start-a-fanout-on-branch "$PULL_REQUEST_HEAD_BRANCH" \
+            --minutes-until-a-covering-run-must-appear 8 \
+            --minutes-until-the-covering-run-must-finish 45 \
+            --seconds-between-polls 30
 
   # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
