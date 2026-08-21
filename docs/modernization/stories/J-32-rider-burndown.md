@@ -412,6 +412,9 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
   - T-50 shipped the last two nits: the fixture names `PlanningNotificationRun`, and both videos end
     on the state their caption describes. The guard exemption and the boundary test remain.
+- [ ] T-59 — [S1 BLOCKER] the fan-out reds on a locale-brittle assertion this journey added: `public-registration-parity.spec.ts:55` pins the German bundle while `session.store.ts:94` renders the user's `languageCode`; the deployed branch-preview gallery link-check also reds (fan-out run 32456112094; `main` is `PARITY_PROVEN`)
+- [ ] T-60 — [S1 BLOCKER] `fanout-parity-verdict.py` misreports a non-producer spec failure as a producer defect, and `:206` returns `COULD_NOT_RUN` when the parity step passed but another step failed, which denies a proven parity
+- [ ] T-61 — [S2] the T-45 guard found fifteen more audit call sites passing a snapshot the recorded type does not describe, pinned in `alpenflight/server/config/audit/undecided-audit-snapshot-fields.txt`
 - [ ] T-57 — [S2] the bundle ingest maps a cross-tenant FK rejection to `500 INGEST_INTERNAL_ERROR`, so a tenancy rejection reads as a server fault (T-51 finding)
 - [ ] T-58 — [S2] `AuditLogMapper` declares no `foreignKeyColumns()`, so `ForeignKeyResolver` looks for `user_id` while the wire field is `actor_user_id`; latent only because `AUDIT_LOG` is unregistered (T-51 finding)
 - [x] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
