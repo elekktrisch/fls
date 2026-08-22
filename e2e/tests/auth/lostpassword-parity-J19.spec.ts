@@ -37,7 +37,8 @@ test("J-19 capture (no parity claim): legacy /lostpassword form + its success me
 
     const lostPasswordForm = page.locator('[data-testid="lostpassword-form"]');
     await lostPasswordForm.waitFor({ state: "visible", timeout: 30_000 });
-    const usernameOrNotificationEmailField = page.locator("#username");
+    const usernameOrNotificationEmailField =
+      lostPasswordForm.locator("#username");
     const generateNewPasswordSubmit = page.locator('[data-testid="submit"]');
     await expect(usernameOrNotificationEmailField).toBeVisible();
     await expect(generateNewPasswordSubmit).toBeVisible();

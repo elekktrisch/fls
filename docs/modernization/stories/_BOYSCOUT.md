@@ -20,12 +20,30 @@ stragglers each ceremony so the file shrinks.
 **Burndown moved to a dedicated journey (operator, 2026-08-19).** Neither oldest-first (J-17 retro) nor
 severity-first (J-31 retro) drained this file: it went ~17 → 45 riders, and J-19 alone burned 2 while filing 9.
 A per-journey slot cannot match the discovery rate, and throttling the filing would be worse — J-19's riders
-came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns draining every S1 and S2.**
+came from real `gap-hunter` and worker findings. J-32 (hardening) drained the S1 riders and re-filed the
+S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-08-22).
 `/do-ship` still folds on-surface riders opportunistically. Filing stays unrestricted.
 
 **Severity markers** — `/do-retro` tags every rider, `/do-ship` burns them down highest-first:
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
+
+## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
+
+The red itself is fixed in the carve commit and is **folded into J-33** (see
+`J-33-audit-attribution-and-migrate-dead-end.md` §"Main-branch red"). The gate hole it exposed
+outlives that fix and stays here.
+
+- **[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]** [S2] `nightly.yml` triggers on `schedule` and
+  `workflow_dispatch` only, so a spec added under `e2e/` **never runs before merge**. J-19 authored
+  `lostpassword-parity-J19.spec.ts`, CI stayed green, and the spec's FIRST real run was the
+  2026-08-20 nightly — which reds deterministically on a `#username` strict-mode violation and stayed
+  red for three nights. The legacy stack is too heavy for every pull request, so the answer is not
+  "run the nightly on push". Options: run only the specs a pull request TOUCHES under `e2e/`, or gate
+  the merge on a dispatched nightly when the diff reaches `e2e/`. A suite that cannot red before
+  merge does not gate the change that breaks it.
+  *(seam: `nightly.yml` triggers + an `e2e/`-touching pull-request lane)*
+  [[feedback_verify_infra_is_run_not_just_authored]] [[project_gate_must_cover_its_own_inputs]]
 
 ## Pending (filed by /do-ship J-32 close-out, 2026-08-21)
 
