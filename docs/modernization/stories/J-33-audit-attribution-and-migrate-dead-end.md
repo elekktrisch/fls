@@ -98,6 +98,17 @@ attempts.
 The one-line fix ships with the carve. The gate hole it exposes is a new rider,
 `[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]`, recorded in `_BOYSCOUT.md`.
 
+**Proven, not claimed.** The carve dispatched the nightly on `integration/J-33`
+([run 32554637416](https://github.com/elekktrisch/fls/actions/runs/32554637416)). Read at step level:
+the spec **ran and passed** — `✓ 17 [auth] › lostpassword-parity-J19.spec.ts:21:5` in 12.5s — and the
+tally reads 155 passed, **0 failed**, 2 flaky. The prior main run read 155 passed, 1 failed, 1 flaky.
+So AC-8 is already met on this branch; `main` un-reds when J-33 merges.
+
+Two DIFFERENT specs flaked on this run — `locking-workflow.spec.ts:43` and
+`reservations-parity-J5.spec.ts:55` — where the prior run flaked `planning-parity-J6`. Both recovered
+on retry. The flaky set moves run to run, which is the legacy Mono and AngularJS stack under CI load
+that `[LEGACY-J2-READINESS]` already names. Do not read a moving flaky set as a new defect.
+
 ## The rider inventory — 3 S1, 30 S2
 
 Full text and seams stay in `_BOYSCOUT.md`. `/do-ship` deletes each bullet as it ships. Per
