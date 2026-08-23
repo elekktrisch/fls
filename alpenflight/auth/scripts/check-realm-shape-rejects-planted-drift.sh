@@ -51,6 +51,10 @@ REALM_WITH_FOREIGN_USER_PASSWORD="${PLANTED_REALMS_DIR}/realm-with-foreign-user-
 REALM_WITH_FOREIGN_CLIENT_SECRET="${PLANTED_REALMS_DIR}/realm-with-foreign-client-secret.json"
 REALM_WITH_MASKED_CLIENT_SECRET="${PLANTED_REALMS_DIR}/realm-with-masked-client-secret.json"
 REALM_WITH_PASSWORD_RECOVERY_OFF="${PLANTED_REALMS_DIR}/realm-with-password-recovery-off.json"
+REALM_WITH_SEAT_IDENTITY_FIELD_NULLED="${PLANTED_REALMS_DIR}/realm-with-seat-identity-field-nulled.json"
+REALM_WITH_SEAT_ON_A_FOREIGN_CLUB="${PLANTED_REALMS_DIR}/realm-with-seat-on-a-foreign-club.json"
+REALM_WITH_A_SEAT_PRINCIPAL_DROPPED="${PLANTED_REALMS_DIR}/realm-with-a-seat-principal-dropped.json"
+REALM_WITH_A_SEAT_ROLE_REVOKED="${PLANTED_REALMS_DIR}/realm-with-a-seat-role-revoked.json"
 
 jq --arg planted "$PASSWORD_NO_DEV_SEED_USER_MAY_CARRY" '
   .users |= map(
@@ -69,6 +73,26 @@ jq '
 ' "$COMMITTED_EXPORT" > "$REALM_WITH_MASKED_CLIENT_SECRET"
 
 jq '.resetPasswordAllowed = false' "$COMMITTED_EXPORT" > "$REALM_WITH_PASSWORD_RECOVERY_OFF"
+
+jq '
+  .users |= map(if .username == "demo3" then .firstName = "" else . end)
+' "$COMMITTED_EXPORT" > "$REALM_WITH_SEAT_IDENTITY_FIELD_NULLED"
+
+jq '
+  (.users[] | select(.username == "demo5") | .attributes.clubId) as $foreign
+  | .users |= map(if .username == "demo4" then .attributes.clubId = $foreign else . end)
+' "$COMMITTED_EXPORT" > "$REALM_WITH_SEAT_ON_A_FOREIGN_CLUB"
+
+jq '.users |= map(select(.username != "demo7"))' "$COMMITTED_EXPORT" \
+  > "$REALM_WITH_A_SEAT_PRINCIPAL_DROPPED"
+
+jq '
+  .users |= map(
+    if .username == "demo8"
+    then .realmRoles = ["default-roles-alpenflight"]
+    else . end
+  )
+' "$COMMITTED_EXPORT" > "$REALM_WITH_A_SEAT_ROLE_REVOKED"
 
 echo "checking that check-realm-shape.sh rejects a planted drift in the committed realm export"
 
@@ -91,6 +115,26 @@ expect_guard_rejects_planted_drift \
   "password recovery switched off" \
   "$REALM_WITH_PASSWORD_RECOVERY_OFF" \
   "resetPasswordAllowed must be true"
+
+expect_guard_rejects_planted_drift \
+  "demo seat identity field nulled" \
+  "$REALM_WITH_SEAT_IDENTITY_FIELD_NULLED" \
+  "demo3.firstName is empty"
+
+expect_guard_rejects_planted_drift \
+  "demo seat bound to a foreign club" \
+  "$REALM_WITH_SEAT_ON_A_FOREIGN_CLUB" \
+  "but V62__demo_seat_pool.sql binds seat 4 to club"
+
+expect_guard_rejects_planted_drift \
+  "demo seat principal dropped" \
+  "$REALM_WITH_A_SEAT_PRINCIPAL_DROPPED" \
+  "demo seat principals, but V62__demo_seat_pool.sql provisions"
+
+expect_guard_rejects_planted_drift \
+  "demo seat role revoked" \
+  "$REALM_WITH_A_SEAT_ROLE_REVOKED" \
+  "demo8 does not carry the realm role CLUB_ADMINISTRATOR"
 
 expect_guard_accepts_committed_realm
 

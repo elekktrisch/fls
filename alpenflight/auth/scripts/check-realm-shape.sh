@@ -79,6 +79,61 @@ MAPPER=$(jq '[.clientScopes[] | select(.name=="clubId") | .protocolMappers[]? | 
 [[ "$MAPPER" -ge 1 ]] || fail "clubId protocol mapper missing"
 ok "clubId protocol mapper present"
 
+DEMO_SEAT_POOL_MIGRATION="${REPO_ROOT}/alpenflight/server/src/main/resources/db/migration/V62__demo_seat_pool.sql"
+[[ -f "$DEMO_SEAT_POOL_MIGRATION" ]] || fail "V62__demo_seat_pool.sql missing — the demo seat pool has no club rows to bind to"
+
+SEAT_COUNT=$(grep -oE 'generate_series\(1, [0-9]+\)' "$DEMO_SEAT_POOL_MIGRATION" \
+  | grep -oE '[0-9]+\)$' | tr -d ')' | sort -u)
+[[ "$SEAT_COUNT" =~ ^[0-9]+$ ]] \
+  || fail "V62__demo_seat_pool.sql declares more than one seat count ($(tr '\n' ' ' <<<"$SEAT_COUNT")) — the club rows and the t_demo_seat rows must use the same generate_series bound"
+
+SEAT_UUID_PREFIXES=$(grep -oE "'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]+' \|\| lpad\(seat\.number::text, 3, '0'\)" \
+  "$DEMO_SEAT_POOL_MIGRATION" | grep -oE "^'[^']+'" | tr -d "'")
+SEAT_CLUB_ID_PREFIX=$(sort <<<"$SEAT_UUID_PREFIXES" | uniq -c | sort -rn | head -1 | awk '{print $2}')
+SEAT_CLUB_ID_PREFIX_USES=$(grep -c -F "'${SEAT_CLUB_ID_PREFIX}' || lpad" "$DEMO_SEAT_POOL_MIGRATION")
+[[ "$SEAT_CLUB_ID_PREFIX_USES" == "2" ]] \
+  || fail "V62__demo_seat_pool.sql builds the seat club id '${SEAT_CLUB_ID_PREFIX}…' at ${SEAT_CLUB_ID_PREFIX_USES} places, expected 2 (the t_club insert and the t_demo_seat.club_id insert). The guard cannot tell the club-id prefix from the seat-id prefix any more — re-derive it."
+
+grep -qF "'demo' || seat.number" "$DEMO_SEAT_POOL_MIGRATION" \
+  || fail "V62__demo_seat_pool.sql no longer names the seat principals 'demo' || seat.number — t_demo_seat.keycloak_username and the realm export have drifted apart"
+
+SEAT_USERNAMES_IN_EXPORT=$(jq -r '[.users[]? | select(.username | test("^demo[0-9]+$")) | .username] | length' "$EXPORT")
+[[ "$SEAT_USERNAMES_IN_EXPORT" == "$SEAT_COUNT" ]] \
+  || fail "the realm export holds ${SEAT_USERNAMES_IN_EXPORT} demo seat principals, but V62__demo_seat_pool.sql provisions ${SEAT_COUNT} seat clubs. A seat without its principal leases to a visitor that cannot sign in."
+
+for ((seat = 1; seat <= SEAT_COUNT; seat++)); do
+  SEAT_USER="demo${seat}"
+  SEAT_JSON=$(jq --arg u "$SEAT_USER" '.users[] | select(.username==$u)' "$EXPORT")
+  [[ -n "$SEAT_JSON" ]] || fail "demo seat principal ${SEAT_USER} missing from the realm export"
+
+  EXPECTED_SEAT_CLUB=$(printf '%s%03d' "$SEAT_CLUB_ID_PREFIX" "$seat")
+  ACTUAL_SEAT_CLUB=$(jq -r '.attributes.clubId[0] // "<unset>"' <<<"$SEAT_JSON")
+  [[ "$ACTUAL_SEAT_CLUB" == "$EXPECTED_SEAT_CLUB" ]] \
+    || fail "${SEAT_USER}.clubId = '${ACTUAL_SEAT_CLUB}', but V62__demo_seat_pool.sql binds seat ${seat} to club '${EXPECTED_SEAT_CLUB}'. A seat principal on the wrong club reads another visitor's sandbox."
+
+  jq -e '.realmRoles | index("CLUB_ADMINISTRATOR")' <<<"$SEAT_JSON" >/dev/null \
+    || fail "${SEAT_USER} does not carry the realm role CLUB_ADMINISTRATOR — every read the demo screens make is role-gated"
+
+  for identity_field in email firstName lastName; do
+    IDENTITY_VALUE=$(jq -r --arg f "$identity_field" '.[$f] // ""' <<<"$SEAT_JSON")
+    [[ -n "$IDENTITY_VALUE" ]] \
+      || fail "${SEAT_USER}.${identity_field} is empty.
+    Warning: an attributes-only PUT /users/{id} to Keycloak is field-selective. It NULLs email,
+    firstName and lastName, and the principal then vanishes from every email lookup. It also
+    starves the just-in-time user materializer, which refuses a token without preferred_username,
+    given_name and email, so the seat gets no t_user row and reads nothing.
+    Read the full representation, merge the attributes, and write the full representation back."
+  done
+
+  [[ $(jq -r '.enabled' <<<"$SEAT_JSON") == "true" ]] || fail "${SEAT_USER} is disabled"
+  [[ $(jq -r '.emailVerified' <<<"$SEAT_JSON") == "true" ]] \
+    || fail "${SEAT_USER}.emailVerified is false — the realm sets verifyEmail, so the seat principal cannot complete a login"
+  [[ $(jq -r '.requiredActions | length' <<<"$SEAT_JSON") == "0" ]] \
+    || fail "${SEAT_USER} carries a required action — a demo visitor gets an account-update form instead of the sandbox"
+done
+
+ok "demo seat pool: ${SEAT_COUNT} principals, each CLUB_ADMINISTRATOR on its own V62 seat club, identity fields intact"
+
 PRIV=$(jq '[.components["org.keycloak.keys.KeyProvider"][]?.config | (.privateKey // .privateKeyPem) // empty] | length' "$EXPORT")
 [[ "$PRIV" == "0" ]] || fail "private signing key present in committed export ($PRIV occurrences)"
 ok "no private signing key committed"
@@ -138,6 +193,7 @@ DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
   'pilot1-dev-2026!'
   'pilot-c2-dev-2026!'
   'pilot-empty1-dev-2026!'
+  'alpenflight-demo-seat-dev-2026!'
 )
 DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
   'alpenflight-backend-admin-dev-secret'

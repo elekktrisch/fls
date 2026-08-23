@@ -2,6 +2,11 @@ import { type Browser, type BrowserContext, type Page, type TestInfo } from '@pl
 import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { fillKcLogin } from './_helpers/kc-form';
+import {
+  assertLocalhostIssuer,
+  findUserByUsername,
+  listRealmRoleNamesOf,
+} from './_helpers/keycloak-admin';
 import { proofVideo } from './_helpers/proof-video';
 
 const JOURNEY_THIS_SPEC_PROVES = 'J-20';
@@ -25,6 +30,46 @@ const SYSADMIN: SeededPrincipal = {
   username: 'sysadmin@example.com',
   password: 'sysadmin-dev-2026!',
 };
+
+const SEAT_COUNT_V62_PROVISIONS = 10;
+const SEAT_CLUB_ID_PREFIX_V62_BUILDS = '019e30c3-2c00-7001-8000-0000000de';
+const SEAT_PASSWORD_THE_COMMITTED_REALM_EXPORT_CARRIES = 'alpenflight-demo-seat-dev-2026!';
+const SEAT_REALM_ROLE = 'CLUB_ADMINISTRATOR';
+
+function seatUsername(seat: number): string {
+  return `demo${seat}`;
+}
+
+function seatEmail(seat: number): string {
+  return `${seatUsername(seat)}@example.com`;
+}
+
+function seatClubId(seat: number): string {
+  return `${SEAT_CLUB_ID_PREFIX_V62_BUILDS}${String(seat).padStart(3, '0')}`;
+}
+
+interface SeatAccessTokenClaims {
+  clubId?: string;
+  preferred_username?: string;
+  given_name?: string;
+  email?: string;
+  realm_access?: { roles?: string[] };
+}
+
+function decodeAccessTokenPayload(bearer: string): SeatAccessTokenClaims {
+  const payload = bearer.replace(/^Bearer /i, '').split('.')[1];
+  if (!payload) {
+    throw new Error(`authorization header is not a JWT: '${bearer.slice(0, 24)}…'`);
+  }
+  return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as SeatAccessTokenClaims;
+}
+
+interface MeProjection {
+  id: string | null;
+  clubId: string | null;
+  username: string | null;
+  roles: string[];
+}
 
 const SEEDED_FLIGHT_ROWS_OVER_THE_LAST_30_DAYS_FLOOR = 20;
 const SEEDED_AIRCRAFT_ROWS_FLOOR = 3;
@@ -121,6 +166,164 @@ async function openTheNewestFlightOfTheSeat(page: Page): Promise<string> {
   await expect(page.getByTestId(TESTIDS.flightComment)).toBeVisible();
   return (rowTestId ?? '').replace('flights-row-', '');
 }
+
+const NAV_PROFILE_LINK = 'a[role="menuitem"][href="/profile"]';
+
+interface SeatSessionWithItsFirstBearer {
+  session: DrivenSession;
+  bearer: string;
+}
+
+async function loginAsSeatPrincipal(
+  browser: Browser,
+  baseURL: string,
+  testInfo: TestInfo,
+  seat: number,
+): Promise<SeatSessionWithItsFirstBearer> {
+  const session = await newRecordedContext(browser, baseURL, testInfo);
+  const bearerOfTheFirstAuthorizedCall = session.page.waitForRequest(
+    (req) =>
+      req.url().includes('/api/v1/') &&
+      typeof req.headers()['authorization'] === 'string' &&
+      /^Bearer /i.test(req.headers()['authorization']!),
+    { timeout: 90_000 },
+  );
+  await session.page.goto('/?lang=en');
+  await session.page.getByTestId('landing-topbar-sign-in').click();
+  await session.page.waitForURL(/\/realms\/alpenflight\//);
+  await fillKcLogin(
+    session.page,
+    seatEmail(seat),
+    SEAT_PASSWORD_THE_COMMITTED_REALM_EXPORT_CARRIES,
+  );
+  await session.page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
+  const bearer = (await bearerOfTheFirstAuthorizedCall).headers()['authorization']!;
+  return { session, bearer };
+}
+
+test.describe('demo seat principals — one Keycloak user per seat (real chain)', () => {
+  test('[T-06] a seat principal mints a token that carries CLUB_ADMINISTRATOR and its own seat club, and the just-in-time materializer writes its user row', async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    const { session: seat, bearer } = await loginAsSeatPrincipal(browser, baseURL!, testInfo, 1);
+    try {
+      const claims = decodeAccessTokenPayload(bearer);
+      expect(
+        claims.realm_access?.roles ?? [],
+        'the seat token must carry CLUB_ADMINISTRATOR — every demo screen is role-gated',
+      ).toContain(SEAT_REALM_ROLE);
+      expect(
+        claims.clubId,
+        'the seat token must carry the clubId of seat 1, and never another seat club',
+      ).toBe(seatClubId(1));
+      expect(claims.preferred_username).toBe(seatUsername(1));
+      expect(
+        claims.given_name ?? '',
+        'the materializer refuses a token without given_name, and the seat then reads nothing',
+      ).not.toBe('');
+      expect(
+        claims.email ?? '',
+        'the materializer refuses a token without email, and the seat then reads nothing',
+      ).not.toBe('');
+
+      const meResponse = await seat.page.request.get('/api/v1/me', {
+        headers: { authorization: bearer },
+      });
+      expect(meResponse.status()).toBe(200);
+      const me = (await meResponse.json()) as MeProjection;
+      expect(
+        me.id,
+        'the just-in-time materializer wrote the seat its own t_user row on the first token use',
+      ).not.toBeNull();
+      expect(me.clubId, 'the user row binds the seat to its own club').toBe(`clb-${seatClubId(1)}`);
+      expect(me.username).toBe(seatUsername(1));
+      expect(me.roles).toContain(SEAT_REALM_ROLE);
+
+      await seat.page.getByTestId('af-nav-user').click();
+      await seat.page.locator(NAV_PROFILE_LINK).click();
+      await seat.page.keyboard.press('Escape');
+      await expect(seat.page.getByTestId('profile-account-form')).toBeVisible();
+      await expect(seat.page.getByTestId('profile-account-username').locator('input')).toHaveValue(
+        seatUsername(1),
+      );
+      await expect(seat.page.getByTestId('profile-account-clubId').locator('input')).toHaveValue(
+        `clb-${seatClubId(1)}`,
+      );
+      await expect(
+        seat.page.getByTestId('profile-account-notificationEmail').locator('input'),
+      ).toHaveValue(seatEmail(1));
+      await seat.page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-demo-seat-principal.png`,
+        fullPage: true,
+      });
+    } finally {
+      await seat.context.close();
+      await proofVideo(seat.page, testInfo, {
+        journey: JOURNEY_THIS_SPEC_PROVES,
+        acTag: 'happy',
+        caption:
+          'The seat principal demo1 signs in against the real identity provider. Its token ' +
+          'carries CLUB_ADMINISTRATOR and the club of seat 1. The account screen reads the row ' +
+          'the just-in-time materializer wrote: the seat username, its own club and its email.',
+      });
+    }
+  });
+
+  test('[T-06] every seat principal keeps its identity fields and carries its own seat club', async () => {
+    assertLocalhostIssuer();
+    const clubIdsTheSeatsCarry: string[] = [];
+
+    for (let seat = 1; seat <= SEAT_COUNT_V62_PROVISIONS; seat++) {
+      const username = seatUsername(seat);
+      const principal = await findUserByUsername(username);
+      expect(
+        principal,
+        `seat ${seat} has a club and a t_demo_seat row, but no Keycloak principal — ` +
+          'a visitor would lease a seat it cannot sign in to',
+      ).toBeDefined();
+
+      expect(
+        principal!.email ?? '',
+        `${username} lost its email. An attributes-only PUT /users/{id} to Keycloak is ` +
+          'field-selective: it NULLs email, firstName and lastName. The principal then ' +
+          'vanishes from every email lookup, and the materializer refuses its token.',
+      ).not.toBe('');
+      expect(
+        principal!.firstName ?? '',
+        `${username} lost its firstName — the same field-selective PUT trap`,
+      ).not.toBe('');
+      expect(
+        principal!.lastName ?? '',
+        `${username} lost its lastName — the same field-selective PUT trap`,
+      ).not.toBe('');
+
+      expect(principal!.enabled).toBe(true);
+      expect(
+        principal!.emailVerified,
+        'the realm sets verifyEmail, so an unverified seat principal cannot complete a login',
+      ).toBe(true);
+      expect(
+        principal!.requiredActions ?? [],
+        'a required action hands the visitor an account form instead of the sandbox',
+      ).toHaveLength(0);
+
+      const clubIdAttribute = principal!.attributes?.['clubId']?.[0];
+      expect(
+        clubIdAttribute,
+        `${username} must carry the club of seat ${seat}, and never another seat club`,
+      ).toBe(seatClubId(seat));
+      clubIdsTheSeatsCarry.push(clubIdAttribute!);
+
+      expect(await listRealmRoleNamesOf(principal!.id)).toContain(SEAT_REALM_ROLE);
+    }
+
+    expect(
+      new Set(clubIdsTheSeatsCarry).size,
+      'two seat principals on one club let one visitor read the other visitor’s sandbox',
+    ).toBe(SEAT_COUNT_V62_PROVISIONS);
+  });
+});
 
 test.describe('demo mode — a visitor with no account enters a private sandbox club (real chain)', () => {
   test.describe.configure({ mode: 'serial' });
