@@ -26,12 +26,13 @@ roadmap (J-20, J-21, J-22, J-28), so most riders have no owning journey to route
 **no S1**, 23 S2 and 15 S3. About twenty of them are one coherent cluster — CI lanes, lint, typecheck and
 guard coverage — which `/do-plan` should carve as a **hardening journey** rather than leave unhomed.
 
-**Carve update, 2026-08-23 (`/do-plan next` → J-20).** The J-20 carve MOVED five riders into
-`J-20-demo-mode-sandbox-club.md` §Riders and deleted their bullets here:
-`[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`, `[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]` +
-`[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]` (one decision), `[FORM-FIRST-PAINT-RED]` and
-`[PROD-DENSITY-ATTR-MISSING]`. The CI-lane cluster stays here and is now filed as **J-34** on the
-forward roadmap.
+**Carve update, 2026-08-23 (`/do-plan next` → J-20, then revised at `/do-ship`).** The carve first moved
+five riders into `J-20-demo-mode-sandbox-club.md`. The operator then asked for per-visitor demo tenancy,
+which took the budget, so **only `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]` still rides J-20**. The
+other four came back here with a carve note each:
+`[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]` + `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`,
+`[FORM-FIRST-PAINT-RED]` and `[PROD-DENSITY-ATTR-MISSING]`. The CI-lane cluster stays here and is filed
+as **J-34** on the forward roadmap.
 
 **Why the routing rule exists.** Dedicated burndown journeys did not work. Oldest-first (J-17 retro) and
 severity-first (J-31 retro) both failed, so the operator gave burndown its own journey on 2026-08-19. J-32
@@ -147,6 +148,23 @@ this file untouched.
   `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
   would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
   its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
+- **[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]** [S2] `RIDES: next` J-33 T-04 gave the rejected anonymous write the
+  `ANONYMOUS_PUBLIC` kind. The row still names no club, and it keeps no client IP. Measured on
+  `integration/J-33`: the 429 row reads `tenant_club_id = null` and `client_ip = null`. Two causes sit
+  outside T-04's seam. First, `PublicRegistrationIntake.java:56` runs the abuse guard before
+  `PublicClubResolver.resolve`, so the rejection holds the slug and never the club id. Second,
+  `Tenants.runAs` restores the request hint in its `finally` block, so `RequestAuditFilter.java:80` always
+  reads null — `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]` owns that decision. A row that names no club
+  keeps no client IP by design: `MutationAuditEvent.java:291` refuses the value,
+  `MutationAuditEventListener.java:136` drops it, and `docs/modernization/privacy-notice.md` §1 states the
+  rule. The audit projection also filters by tenant, so no administrator reads this row on `/system/logs`.
+  Decide this rider together with `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`: give the failed row its
+  club first, then record the client IP through the path the successful submission uses. Do not relax the
+  club-scoped rule on its own — the erasure endpoint reaches a row through its club.
+  **J-20 carve note (2026-08-23):** J-20's demo seats each write as a real, distinct Keycloak actor, so
+  demo writes attribute through the normal path. This rider's concern stays on the rejected anonymous
+  public-registration write, and it did not get more urgent.
+  *(seam: `RequestAuditFilter` + `RequestTenantHint` + `PublicRegistrationIntake`)*
 - **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] `RIDES: next` The T-45 guard found **fifteen** more audit call sites that
   pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
   EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,
@@ -178,6 +196,16 @@ this file untouched.
 
 ## Pending (filed by /do-ship J-32 T-03, 2026-08-20)
 
+- **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] `RIDES: next` T-03 deleted `AuditTargetTenantInterceptor`. That
+  interceptor was the only writer of a `RequestTenantHint` attribute that outlives the handler, because it
+  never restored the attribute. `Tenants.runAs` writes the same attribute, but it restores the prior value in
+  its `finally` block. `RequestAuditFilter` reads the attribute in the outermost `finally`, after every
+  `runAs` unwound, so `RequestTenantHint.currentForRequest` now always answers null. The
+  `targetTenantHint != null` branch at `alpenflight/server/src/main/java/ch/alpenflight/audit/web/RequestAuditFilter.java:80-91`
+  is unreachable. Decide: delete `RequestTenantHint` and that branch, then drop `RequestAuditFilter` from the
+  `TenantsRunAsAllowlistTest` allow-list — or keep the hint and give it a producer. [ADR 0008](../adrs/0008-multi-tenancy-mechanism.md)
+  §Amendment S-159 names `RequestAuditFilter` as an in-process `runAs` seam, so the deletion needs the
+  operator. *(seam: `RequestTenantHint` + `RequestAuditFilter` + `TenantsRunAsAllowlistTest`)*
 - **[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]** [S2] `RIDES: next` `verifyArchUnitFailsOnViolation`
   (`alpenflight/server/build.gradle.kts:339`) and `verifyNullAwayFailsOnViolation` (`:146`) both prove that a
   guard reds on a planted violation. Neither task depends on `check`, and `ci.yml:583` runs only
@@ -427,6 +455,12 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-08, 2026-08-14)
 
+- **[PROD-DENSITY-ATTR-MISSING]** [S3] `RIDES: next` `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
+  `body[data-density='comfortable']` rules in `styles.css` are **inert in production** while they apply in dev —
+  the shipped app is denser than the one anyone reviews. Found because the comment describing the density
+  system outlived the attribute it described. **J-20 carve note (2026-08-23):** the demo is a production surface a
+  prospective customer judges on looks, so it must render the way the operator reviewed it.
+  *(seam: `index.prod.html` + the density rules in `styles.css`)*
 - **[DEAD-VIRTUAL-SCROLL-INPUT]** [S3] `RIDES: next` `af-data-table.component.ts:74` exposes a `virtualScroll` input with **zero
   consumers** — either wire it or delete it. *(seam: that component's public inputs)*
 
@@ -443,6 +477,14 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
+- **[FORM-FIRST-PAINT-RED]** [S3] `RIDES: next` `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+  blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
+  gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
+  **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
+  the util (opt-in for the edit-form case if any screen genuinely wants eager reporting) rather than repeating the local
+  gate per form. Check the shipped create screens before assuming it's cosmetic. **J-20 carve note (2026-08-23):** the demo
+  is the first thing a prospective customer sees, so a create form that opens fully red is the worst first impression —
+  pull this onto the next journey that touches the demo surface. *(seam: `inline-validation.ts` + its 8 consumers)*
 - **[FIELDSET-LEGEND-SIZE]** [S3] `RIDES: next` `text-sm` loses against the UA stylesheet on `<legend>`, so fieldset legends render ~20px
   instead of the intended size (both the T-16 "Contact" and T-17 "Pick a day" legends). Cosmetic and consistent.
   *(seam: legend styling in the public form components)*
