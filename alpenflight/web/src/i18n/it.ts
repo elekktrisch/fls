@@ -130,6 +130,8 @@ const it: Translations = {
       system: 'Sistema',
       unknown: 'Sconosciuto',
     },
+    actorNamesUnresolved:
+      "I nomi utente non si sono caricati ({{reason}}). La colonna mostra l'identificativo Keycloak.",
     columns: {
       action: 'Azione',
       target: 'Oggetto',

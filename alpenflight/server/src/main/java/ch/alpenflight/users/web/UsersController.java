@@ -45,7 +45,7 @@ public class UsersController {
     @Operation(summary = "List active users in the caller's club. Live KC fields included (roles, enabled, invitePending).")
     @ApiResponse(responseCode = "200", description = "Array of user listitem projections.")
     @GetMapping
-    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
     public List<UserListItem> listUsers() {
         return service.listInCurrentTenant();
     }

@@ -135,6 +135,15 @@ function startOfLocalDateOnly(date: Date): string {
           data-testid="audit-logs-error"
         />
 
+        @if (store.actorNamesAreUnresolved()) {
+          <div
+            class="mb-3 border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            data-testid="audit-actor-names-unresolved"
+          >
+            {{ t('actorNamesUnresolved', { reason: store.actorNameLookupError() }) }}
+          </div>
+        }
+
         @if (!store.isLoading() && store.isEmpty() && !store.hasError()) {
           <div
             class="px-3 py-6 text-sm text-slate-500 border border-slate-200 bg-slate-50"

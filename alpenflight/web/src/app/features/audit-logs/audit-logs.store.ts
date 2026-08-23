@@ -41,6 +41,7 @@ interface AuditLogsState {
   pageSize: number;
   items: readonly AuditEventRow[];
   actorUsernamesByUserId: ActorUsernamesByUserId;
+  actorNameLookupError: string | null;
   hasMore: boolean;
   nextOffset: number;
   isLoading: boolean;
@@ -53,6 +54,7 @@ const initialState: AuditLogsState = {
   pageSize: PAGE_SIZE,
   items: [],
   actorUsernamesByUserId: {},
+  actorNameLookupError: null,
   hasMore: false,
   nextOffset: 0,
   isLoading: false,
@@ -75,9 +77,10 @@ function queryParams(
 export const AuditLogsStore = signalStore(
   { providedIn: 'root' },
   withState<AuditLogsState>(initialState),
-  withComputed(({ items, loadError, hasMore, pageOffset }) => ({
+  withComputed(({ items, loadError, actorNameLookupError, hasMore, pageOffset }) => ({
     isEmpty: computed(() => items().length === 0),
     hasError: computed(() => loadError() !== null),
+    actorNamesAreUnresolved: computed(() => actorNameLookupError() !== null),
     canPrev: computed(() => pageOffset() > 0),
     canNext: computed(() => hasMore()),
   })),
@@ -85,8 +88,11 @@ export const AuditLogsStore = signalStore(
     const noUsernameIsLoadedYet = (): boolean =>
       Object.keys(store.actorUsernamesByUserId()).length === 0;
 
-    const leaveEveryActorCellOnItsKeycloakSubFallback = (): void =>
-      patchState(store, { actorUsernamesByUserId: {} });
+    const reportThatEveryActorCellStaysOnItsKeycloakSubFallback = (e: HttpErrorResponse): void =>
+      patchState(store, {
+        actorUsernamesByUserId: {},
+        actorNameLookupError: e.status === 0 ? e.message : `HTTP ${e.status}`,
+      });
 
     const loadActorUsernames = rxMethod<void>(
       pipe(
@@ -95,8 +101,11 @@ export const AuditLogsStore = signalStore(
           usersApi.listUsers().pipe(
             tapResponse({
               next: (users: UserListItem[]) =>
-                patchState(store, { actorUsernamesByUserId: actorUsernamesByUserId(users) }),
-              error: leaveEveryActorCellOnItsKeycloakSubFallback,
+                patchState(store, {
+                  actorUsernamesByUserId: actorUsernamesByUserId(users),
+                  actorNameLookupError: null,
+                }),
+              error: reportThatEveryActorCellStaysOnItsKeycloakSubFallback,
             }),
           ),
         ),

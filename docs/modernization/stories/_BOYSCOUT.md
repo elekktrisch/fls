@@ -164,10 +164,15 @@ this file untouched.
 - **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
   and reports the aircraft device sync as a success. The job writes nothing and says it worked. T-07d
   found this while it enumerated the `ObjectProvider` injection shape. *(seam: `HttpOgnDeviceDatabase`)*
-- **[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]** [S2] `audit-logs.store.ts:93` calls `listUsers`, which
-  admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too
-  (`AuditAdminController.java:28`). A system administrator gets a 403, the store falls back to the raw
-  subject, and the console guard probably reds. *(seam: `audit-logs.store` + `UsersController`)*
+- **[SYSTEM-ADMINISTRATOR-CANNOT-REACH-THE-AUDIT-SCREEN]** [S2] T-06 opened the backend for a system
+  administrator: `UsersController.listUsers` and `AuditAdminController` now admit the same two roles. The
+  SPA still refuses the screen. `audit-logs.routes.ts:7` applies `clubAdminGuard`, which demands
+  `currentClubId() !== null` AND `isClubAdmin()`, and `nav-sections.ts:26` lists `/system/logs` under
+  `MASTERDATA_CLUB_ADMIN_ITEMS`. The seeded `sysadmin` realm user carries no `clubId` attribute
+  (`realm-export.json`), so it fails both halves of the guard and reads no tenant. Two decisions belong to
+  the operator: does a system administrator get `/system/logs`, and which tenant do they read? Until then
+  no real-idp spec can drive AC-1 with a SYSTEM_ADMINISTRATOR-only principal.
+  *(seam: `clubAdminGuard` + `nav-sections` + the sysadmin tenant)*
 - **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
   rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
   operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
