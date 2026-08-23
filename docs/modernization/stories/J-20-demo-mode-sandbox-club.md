@@ -167,7 +167,7 @@ The release valve is the deferrable tail below.
 
 - [x] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions. *(`869d2bea9` — 4 real-IdP + 4 mocked cases, each `test.fixme` naming its unskipping task; gallery `<h1>` = `J-20 — proof`.)*
 - [x] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP. Also move the frontmatter `parity_test:` mock-spec path to `mock_test:` (it warns on every push). *(the existing `derive-journey-lane.sh` mechanism, no new one; the wrong-key warning is gone; both lanes stay on their fail-safe until T-12 and T-14 unskip the cases.)*
-- [ ] **T-03** — `t_demo_seat` (platform table, no tenant column) + the N seat Clubs under Deployment `…0001` (Flyway).
+- [x] **T-03** — `t_demo_seat` (platform table, no tenant column) + the N seat Clubs under Deployment `…0001` (Flyway). *(`V62__demo_seat_pool.sql` — 10 seats, clubs `DEMO01`..`DEMO10`, users `demo1`..`demo10`, every seat `FREE`. No UNIQUE index on `lease_holder_key`: the per-address cap stays the T-07 Java property.)*
 - [ ] **T-04** — `SandboxSeeder` masterdata, parameterized by club: locations, aircraft, persons.
 - [ ] **T-05** — `SandboxSeeder` operational data: flights over the last 30 days, reservations over the next 14 days, one planning day. Every date relative to the run date.
 - [ ] **T-06** — The N `demo1..demoN` Keycloak users: `CLUB_ADMINISTRATOR`, `clubId` = their seat's club, plus the `t_user` rows.
