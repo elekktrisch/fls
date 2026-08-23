@@ -41,7 +41,8 @@ class ExportCommandSmokeTest {
                 EntityType.ARTICLE,
                 EntityType.DELIVERY, EntityType.DELIVERY_ITEM,
                 EntityType.PERSON_FLIGHT_TIME_CREDIT,
-                EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION);
+                EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION,
+                EntityType.AUDIT_LOG);
     }
 
     @Test

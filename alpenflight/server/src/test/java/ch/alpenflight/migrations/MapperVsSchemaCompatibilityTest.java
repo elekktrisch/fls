@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import java.io.IOException;
@@ -62,9 +63,6 @@ class MapperVsSchemaCompatibilityTest {
     private static final Set<String> COLUMNS_POPULATED_OUTSIDE_ANY_MAPPER = Set.of(
             SEED_POPULATED_SHADOW_COLUMN,
             TENANT_DISCRIMINATOR_POPULATED_BY_THE_APPLICATION_LAYER);
-
-    private static final Map<EntityType, String> DESTINATION_TABLE_OVERRIDE = Map.of(
-            EntityType.AUDIT_LOG, "t_mutation_audit_event");
 
     private static final Set<String> KEYCLOAK_OWNED_SINGLE_WRITER_COLUMNS =
             Set.of("keycloak_sub");
@@ -209,8 +207,9 @@ class MapperVsSchemaCompatibilityTest {
     }
 
     private static String destinationTableName(EntityType entity) {
-        String override = DESTINATION_TABLE_OVERRIDE.get(entity);
-        return override != null ? override : "t_" + entity.temporaryTableSuffix();
+        return MapperLegacyBindings.isRegistered(entity)
+                ? MapperLegacyBindings.newSchemaTable(entity)
+                : "t_" + entity.temporaryTableSuffix();
     }
 
     private static TableSchema loadTableSchema(Connection connection, String tableName)

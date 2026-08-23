@@ -236,7 +236,7 @@ Every guard here plants a violation per input class and scores the old code ([[f
 - [ ] T-34 — S2 JIT-username robustness. Reject a distinct sub that reuses a live username.
 
 **Gate-surfaced — these block an AC, so they ship in-journey**
-- [ ] T-37 — S1. `AUDIT_LOG` has no `MapperLegacyBindings` entry, and `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`, not `t_mutation_audit_event`. **AC-3 cannot be proved on the fan-out until both close.**
+- [x] T-37 — S1. `AUDIT_LOG` has no `MapperLegacyBindings` entry, and `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`, not `t_mutation_audit_event`. Both halves CONFIRMED and closed. `AUDIT_LOG` left `KNOWN_UNBOUND`, so the real fan-out now exports audit rows. A third gap remains and it belongs to the operator: a migrated row carries no tenant, so `/system/logs` renders none of them — filed as `[MIGRATED-AUDIT-ROW-CARRIES-NO-TENANT-SO-NO-SCREEN-RENDERS-IT]`.
 - [ ] T-38 — S1. T-05's new guard found the same missing `foreignKeyColumns()` in three producer-bound mappers: `DeliveryMapper` (`club_id`, `person_id`), `DeliveryItemMapper` (`club_id`), `PersonFlightTimeCreditTransactionMapper` (`person_flight_time_credit_id`). The real fan-out exports all three. Fix them and unpin the guard.
 - [ ] T-39 — AC-2's client IP. Resolve the club from the URL slug BEFORE the abuse guard, and cache the slug lookup (operator, 2026-08-23). `AuditTrailService.java:22` also hard-codes a null client IP — a club alone does not make the IP land.
 

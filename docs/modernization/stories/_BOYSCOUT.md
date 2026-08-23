@@ -44,17 +44,22 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   exports them. Measure each against the real ingest before you fix it; `recipient_person_id` is a reviewed
   cross-tenant column, so its repair needs the tenancy review too.
   *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
-- **[AUDIT-LOG-HAS-NO-PRODUCER-BINDING-AND-NO-INGEST-TABLE]** [S1] **Symptom (measured, not inferred).**
-  `MapperBindingContractTest:26` lists `AUDIT_LOG` in `KNOWN_UNBOUND`, and `MapperLegacyBindings` holds no
-  `AUDIT_LOG` entry. `ExportCommand.registeredEntities()` streams only bound entities, so the real fan-out
-  exports zero audit rows. Separately, `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`
-  from the enum name, while the real destination is `t_mutation_audit_event`
-  (`MapperVsSchemaCompatibilityTest:67` already carries that override). **Consequence.** J-33 AC-3 ("a
-  migrated audit row shows a resolved AlpenFlight user") cannot be proved end-to-end on the fan-out until
-  both gaps close: the producer emits nothing, and an ingest that did receive an `AUDIT_LOG` entry would
-  fail on a missing relation. T-05 fixed the foreign-key declaration and proved it through the real
-  resolver, which is the whole of that seam.
-  *(seam: `MapperLegacyBindings`, `ExportCommand.registeredEntities`, `EntityStreamIngestor.destinationTableFor`)*
+
+## Pending (filed by /do-ship J-33 T-37, 2026-08-23)
+
+- **[MIGRATED-AUDIT-ROW-CARRIES-NO-TENANT-SO-NO-SCREEN-RENDERS-IT]** [S1] **Symptom (measured, not
+  inferred).** `AuditLogTenantBypassGrantsTheActorNotTheRowIT:107` already proves it: the row it names
+  `rowMigratedWithNoTenantAtAll` is invisible to every club principal, by list (line 107) and by primary
+  key (line 114).
+  `MutationAuditEvent:38` carries `@TenantId` on `tenant_club_id`, `AuditLogMapper:115` writes that field
+  NULL on every migrated row, and `AuditAdminController:44` offers no unscoped read. So T-37 lands the
+  migrated rows in `t_mutation_audit_event` with the actor resolved, and `/system/logs` still renders none
+  of them. **Consequence.** J-33 AC-3 is provable at the ingest and at the API row, and NOT on the screen.
+  **Decision owed to the operator.** S-189 resolves the tenant from the TARGET entity's operating club and
+  runs post-cutover. A producer that used the ACTOR's `Users.ClubId` instead is a different answer and
+  contradicts the shipped S-186 contract ("`tenant_club_id` all-NULL for migrated rows"). The alternative is
+  an unscoped read for `SYSTEM_ADMINISTRATOR` on this one screen. Pick one before AC-3 claims the screen.
+  *(seam: `AuditLogMapper.TENANT_CLUB_ID`, `MutationAuditEvent`, `AuditQueryService`, S-189)*
 
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 

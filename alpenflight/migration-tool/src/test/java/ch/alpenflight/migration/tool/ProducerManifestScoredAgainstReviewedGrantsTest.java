@@ -62,7 +62,8 @@ class ProducerManifestScoredAgainstReviewedGrantsTest {
                 EntityType.USER, EntityType.PERSON_CLUB, EntityType.AIRCRAFT,
                 EntityType.AIRCRAFT_AIRCRAFT_STATE, EntityType.FLIGHT, EntityType.FLIGHT_CREW,
                 EntityType.AIRCRAFT_RESERVATION, EntityType.PLANNING_DAY_ASSIGNMENT,
-                EntityType.DELIVERY, EntityType.PERSON_FLIGHT_TIME_CREDIT);
+                EntityType.DELIVERY, EntityType.PERSON_FLIGHT_TIME_CREDIT,
+                EntityType.AUDIT_LOG);
     }
 
     @Test

@@ -3,6 +3,7 @@ package ch.alpenflight.migrations.application;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.LegacyIdMapTables;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
 import ch.alpenflight.migrations.domain.BundleIngestException;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
@@ -271,6 +272,14 @@ final class EntityStreamIngestor {
     }
 
     static String destinationTableFor(EntityType entityType) {
+        if (MapperLegacyBindings.isRegistered(entityType)) {
+            return MapperLegacyBindings.newSchemaTable(entityType);
+        }
+        return conventionalTableNameForAnEntityNoBindingDeclaresYet(entityType);
+    }
+
+    private static String conventionalTableNameForAnEntityNoBindingDeclaresYet(
+            EntityType entityType) {
         return "t_" + entityType.temporaryTableSuffix();
     }
 
