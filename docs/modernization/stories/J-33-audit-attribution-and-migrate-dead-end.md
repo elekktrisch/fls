@@ -193,7 +193,7 @@ Each task opens by confirming or refuting the rider's stated cause against the t
 
 **Cluster A — audit attribution and legibility (proves on `/system/logs`)**
 - [x] T-04 — S1 `[ANON-FAILED-WRITE-READS-AS-SYSTEM]`. Give `AuditTrailService.recordFailed` the `ANONYMOUS_PUBLIC` kind and the client IP. Kind shipped. The client IP needs the club, which `[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]` and T-08 own.
-- [ ] T-05 — S1 `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]`. Declare `actor_user_id` in `AuditLogMapper.foreignKeyColumns()`. Arms the fan-out push trigger.
+- [x] T-05 — S1 `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]`. Declare `actor_user_id` in `AuditLogMapper.foreignKeyColumns()`. Arms the fan-out push trigger. Cause confirmed. A new class guard scores every mapper and found three more mappers with the same defect, filed in `_BOYSCOUT.md`. `AUDIT_LOG` still has no producer binding and no ingest table, so AC-3 needs that rider too.
 - [ ] T-06 — S2 `[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]`. Admit `SYSTEM_ADMINISTRATOR` to the user lookup. Delete the silent fallback. Shared surface — grep the cross-journey consumers first.
 - [ ] T-07 — S2 `[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]`. Decide the snapshot fields for the 15 pinned sites.
 - [ ] T-08 — S2 `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`. Measure the seam. Raise the ADR 0008 decision to the operator. Do not choose.

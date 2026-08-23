@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.identity;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import ch.alpenflight.migration.bundle.ParitySentinel;
@@ -90,6 +91,11 @@ public final class AuditLogMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.USER);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        return List.of(new ForeignKeyColumn(ACTOR_USER_ID, EntityType.USER));
     }
 
     @Override

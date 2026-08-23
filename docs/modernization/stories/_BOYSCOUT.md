@@ -28,6 +28,34 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-33 T-05, 2026-08-23)
+
+- **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] **Symptom (measured, not inferred).**
+  T-05 added `MapperForeignKeyColumnDeclarationTest`, which scores every `KnownMappers` entry against the
+  column `ForeignKeyResolver` seeks. It reds on four mappers. T-05 fixed `AuditLogMapper`. Three remain, and
+  the test pins them in `KNOWN_UNDECLARED_AWAITING_ITS_OWN_MIGRATION_PROOF`: `DeliveryMapper` seeks `club_id`
+  and `person_id` while it emits `operating_club_id` and `recipient_person_id`; `DeliveryItemMapper` seeks
+  `club_id` while it emits `operating_club_id`; `PersonFlightTimeCreditTransactionMapper` seeks
+  `person_flight_time_credit_id` while it emits `credit_id`. **Cause (hypothesis).** Each declares
+  `foreignKeyTargets()` but no `foreignKeyColumns()`, so the resolver falls back to the `<target>_id`
+  convention and rewrites nothing. `ArticleMapper:61`, `AccountingRuleFilterMapper:100` and
+  `PlanningDayMapper:58` declare the same column correctly, so the omission looks like drift, not a decision.
+  Unlike `AUDIT_LOG`, all three entities carry a `MapperLegacyBindings` producer entry, so the real fan-out
+  exports them. Measure each against the real ingest before you fix it; `recipient_person_id` is a reviewed
+  cross-tenant column, so its repair needs the tenancy review too.
+  *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
+- **[AUDIT-LOG-HAS-NO-PRODUCER-BINDING-AND-NO-INGEST-TABLE]** [S1] **Symptom (measured, not inferred).**
+  `MapperBindingContractTest:26` lists `AUDIT_LOG` in `KNOWN_UNBOUND`, and `MapperLegacyBindings` holds no
+  `AUDIT_LOG` entry. `ExportCommand.registeredEntities()` streams only bound entities, so the real fan-out
+  exports zero audit rows. Separately, `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`
+  from the enum name, while the real destination is `t_mutation_audit_event`
+  (`MapperVsSchemaCompatibilityTest:67` already carries that override). **Consequence.** J-33 AC-3 ("a
+  migrated audit row shows a resolved AlpenFlight user") cannot be proved end-to-end on the fan-out until
+  both gaps close: the producer emits nothing, and an ingest that did receive an `AUDIT_LOG` entry would
+  fail on a missing relation. T-05 fixed the foreign-key declaration and proved it through the real
+  resolver, which is the whole of that seam.
+  *(seam: `MapperLegacyBindings`, `ExportCommand.registeredEntities`, `EntityStreamIngestor.destinationTableFor`)*
+
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 
 The red itself is fixed in the carve commit and is **folded into J-33** (see
@@ -102,13 +130,6 @@ this file untouched.
 - **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
   rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
   operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
-- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S1] **Promoted from S2 by the J-32 retro, because J-32
-  activated it.** T-51 called this latent "only because `AUDIT_LOG` is unregistered", and the same journey then
-  registered it (`KnownMappers:69`, `Manifest:60`). `ForeignKeyResolver` now seeks the conventional `user_id`
-  while the wire field is `actor_user_id`, so migrated audit rows keep raw legacy GUIDs instead of resolved ids.
-  A migration-correctness defect on a shipped path. Original text follows. `AuditLogMapper` declares no
-  `foreignKeyColumns()`, so `ForeignKeyResolver` looks for the conventional `user_id` while the wire field
-  is `actor_user_id`. This is latent only because `AUDIT_LOG` is unregistered; it bites when it ships.
 - **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
   behind it. T-10 found it while it drove the proof spec. *(seam: the nav overlay)*
 - **[J-32-GATE-NITS]** [S2] Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
