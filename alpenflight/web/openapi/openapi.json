@@ -29,6 +29,9 @@
     "name" : "public-registration",
     "description" : "Anonymous discovery- and scenic-flight registration."
   }, {
+    "name" : "demo-session",
+    "description" : "Anonymous entry to the sandbox demo. Leases one seat of a fixed pool."
+  }, {
     "name" : "DeliveryCreationTests",
     "description" : "DeliveryCreationTest CRUD (per-club tenant-scoped rules-engine regression harness)."
   }, {
@@ -1807,6 +1810,36 @@
           },
           "409" : {
             "description" : "User has no Keycloak identity attached."
+          }
+        }
+      }
+    },
+    "/api/v1/public/demo-session" : {
+      "post" : {
+        "tags" : [ "demo-session" ],
+        "summary" : "Lease one free demo seat and return that seat's access token.",
+        "description" : "The caller needs no account. The endpoint creates nothing: it leases a seat of the fixed sandbox pool. One address holds at most one live seat.",
+        "operationId" : "startDemoSession",
+        "responses" : {
+          "200" : {
+            "description" : "A seat is leased; the body carries that seat's access token.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DemoSessionResponse"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "No seat is free, the address already holds a live seat, or the identity provider issued no token. The problem detail carries a readable reason.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DemoSessionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7724,6 +7757,22 @@
           }
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "DemoSessionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "accessToken" : {
+            "type" : "string"
+          },
+          "expiresInSeconds" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "leaseExpiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
       },
       "InvoiceRecipient" : {
         "type" : "object",

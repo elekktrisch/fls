@@ -34,7 +34,8 @@ public class SecurityConfig {
 
     private static final String[] ANONYMOUS_PUBLIC_WRITES_ENUMERATED_SO_A_NEW_ONE_STAYS_AUTHENTICATED = {
             "/api/v1/public/clubs/*/discovery-flight-registrations",
-            "/api/v1/public/clubs/*/scenic-flight-registrations"};
+            "/api/v1/public/clubs/*/scenic-flight-registrations",
+            "/api/v1/public/demo-session"};
 
     private final ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter;
     private final LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint;

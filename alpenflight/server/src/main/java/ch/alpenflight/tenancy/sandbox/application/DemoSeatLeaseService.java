@@ -63,6 +63,17 @@ public class DemoSeatLeaseService {
                 Reason.TOO_MANY_VISITORS_CLAIMED_A_SEAT_AT_THE_SAME_MOMENT);
     }
 
+    public void returnSeatToPool(UUID seatId) {
+        oneTransactionPerClaimAttempt.executeWithoutResult(status -> seats
+                .findAllInSeatNumberOrder().stream()
+                .filter(seat -> seat.getId().equals(seatId))
+                .findFirst()
+                .ifPresent(seat -> {
+                    seat.returnToPool(Instant.now(clock));
+                    seats.save(seat);
+                }));
+    }
+
     private @Nullable LeasedDemoSeat claimOneFreeSeatUnlessAnotherVisitorTookItFirst(
             String address, int preferredFreeSeatIndex) {
         try {

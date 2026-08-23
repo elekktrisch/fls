@@ -8,7 +8,7 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 
 | File | Purpose |
 |---|---|
-| `realm-export.json` | Source-of-truth realm shape. Three clients + seven realm roles + three seed users + `clubId` protocol mapper + ADR 0007 token policy. |
+| `realm-export.json` | Source-of-truth realm shape. Four clients + seven realm roles + three seed users + ten demo seat principals + `clubId` protocol mapper + ADR 0007 token policy. |
 | `Dockerfile` | Bakes `realm-export.json` into a custom `alpenflight-keycloak:local` image. Used by the `keycloak` service in the root `docker-compose.yml`. |
 | `scripts/export-realm.sh` | Re-export the realm from a running Keycloak. Writes to `realm-export.json`; `git diff` shows drift. |
 | `scripts/normalize-realm-export.sh` | Deterministic-sorts the export. Strips volatile fields, dev-passwords-only injection, deep-sorts set-shaped arrays. |
@@ -58,6 +58,7 @@ bash alpenflight/ops/rebuild-keycloak.sh
 | `alpenflight-backend` | bearer-only | (token validator) | Spring Security 7 resource server (S-020 wires this in). |
 | `alpenflight-backend-admin` | confidential | client-credentials only | Backend → KC admin REST machine client (S-052). Service-account scoped to **`manage-users` + `view-users` + `query-users`** on `realm-management` only — NOT `manage-realm` / `manage-clients` / `impersonation`. Dev secret `alpenflight-backend-admin-dev-secret`; prod secret via `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. Rotate at deploy. |
 | `alpenflight-proffix` | confidential | client-credentials only | Machine client. Service-account role `proffix-sync`. Dev secret `alpenflight-proffix-dev-secret` — rotate at deploy. |
+| `alpenflight-demo-seat` | confidential | direct access grant only | The J-20 demo front door. `POST /api/v1/public/demo-session` trades a server-held seat credential for that seat's token. `fullScopeAllowed=false` plus a scope mapping of `CLUB_ADMINISTRATOR` alone, so this client can never mint a `SYSTEM_ADMINISTRATOR` token. No redirect URI, no web origin, no service account. Dev secret `alpenflight-demo-seat-dev-secret` — rotate at deploy. |
 
 ### Realm roles
 
@@ -114,7 +115,8 @@ The committed export is bit-stable across round-trips (deep-sorted, no timestamp
 - **Bootstrap admin (`admin`/`admin`)** — `KC_BOOTSTRAP_ADMIN_*` only seeds on a fresh H2 DB. Forbidden in prod; an operator must change before any non-localhost exposure.
 - **Embedded H2** — fine for dev (single-process, single-realm, throwaway). Production uses Postgres via `KC_DB=postgres` + a managed `keycloak_db` schema. The realm-export.json is the source of truth — DB loss is recoverable by re-importing.
 - **Plain HTTP** — `start-dev` + `sslRequired=external` allows plain HTTP on localhost. Production uses `start` (production mode) + TLS + `KC_HOSTNAME_URL=https://idp.example.com`.
-- **Dev secrets** — `alpenflight-proffix-dev-secret` + `alpenflight-backend-admin-dev-secret` are dev-committed (matches alpenflight-proffix precedent). Rotate both at deploy via env (`ALPENFLIGHT_KC_PROFFIX_CLIENT_SECRET` / `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`); the committed export carries placeholders that `check-realm-shape.sh` asserts on so a real secret can't ride in unnoticed.
+- **Dev secrets** — `alpenflight-proffix-dev-secret` + `alpenflight-backend-admin-dev-secret` + `alpenflight-demo-seat-dev-secret` are dev-committed (matches alpenflight-proffix precedent). Rotate both at deploy via env (`ALPENFLIGHT_KC_PROFFIX_CLIENT_SECRET` / `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`); the committed export carries placeholders that `check-realm-shape.sh` asserts on so a real secret can't ride in unnoticed.
+- **Demo seat pool** — the ten `demo1`..`demo10` principals and their one shared password `alpenflight-demo-seat-dev-2026!` are dev-committed. A production realm must create its own seat principals with its own password, and give `alpenflight-demo-seat` its own client secret. Supply both to the server as `ALPENFLIGHT_DEMO_SEAT_PASSWORD` and `ALPENFLIGHT_DEMO_SEAT_CLIENT_SECRET`. Warning: the server refuses to issue a demo token when the `prod` profile is active and either value is still the committed dev one. The demo front door then answers 503, and the rest of the application runs normally.
 - **Issuer URL** — host-pinned to `http://localhost:8090`. Production re-pins to the real public URL; downstream resource-server config must be env-driven (the same JSON works for both — only env differs).
 - **Brute-force tuning** — Keycloak defaults (5 fails → 60s lockout, escalating). Production may want longer / permanent lockout.
 - **Event log retention** — `jboss-logging` listener is dev-mode. Production extends with a forwarder (S-031) for centralized audit.

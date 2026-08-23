@@ -1703,6 +1703,43 @@
       "authenticationFlowBindingOverrides": {},
       "bearerOnly": false,
       "clientAuthenticatorType": "client-secret",
+      "clientId": "alpenflight-demo-seat",
+      "consentRequired": false,
+      "defaultClientScopes": [
+        "acr",
+        "basic",
+        "clubId",
+        "email",
+        "profile",
+        "roles"
+      ],
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "id": "00000000-0000-0000-0000-000000000005",
+      "implicitFlowEnabled": false,
+      "name": "AlpenFlight demo seat direct grant (server-held credential, sandbox seats only)",
+      "nodeReRegistrationTimeout": -1,
+      "optionalClientScopes": [],
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "redirectUris": [],
+      "secret": "alpenflight-demo-seat-dev-secret",
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": false,
+      "surrogateAuthRequired": false,
+      "webOrigins": []
+    },
+    {
+      "alwaysDisplayInConsole": false,
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "realm_client": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
       "clientId": "alpenflight-proffix",
       "consentRequired": false,
       "defaultClientScopes": [
@@ -2811,6 +2848,12 @@
       "clientScope": "offline_access",
       "roles": [
         "offline_access"
+      ]
+    },
+    {
+      "client": "alpenflight-demo-seat",
+      "roles": [
+        "CLUB_ADMINISTRATOR"
       ]
     }
   ],

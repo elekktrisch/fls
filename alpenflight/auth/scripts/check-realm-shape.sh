@@ -59,6 +59,53 @@ EXPECTED_SA_ROLES="manage-groups,manage-realm,manage-users,query-users,view-real
   || fail "alpenflight-backend-admin must have fullScopeAllowed=true (else realm-management roles are stripped from the SA token → admin REST 403s)"
 ok "alpenflight-backend-admin: confidential, service-accounts only, full-scope, manage-groups/realm/users + query-users + view-realm/users"
 
+DEMO_SEAT_CLIENT_ID="alpenflight-demo-seat"
+DEMO_SEAT_CLIENT_SECRET="alpenflight-demo-seat-dev-secret"
+DEMO_SEAT=$(jq --arg c "$DEMO_SEAT_CLIENT_ID" '.clients[] | select(.clientId==$c)' "$EXPORT")
+[[ -n "$DEMO_SEAT" ]] || fail "${DEMO_SEAT_CLIENT_ID} client missing — the demo front door performs a direct grant, and it is the only client that may enable one"
+[[ $(jq -r '.publicClient' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must be confidential (publicClient=false). A public client lets any caller mint a demo seat token from a browser."
+[[ $(jq -r '.bearerOnly' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must NOT be bearerOnly (it needs the token endpoint)"
+[[ $(jq -r '.directAccessGrantsEnabled' <<<"$DEMO_SEAT") == "true" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have directAccessGrantsEnabled=true — it is the one client the demo front door grants through"
+[[ $(jq -r '.standardFlowEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have standardFlowEnabled=false — no browser redirects through this client"
+[[ $(jq -r '.implicitFlowEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have implicitFlowEnabled=false"
+[[ $(jq -r '.serviceAccountsEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have serviceAccountsEnabled=false — it needs no machine identity of its own"
+[[ $(jq -r '.fullScopeAllowed' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have fullScopeAllowed=false. With full scope, a leaked client secret mints a SYSTEM_ADMINISTRATOR token for any principal whose password it also holds."
+[[ $(jq -r '.redirectUris | length' <<<"$DEMO_SEAT") == "0" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry no redirect URI"
+[[ $(jq -r '.webOrigins | length' <<<"$DEMO_SEAT") == "0" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry no web origin"
+[[ $(jq -r '.secret' <<<"$DEMO_SEAT") == "$DEMO_SEAT_CLIENT_SECRET" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry the dev-placeholder secret in source (rotate at deploy)"
+jq -e '.defaultClientScopes | index("clubId")' <<<"$DEMO_SEAT" >/dev/null \
+  || fail "${DEMO_SEAT_CLIENT_ID} must carry the clubId client scope by default — without it the seat token names no tenant and the demo reads nothing"
+
+DEMO_SEAT_SCOPE_ROLES=$(jq -r --arg c "$DEMO_SEAT_CLIENT_ID" \
+  '[.scopeMappings[]? | select(.client==$c) | .roles[]] | sort | join(",")' "$EXPORT")
+[[ "$DEMO_SEAT_SCOPE_ROLES" == "CLUB_ADMINISTRATOR" ]] \
+  || fail "${DEMO_SEAT_CLIENT_ID} scope mapping drifted: have [$DEMO_SEAT_SCOPE_ROLES], want [CLUB_ADMINISTRATOR]. This mapping is what restricts the client to the demo seats: with fullScopeAllowed=false it is the ONLY realm role this client can put in a token."
+
+CLIENTS_THAT_ENABLE_DIRECT_GRANTS=$(jq -r \
+  '[.clients[] | select(.directAccessGrantsEnabled == true) | .clientId] | sort | join(",")' "$EXPORT")
+EXPECTED_DIRECT_GRANT_CLIENTS="admin-cli,${DEMO_SEAT_CLIENT_ID}"
+[[ "$CLIENTS_THAT_ENABLE_DIRECT_GRANTS" == "$EXPECTED_DIRECT_GRANT_CLIENTS" ]] \
+  || fail "direct-access-grant clients drifted: have [$CLIENTS_THAT_ENABLE_DIRECT_GRANTS], want [$EXPECTED_DIRECT_GRANT_CLIENTS].
+    A direct grant trades a username and a password for a token, and it needs no browser. Only the
+    dedicated demo seat client may enable it, plus the Keycloak built-in admin-cli."
+ok "${DEMO_SEAT_CLIENT_ID}: confidential, direct-grant only, no full scope, CLUB_ADMINISTRATOR scope only, and the only alpenflight client with a direct grant"
+
+SEAT_PASSWORD_IN_THE_EXPORT=$(jq -r \
+  '[.users[]? | select(.username | test("^demo[0-9]+$")) | .credentials[0].value] | unique | join(",")' \
+  "$EXPORT")
+[[ "$SEAT_PASSWORD_IN_THE_EXPORT" != *","* ]] \
+  || fail "the demo seat principals carry more than one password. The server holds ONE seat credential, so a second value locks every seat that carries it out of the demo."
+
+SERVER_CONFIG="${REPO_ROOT}/alpenflight/server/src/main/resources/application.yml"
+[[ -f "$SERVER_CONFIG" ]] || fail "$SERVER_CONFIG missing — the guard cannot cross-check the server-held demo seat credential"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_CLIENT_ID:${DEMO_SEAT_CLIENT_ID}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.client-id does not default to '${DEMO_SEAT_CLIENT_ID}' — the server would grant through a client this realm does not define"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_CLIENT_SECRET:${DEMO_SEAT_CLIENT_SECRET}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.client-secret does not default to the secret this realm publishes — the dev and CI demo front door would answer 503 on every request"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_PASSWORD:${SEAT_PASSWORD_IN_THE_EXPORT}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.seat-password does not default to the password this realm publishes for demo1..demoN — the dev and CI demo front door would answer 503 on every request"
+ok "demo seat credential: one password for every seat, and the server defaults match the realm"
+
 EXPECTED_ROLES="CLUB_ADMINISTRATOR FLIGHT_OPERATOR GUEST OFFICE_USER PILOT SYSTEM_ADMINISTRATOR proffix-sync"
 ACTUAL=$(jq -r '[.roles.realm[].name] | map(select(. as $r | ["CLUB_ADMINISTRATOR","FLIGHT_OPERATOR","GUEST","OFFICE_USER","PILOT","SYSTEM_ADMINISTRATOR","proffix-sync"] | index($r))) | sort | join(" ")' "$EXPORT")
 [[ "$ACTUAL" == "$EXPECTED_ROLES" ]] || fail "realm roles drift: have [$ACTUAL], want [$EXPECTED_ROLES]"
@@ -198,6 +245,7 @@ DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
 DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
   'alpenflight-backend-admin-dev-secret'
   'alpenflight-proffix-dev-secret'
+  'alpenflight-demo-seat-dev-secret'
 )
 
 ALLOWED_PASSWORDS_JSON=$(jq -n --args '$ARGS.positional' "${DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]}")

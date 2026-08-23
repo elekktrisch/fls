@@ -58,6 +58,7 @@ if 'components' in partial:
 
 DEV_CLIENT_SECRETS_RESTORED_OVER_THE_EXPORTS_MASKED_PLACEHOLDER = {
     'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
+    'alpenflight-demo-seat': 'alpenflight-demo-seat-dev-secret',
 }
 
 DEV_CLIENT_BASE_URL_BUILD_ARG_PLACEHOLDERS_THE_DOCKERFILE_SED_RESTORES = {

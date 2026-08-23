@@ -1,4 +1,4 @@
-package ch.alpenflight.publicregistration.web;
+package ch.alpenflight.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

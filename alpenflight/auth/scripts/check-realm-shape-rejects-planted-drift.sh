@@ -55,6 +55,12 @@ REALM_WITH_SEAT_IDENTITY_FIELD_NULLED="${PLANTED_REALMS_DIR}/realm-with-seat-ide
 REALM_WITH_SEAT_ON_A_FOREIGN_CLUB="${PLANTED_REALMS_DIR}/realm-with-seat-on-a-foreign-club.json"
 REALM_WITH_A_SEAT_PRINCIPAL_DROPPED="${PLANTED_REALMS_DIR}/realm-with-a-seat-principal-dropped.json"
 REALM_WITH_A_SEAT_ROLE_REVOKED="${PLANTED_REALMS_DIR}/realm-with-a-seat-role-revoked.json"
+REALM_WITH_DIRECT_GRANTS_ON_THE_SPA="${PLANTED_REALMS_DIR}/realm-with-direct-grants-on-the-spa.json"
+REALM_WITH_A_PUBLIC_DEMO_SEAT_CLIENT="${PLANTED_REALMS_DIR}/realm-with-a-public-demo-seat-client.json"
+REALM_WITH_A_FULL_SCOPE_DEMO_SEAT_CLIENT="${PLANTED_REALMS_DIR}/realm-with-a-full-scope-demo-seat-client.json"
+REALM_WITH_AN_ADMIN_ROLE_ON_THE_DEMO_SEAT_CLIENT="${PLANTED_REALMS_DIR}/realm-with-an-admin-role-on-the-demo-seat-client.json"
+REALM_WITH_TWO_SEAT_PASSWORDS="${PLANTED_REALMS_DIR}/realm-with-two-seat-passwords.json"
+REALM_WITH_A_SEAT_PASSWORD_THE_SERVER_DOES_NOT_HOLD="${PLANTED_REALMS_DIR}/realm-with-a-seat-password-the-server-does-not-hold.json"
 
 jq --arg planted "$PASSWORD_NO_DEV_SEED_USER_MAY_CARRY" '
   .users |= map(
@@ -93,6 +99,42 @@ jq '
     else . end
   )
 ' "$COMMITTED_EXPORT" > "$REALM_WITH_A_SEAT_ROLE_REVOKED"
+
+jq '
+  .clients |= map(if .clientId == "alpenflight-web" then .directAccessGrantsEnabled = true else . end)
+' "$COMMITTED_EXPORT" > "$REALM_WITH_DIRECT_GRANTS_ON_THE_SPA"
+
+jq '
+  .clients |= map(if .clientId == "alpenflight-demo-seat" then .publicClient = true else . end)
+' "$COMMITTED_EXPORT" > "$REALM_WITH_A_PUBLIC_DEMO_SEAT_CLIENT"
+
+jq '
+  .clients |= map(if .clientId == "alpenflight-demo-seat" then .fullScopeAllowed = true else . end)
+' "$COMMITTED_EXPORT" > "$REALM_WITH_A_FULL_SCOPE_DEMO_SEAT_CLIENT"
+
+jq '
+  .scopeMappings |= map(
+    if .client == "alpenflight-demo-seat"
+    then .roles = ["CLUB_ADMINISTRATOR", "SYSTEM_ADMINISTRATOR"]
+    else . end
+  )
+' "$COMMITTED_EXPORT" > "$REALM_WITH_AN_ADMIN_ROLE_ON_THE_DEMO_SEAT_CLIENT"
+
+jq '
+  .users |= map(
+    if .username == "demo2"
+    then .credentials = [{ "temporary": false, "type": "password", "value": "pilot1-dev-2026!" }]
+    else . end
+  )
+' "$COMMITTED_EXPORT" > "$REALM_WITH_TWO_SEAT_PASSWORDS"
+
+jq '
+  .users |= map(
+    if (.username | test("^demo[0-9]+$"))
+    then .credentials = [{ "temporary": false, "type": "password", "value": "sysadmin-dev-2026!" }]
+    else . end
+  )
+' "$COMMITTED_EXPORT" > "$REALM_WITH_A_SEAT_PASSWORD_THE_SERVER_DOES_NOT_HOLD"
 
 echo "checking that check-realm-shape.sh rejects a planted drift in the committed realm export"
 
@@ -135,6 +177,36 @@ expect_guard_rejects_planted_drift \
   "demo seat role revoked" \
   "$REALM_WITH_A_SEAT_ROLE_REVOKED" \
   "demo8 does not carry the realm role CLUB_ADMINISTRATOR"
+
+expect_guard_rejects_planted_drift \
+  "direct grants switched on for the SPA" \
+  "$REALM_WITH_DIRECT_GRANTS_ON_THE_SPA" \
+  "alpenflight-web must have directAccessGrantsEnabled=false"
+
+expect_guard_rejects_planted_drift \
+  "demo seat client made public" \
+  "$REALM_WITH_A_PUBLIC_DEMO_SEAT_CLIENT" \
+  "must be confidential (publicClient=false)"
+
+expect_guard_rejects_planted_drift \
+  "demo seat client given full scope" \
+  "$REALM_WITH_A_FULL_SCOPE_DEMO_SEAT_CLIENT" \
+  "must have fullScopeAllowed=false"
+
+expect_guard_rejects_planted_drift \
+  "admin role added to the demo seat scope" \
+  "$REALM_WITH_AN_ADMIN_ROLE_ON_THE_DEMO_SEAT_CLIENT" \
+  "scope mapping drifted"
+
+expect_guard_rejects_planted_drift \
+  "two demo seat passwords" \
+  "$REALM_WITH_TWO_SEAT_PASSWORDS" \
+  "carry more than one password"
+
+expect_guard_rejects_planted_drift \
+  "seat password the server does not hold" \
+  "$REALM_WITH_A_SEAT_PASSWORD_THE_SERVER_DOES_NOT_HOLD" \
+  "seat-password does not default to the password this realm publishes"
 
 expect_guard_accepts_committed_realm
 

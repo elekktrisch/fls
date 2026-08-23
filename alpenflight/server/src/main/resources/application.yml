@@ -61,6 +61,10 @@ demo:
   pool-size: ${ALPENFLIGHT_DEMO_POOL_SIZE:10}
   max-live-seats-per-address: ${ALPENFLIGHT_DEMO_MAX_LIVE_SEATS_PER_ADDRESS:1}
   lease-idle-period: ${ALPENFLIGHT_DEMO_LEASE_IDLE_PERIOD:PT30M}
+  direct-grant:
+    client-id: ${ALPENFLIGHT_DEMO_SEAT_CLIENT_ID:alpenflight-demo-seat}
+    client-secret: ${ALPENFLIGHT_DEMO_SEAT_CLIENT_SECRET:alpenflight-demo-seat-dev-secret}
+    seat-password: ${ALPENFLIGHT_DEMO_SEAT_PASSWORD:alpenflight-demo-seat-dev-2026!}
 
 keycloak:
   admin:
@@ -572,6 +576,12 @@ audit:
           - createdOn
           - decidedOn
           - decidedByUserId
+      DemoSeatLease:
+        snapshot-types:
+          - 'ch.alpenflight.tenancy.sandbox.application.DemoSessionStarter$LeasedSeatAuditPayload'
+        allow:
+          - seatNumber
+          - clubId
 
 alpenflight:
   mail:

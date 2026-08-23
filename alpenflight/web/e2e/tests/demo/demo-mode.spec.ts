@@ -38,15 +38,17 @@ const UNSIGNED_TOKEN_SHAPED_LIKE_THE_ONE_KEYCLOAK_RETURNS_FOR_A_DIRECT_GRANT = [
 ].join('.');
 
 const DEMO_SESSION_GRANTED_BODY = {
-  access_token: UNSIGNED_TOKEN_SHAPED_LIKE_THE_ONE_KEYCLOAK_RETURNS_FOR_A_DIRECT_GRANT,
-  expires_in: 300,
+  accessToken: UNSIGNED_TOKEN_SHAPED_LIKE_THE_ONE_KEYCLOAK_RETURNS_FOR_A_DIRECT_GRANT,
+  expiresInSeconds: 900,
+  leaseExpiresAt: '2099-01-01T00:00:00Z',
 };
 
 const DEMO_POOL_EXHAUSTED_PROBLEM_BODY = {
   type: 'urn:alpenflight:problem:demo-pool-exhausted',
   title: 'No demo seat is free',
   status: 503,
-  detail: 'Every demo seat is in use at the moment. Try again in a few minutes.',
+  detail: 'All demo seats are in use. Please try again later.',
+  instance: DEMO_SESSION_ENDPOINT_PATHNAME,
 };
 
 function grantsADemoSeat(leasedEndpointCalls: string[]) {
