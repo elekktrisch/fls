@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -49,29 +50,50 @@ public final class LegacyIdMapPopulator {
         if (bundleRows.isEmpty()) {
             return Map.of();
         }
-        Map<String, UUID> legacyGuidByLookupKey = new HashMap<>();
+        Map<String, UUID> seedIdByNaturalKey = readSeedIdByNaturalKey(connection, spec);
+        Map<UUID, UUID> seedIdByLegacyGuid = new LinkedHashMap<>();
         for (JsonNode row : bundleRows) {
-            String lookupKey = row.get(spec.bundleLookupField()).asText();
-            String legacyGuidText = row.get("legacy_guid").asText();
-            legacyGuidByLookupKey.put(
-                    lookupKey.toLowerCase(java.util.Locale.ROOT),
-                    UUID.fromString(legacyGuidText));
+            UUID legacyGuid = UUID.fromString(row.get("legacy_guid").asText());
+            String naturalKey = normalizeNaturalKey(row.get(spec.bundleLookupField()).asText());
+            UUID seedId = seedIdByNaturalKey.get(naturalKey);
+            if (seedId == null) {
+                throw new IllegalStateException(
+                        "Bundle row for " + spec.destinationTable() + " carries legacy_guid "
+                                + legacyGuid + " with natural key '" + naturalKey
+                                + "', which no row of " + spec.destinationTable()
+                                + "." + spec.destinationLookupColumn() + " holds — the V2 "
+                                + "seed catalogue must contain every natural key the "
+                                + "producer emitted.");
+            }
+            UUID alreadyMapped = seedIdByLegacyGuid.put(legacyGuid, seedId);
+            if (alreadyMapped != null && !alreadyMapped.equals(seedId)) {
+                throw new IllegalStateException(
+                        "Bundle emitted legacy_guid " + legacyGuid + " twice for "
+                                + spec.destinationTable() + " with conflicting natural keys — "
+                                + "a legacy primary key must resolve to exactly one seed row.");
+            }
         }
+        return seedIdByLegacyGuid;
+    }
+
+    private static Map<String, UUID> readSeedIdByNaturalKey(
+            Connection connection, ResolverSpec spec) throws SQLException {
         String sql = "SELECT " + spec.destinationLookupColumn() + ", id FROM "
                 + spec.destinationTable();
-        Map<UUID, UUID> resolved = new LinkedHashMap<>();
+        Map<String, UUID> seedIdByNaturalKey = new HashMap<>();
         try (PreparedStatement ps = connection.prepareStatement(sql);
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                String destinationKey = rs.getString(1).toLowerCase(java.util.Locale.ROOT);
-                UUID destinationId = UUID.fromString(rs.getString(2));
-                UUID legacyGuid = legacyGuidByLookupKey.get(destinationKey);
-                if (legacyGuid != null) {
-                    resolved.put(legacyGuid, destinationId);
-                }
+                seedIdByNaturalKey.put(
+                        normalizeNaturalKey(rs.getString(1)),
+                        UUID.fromString(rs.getString(2)));
             }
         }
-        return resolved;
+        return seedIdByNaturalKey;
+    }
+
+    private static String normalizeNaturalKey(String rawKey) {
+        return rawKey.trim().toLowerCase(Locale.ROOT);
     }
 
     private record ResolverSpec(

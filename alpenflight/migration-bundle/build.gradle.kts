@@ -78,6 +78,10 @@ tasks.check {
     dependsOn(parity.classesTaskName)
 }
 
+val legacyFlsTestSchemaScripts = layout.projectDirectory.dir("../../flsserver/database/FLSTest")
+val alpenflightFlywayMigrations =
+    layout.projectDirectory.dir("../server/src/main/resources/db/migration")
+
 val parityTest by tasks.registering(Test::class) {
     group = "verification"
     description = "Runs the migration-bundle parity oracle (MSSQL → mapper round-trip → Postgres → diff)."
@@ -88,6 +92,14 @@ val parityTest by tasks.registering(Test::class) {
     }
     systemProperty("parity.seed", System.getProperty("parity.seed", "42"))
     systemProperty("parity.scale", System.getProperty("parity.scale", "1"))
+    inputs.dir(legacyFlsTestSchemaScripts)
+        .withPropertyName("legacyFlsTestSchemaScripts")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(alpenflightFlywayMigrations)
+        .withPropertyName("alpenflightFlywayMigrations")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("parityRequiresDocker",
+        providers.environmentVariable("PARITY_REQUIRES_DOCKER").orElse(""))
 }
 
 val parityRejectTest by tasks.registering(Test::class) {

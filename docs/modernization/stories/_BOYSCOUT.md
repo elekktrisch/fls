@@ -47,30 +47,16 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
 
 ## Pending (filed by /do-ship J-33 T-42, 2026-08-23)
 
-- **[PARITY-ORACLE-HARNESS-HAS-NEVER-PASSED]** [S1] **Symptom (measured, not inferred).** T-42 wired a lane
-  and ran `parityTest` for the first time. It fails before it reaches any assertion, and it has failed that
-  way since S-187 authored it. T-42 measured and closed three successive causes, and stopped at the fourth
-  because it needs a production decision. The chain, in the order the run surfaces it:
-  1. The fixture skipped every `ALTER DATABASE` batch, so it ran at the container level 160, not the level
-     100 the legacy scripts declare. Closed by T-42, with the T-41 pattern.
-  2. `3 Insert Static Data.sql` carries zero `GO` separators, so the whole 955-line file is ONE batch that
-     starts with `USE [FLSTest]`. The applier dropped that whole batch, so no static data ever landed and
-     `LegacyFixtureSeeder.java:65` could not find Country `CH`. Closed by T-42.
-  3. `LegacyFixtureSeeder.seedUsers` never set `Users.AccountState`, which `DBUpdate_v1.8.0.sql` declares
-     NOT NULL with no default. Closed by T-42.
-  4. **OPEN.** The canonical `System-Verein` club that `3 Insert Static Data.sql:717` inserts carries
-     `ClubStateId = 0`, and `ClubStates` seeds only 1, 2, 4 and 10. The CLUB producer SELECT
-     (`MapperLegacyBindings.java:58`) has no `WHERE`, so that club enters the bundle, and BOTH the parity
-     `ForeignKeyRewriter.java:29` and production `ForeignKeyResolver.java:69` refuse an unresolvable
-     SYSTEM_GLOBAL foreign key. **Cause (hypothesis, not measured).** The real fan-out migrates a chosen
-     club, never the whole `Clubs` table, so it has never presented `System-Verein` to the resolver.
-     **Why it may be a live defect, not only a harness gap.** If any bundle carries a club whose
-     `ClubStateId` names no `ClubStates` row, the ingest rejects the whole stream. The operator decides:
-     enumerate `ClubStateId = 0` in the CLUB_STATE bundle entry, exclude the system club from the CLUB
-     producer SELECT, or let the resolver null an unresolvable reference state.
-  Until 4 is decided, `parityTest` stays out of the gating lane. It is the only thing that scores the
-  MSSQL → mapper → Postgres round-trip.
-  *(seam: `alpenflight/migration-bundle/src/parity`, `MapperLegacyBindings`, `ForeignKeyResolver`)*
+- **[PARITY-DIFF-ENGINE-TRUSTS-THE-PRODUCER-SELECT]** [S2] **Symptom (measured).** T-43 made
+  `ParityDiffEngine` count the legacy side through `MapperLegacyBindings.selectForProducer`, because the
+  raw-table count scored the one `Users` row the USER producer SELECT excludes by id as a false red. The
+  oracle now proves "every row the producer emitted landed in Postgres". It no longer proves "the producer
+  emitted every row the legacy table holds": a producer SELECT that silently drops legacy rows shrinks both
+  sides of the comparison and stays green. **Cause (hypothesis, not measured).** The engine has no
+  declaration of which legacy rows a mapper deliberately excludes, so it cannot separate a deliberate
+  exclusion from a lost row. A per-binding exclusion count that the engine adds back would score both
+  classes. [[project_synth_bundle_doesnt_validate_producer_select]]
+  *(seam: `ParityDiffEngine.java:23`, `MapperLegacyBindings`)*
 
 - **[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]** [S2] **Symptom (measured).** `parityRejectTest` and
   `parityMetaTest` both complete `BUILD SUCCESSFUL` in seconds and write an empty result directory. No test
@@ -78,17 +64,19 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   carries `@Tag("parity")` only. S-187a shipped the two Gradle tasks and S-187d still owes their cases, so
   each task is a gate that cannot fail. T-42 measured that Gradle 9.4.1 `failOnNoDiscoveredTests` does NOT
   score this: a tag filter that selects nothing still passes, and an empty `testClassesDirs` makes Gradle
-  skip the task as NO-SOURCE. So the guard must be the missing cases, not a build flag.
+  skip the task as NO-SOURCE. So the guard must be the missing cases, not a build flag. T-43 re-measured
+  it: still zero tagged cases, and T-43 did not invent any.
   *(seam: `alpenflight/migration-bundle/build.gradle.kts:89`, S-187d)*
 
-- **[DOCKER-SKIP-TURNS-TWO-MSSQL-GUARDS-GREEN]** [S2] **Symptom (measured).**
-  `LegacyProducerSelectCompatibilityLevelTest:21` and `ParityOracleHarnessTest:35` are both
-  `@EnabledIf("dockerAvailable")`, and each swallows the container start failure. A Docker blip on the
-  runner turns each guard into a silent skip, and the lane reads green. T-42 confirmed both execute today
-  (the extract guard ran 3 tests, 0 skipped, on this box). **Cause (hypothesis).** The condition exists for
-  a developer box with no Docker. A `CI=true` branch that rethrows would keep the dev ergonomics and remove
-  the false green.
-  *(seam: `alpenflight/database/extract/src/test`, `alpenflight/migration-bundle/src/parity`)*
+- **[DOCKER-SKIP-TURNS-AN-MSSQL-GUARD-GREEN]** [S2] **Symptom (measured).**
+  `LegacyProducerSelectCompatibilityLevelTest:21` is `@EnabledIf("dockerAvailable")` and swallows the
+  container start failure. A Docker blip on the runner turns the guard into a silent skip, and the lane
+  reads green. T-42 confirmed it executes today (3 tests, 0 skipped, on this box). **Cause (hypothesis).**
+  The condition exists for a developer box with no Docker. T-43 closed the same hole on the parity side
+  with a `PARITY_REQUIRES_DOCKER` env var that rethrows, and measured both arms: unreachable Docker with
+  the variable reads `initializationError FAILED`, without it reads `BUILD SUCCESSFUL`. The extract guard
+  owes the same treatment.
+  *(seam: `alpenflight/database/extract/src/test`)*
 
 - **[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]** [S2] **Symptom (measured).** `extract.yml` runs
   `LegacyProducerSelectCompatibilityLevelTest` and `MetadataExtractorIntegrationTest`, but the job is in no

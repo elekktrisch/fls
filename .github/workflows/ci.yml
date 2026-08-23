@@ -420,16 +420,20 @@ jobs:
   # validated and stayed red-but-invisible for about three months (J-31 T-18),
   # so this lane refuses every mechanism that could stand it down.
   #
-  # RESIDUAL LIMIT — this lane runs `./gradlew build`, which covers the `test`
-  # source set and COMPILES `src/parity/java`. It does NOT execute `parityTest`,
-  # `parityRejectTest` or `parityMetaTest`. `parityTest` has never passed (see
-  # `[PARITY-ORACLE-HARNESS-HAS-NEVER-PASSED]` in _BOYSCOUT.md) and the other
-  # two hold zero tagged cases (S-187d owes them).
+  # J-33 T-43 added the `parityTest` step. `./gradlew build` compiles
+  # `src/parity/java` but executes no parity case, so the oracle ran nowhere.
+  # `PARITY_REQUIRES_DOCKER=1` makes the harness RED on an unreachable Docker
+  # daemon instead of skipping the class: the `@EnabledIf(dockerAvailable)`
+  # guard otherwise turns the whole oracle green without one assertion.
+  #
+  # RESIDUAL LIMIT — `parityRejectTest` and `parityMetaTest` still run nowhere,
+  # because both hold zero tagged cases (S-187d owes them). See
+  # `[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]` in _BOYSCOUT.md.
   # ---------------------------------------------------------------------------
   migration-bundle-tests:
-    name: alpenflight migration-bundle (unit tests + parity compile)
+    name: alpenflight migration-bundle (unit tests + parity oracle)
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -446,12 +450,21 @@ jobs:
         working-directory: alpenflight/migration-bundle
         run: ./gradlew build --no-daemon
 
+      - name: Run the parity oracle (MSSQL + Postgres round-trip)
+        working-directory: alpenflight/migration-bundle
+        env:
+          PARITY_REQUIRES_DOCKER: '1'
+        run: ./gradlew parityTest --no-daemon
+
       - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: migration-bundle-test-report-${{ github.run_id }}
-          path: alpenflight/migration-bundle/build/reports/tests/test
+          path: |
+            alpenflight/migration-bundle/build/reports/tests/test
+            alpenflight/migration-bundle/build/reports/tests/parityTest
+            alpenflight/migration-bundle/build/reports/parity
           retention-days: 7
           if-no-files-found: ignore
 

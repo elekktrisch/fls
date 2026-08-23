@@ -20,32 +20,41 @@ public final class ParityDiffEngine {
 
     private ParityDiffEngine() { }
 
+    public static Map<EntityType, Map<String, Long>> countNewSchemaRowsBeforeIngest(
+            Connection postgresConnection, List<Mapper> mappers) throws SQLException {
+        Map<EntityType, Map<String, Long>> rowCountsByEntity = new LinkedHashMap<>();
+        for (Mapper mapper : mappers) {
+            EntityType entity = mapper.entityType();
+            if (isRowCountComparable(entity)) {
+                rowCountsByEntity.put(entity, countNewSchemaRowsPerClub(
+                        postgresConnection, entity));
+            }
+        }
+        return rowCountsByEntity;
+    }
+
     public static DiffOutcome run(
             Connection legacyConnection,
             Connection postgresConnection,
-            List<Mapper> mappers) throws SQLException {
+            List<Mapper> mappers,
+            Map<EntityType, Map<String, Long>> newSchemaRowsBeforeIngest) throws SQLException {
         List<RowCountDelta> rowCountDeltas = new ArrayList<>();
         Map<EntityType, MapperSentinels> sentinelsByEntity = new LinkedHashMap<>();
         for (Mapper mapper : mappers) {
             EntityType entity = mapper.entityType();
             sentinelsByEntity.put(entity, sentinelsFor(mapper));
-            if (!MapperLegacyBindings.isRegistered(entity)) {
+            if (!isRowCountComparable(entity)) {
                 continue;
             }
-            if (MapperLegacyBindings.portPolicy(entity)
-                    == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL) {
-                continue;
-            }
-            String legacyTable = legacyTableFor(entity);
-            String newTable = MapperLegacyBindings.newSchemaTable(entity);
-            Map<String, Long> legacyRows = countRowsPerClub(
+            Map<String, Long> producedLegacyRows = countRowsPerClub(
                     legacyConnection,
-                    "SELECT ClubId, COUNT(*) FROM " + legacyTable + " GROUP BY ClubId");
-            Map<String, Long> newRows = countRowsPerClub(
-                    postgresConnection,
-                    "SELECT " + clubColumnFor(entity) + ", COUNT(*) FROM " + newTable
-                            + " GROUP BY " + clubColumnFor(entity));
-            rowCountDeltas.addAll(diffRowCounts(entity, legacyRows, newRows));
+                    "SELECT ClubId, COUNT(*) FROM ("
+                            + MapperLegacyBindings.selectForProducer(entity)
+                            + ") AS rows_the_producer_emits GROUP BY ClubId");
+            Map<String, Long> ingestedRows = subtractRowsPresentBeforeIngest(
+                    countNewSchemaRowsPerClub(postgresConnection, entity),
+                    newSchemaRowsBeforeIngest.getOrDefault(entity, Map.of()));
+            rowCountDeltas.addAll(diffRowCounts(entity, producedLegacyRows, ingestedRows));
         }
         rowCountDeltas.sort(Comparator
                 .comparing((RowCountDelta delta) -> delta.entity().name())
@@ -53,13 +62,33 @@ public final class ParityDiffEngine {
         return new DiffOutcome(rowCountDeltas, sentinelsByEntity);
     }
 
-    private static String legacyTableFor(EntityType entity) {
-        return switch (entity) {
-            case CLUB -> "Clubs";
-            case USER -> "Users";
-            default -> throw new IllegalArgumentException(
-                    "No legacy table mapping for " + entity + " — extend the switch in S-187a.");
-        };
+    private static boolean isRowCountComparable(EntityType entity) {
+        return MapperLegacyBindings.isRegistered(entity)
+                && MapperLegacyBindings.portPolicy(entity)
+                        != MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL;
+    }
+
+    private static Map<String, Long> countNewSchemaRowsPerClub(
+            Connection postgresConnection, EntityType entity) throws SQLException {
+        String clubColumn = clubColumnFor(entity);
+        return countRowsPerClub(
+                postgresConnection,
+                "SELECT " + clubColumn + ", COUNT(*) FROM "
+                        + MapperLegacyBindings.newSchemaTable(entity)
+                        + " GROUP BY " + clubColumn);
+    }
+
+    private static Map<String, Long> subtractRowsPresentBeforeIngest(
+            Map<String, Long> afterIngest, Map<String, Long> beforeIngest) {
+        Map<String, Long> ingestedOnly = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> entry : afterIngest.entrySet()) {
+            long ingested = entry.getValue()
+                    - beforeIngest.getOrDefault(entry.getKey(), 0L);
+            if (ingested != 0L) {
+                ingestedOnly.put(entry.getKey(), ingested);
+            }
+        }
+        return ingestedOnly;
     }
 
     private static String clubColumnFor(EntityType entity) {
