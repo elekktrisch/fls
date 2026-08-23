@@ -1,6 +1,7 @@
 package ch.alpenflight.tenancy.sandbox;
 
 import ch.alpenflight.platform.id.AircraftId;
+import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.PersonId;
 import java.util.List;
@@ -10,7 +11,12 @@ public record SandboxMasterdata(UUID clubId,
                                 LocationId homeAirfield,
                                 List<LocationId> destinationAirfields,
                                 SandboxFleet fleet,
-                                SandboxRoster roster) {
+                                SandboxRoster roster,
+                                SandboxOperations operations) {
+
+    public record SandboxOperations(List<FlightId> flightsOverTheLastThirtyDays,
+                                    List<UUID> reservationsOverTheNextFourteenDays,
+                                    UUID planningDay) {}
 
     public record SandboxFleet(AircraftId clubGlider,
                                AircraftId singleSeatGlider,

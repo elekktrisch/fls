@@ -132,6 +132,7 @@ public class SandboxSeeder {
     private final AircraftsService aircraftWrites;
     private final AircraftRepository aircraftReads;
     private final PersonsService persons;
+    private final SandboxOperationsSeeder operations;
     private final Clock clock;
     private final TransactionTemplate oneTransactionPerSeatSeed;
 
@@ -140,6 +141,7 @@ public class SandboxSeeder {
                          AircraftsService aircraftWrites,
                          AircraftRepository aircraftReads,
                          PersonsService persons,
+                         SandboxOperationsSeeder operations,
                          Clock clock,
                          PlatformTransactionManager transactionManager) {
         this.referenceData = referenceData;
@@ -147,6 +149,7 @@ public class SandboxSeeder {
         this.aircraftWrites = aircraftWrites;
         this.aircraftReads = aircraftReads;
         this.persons = persons;
+        this.operations = operations;
         this.clock = clock;
         this.oneTransactionPerSeatSeed = new TransactionTemplate(transactionManager);
     }
@@ -171,12 +174,15 @@ public class SandboxSeeder {
             referenceData.seedTheDefaultsEveryClubNeeds(seatClubId);
             List<LocationId> airfields = seedAirfields();
             LocationId home = airfields.get(0);
+            SandboxMasterdata.SandboxFleet fleet = seedFleet(seatNumber, home);
+            SandboxMasterdata.SandboxRoster roster = seedRoster(seatNumber);
             return new SandboxMasterdata(
                     seatClubId,
                     home,
                     List.copyOf(airfields.subList(1, airfields.size())),
-                    seedFleet(seatNumber, home),
-                    seedRoster(seatNumber));
+                    fleet,
+                    roster,
+                    operations.seed(fleet, roster, home));
         });
         if (seeded == null) {
             throw new IllegalStateException("the sandbox seed transaction returned no result");
