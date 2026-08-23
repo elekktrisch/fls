@@ -2,7 +2,8 @@
 id: J-33
 title: Audit attribution and the migrate dead-end — drain every S1 and S2 rider (hardening)
 epic: E-13
-status: todo
+status: in_progress
+started_at: 2026-08-23
 journey0: false
 hardening: true
 carved: true
@@ -179,6 +180,68 @@ missed a class inside their own stated scope.
 **No design reference exists for these screens.** `docs/modernization/design-reference/` holds
 entry, home, logbook, misc, public and reservations. Neither `/system/logs` nor `/migrate/start` has
 a reference screen. Both are built, so structure comes from the shipped screen.
+
+## Tasks
+
+Each task opens by confirming or refuting the rider's stated cause against the tree, and says which
+([[feedback_rider_symptom_is_evidence_cause_is_a_guess]]). A green is a hypothesis too.
+
+**Scaffold**
+- [ ] T-01 — Tag this journey's proof videos `journey: 'J-33'`. `audit-log-two-club.spec.ts` emits J-32/J-30/J-13 today; `register.spec.ts` calls `proofVideo` zero times. Zero J-33 videos reds the bookmark guard.
+- [ ] T-02 — `Derive journey proof spec` (`ci.yml:256`) reads only the FIRST path token of `parity_test:`, so `register.spec.ts` is dropped and Cluster B gets no lane. Carry every token. Plant a red per input class (one spec, two specs, each separator).
+- [ ] T-03 — `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Add the missing Flyway placeholder. This test is red today, so it ships first.
+
+**Cluster A — audit attribution and legibility (proves on `/system/logs`)**
+- [ ] T-04 — S1 `[ANON-FAILED-WRITE-READS-AS-SYSTEM]`. Give `AuditTrailService.recordFailed` the `ANONYMOUS_PUBLIC` kind and the client IP.
+- [ ] T-05 — S1 `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]`. Declare `actor_user_id` in `AuditLogMapper.foreignKeyColumns()`. Arms the fan-out push trigger.
+- [ ] T-06 — S2 `[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]`. Admit `SYSTEM_ADMINISTRATOR` to the user lookup. Delete the silent fallback. Shared surface — grep the cross-journey consumers first.
+- [ ] T-07 — S2 `[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]`. Decide the snapshot fields for the 15 pinned sites.
+- [ ] T-08 — S2 `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`. Measure the seam. Raise the ADR 0008 decision to the operator. Do not choose.
+- [ ] T-09 — S3 `[AUDIT-ACTOR-KIND]`. Decide the dead `SYSTEM` constant with cluster A.
+
+**Cluster B — the migrate and signup funnel (proves on `/migrate/start`)**
+- [ ] T-10 — S1 `[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]`. Materialize the club-less registrant so the handshake issues. Keep the scope at the handshake — do not build J-21's wizard.
+- [ ] T-11 — S2 `[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]`. Map the tenancy rejection to a 4xx with a named reason.
+- [ ] T-12 — S2 `[BARE-SIGNUP-JOIN-FUNNEL-UNCOVERED]`. Drive bare `/signup` to `/join` in a real-idp spec.
+
+**Cluster C — gates that never run, or do not read their own inputs**
+Every guard here plants a violation per input class and scores the old code ([[feedback_gate_must_prove_a_red_per_input_class]]).
+- [ ] T-13 — S2 `[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]`. Wire both demo gates into a lane CI runs.
+- [ ] T-14 — S2 `[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]`. Wire the theme-load script to a CI job.
+- [ ] T-15 — S2 `[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]`. Widen the pattern to protocol-relative URLs. Plant the script class too.
+- [ ] T-16 — S2 `[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]`. Typecheck `alpenflight/web/scripts/**`.
+- [ ] T-17 — S2 `[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]`. Repair `e2e/tsconfig.json` and add the `e2e` typecheck lane.
+- [ ] T-18 — S2 `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`. Lint every `e2e/` directory. Fix the seven live errors.
+- [ ] T-19 — S2 `[GATING-LANE-SKIP-HAS-NO-GUARD]`. Ban a non-negated real-bundle `test.skip`.
+- [ ] T-20 — S2 `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`. Widen `GUARDED_DATE_FIELDS`. Repair the specs it reds.
+- [ ] T-21 — S2 `[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]`. Run the `e2e/` suite on a pull request that touches `e2e/`.
+
+**Cluster D — silent failures**
+- [ ] T-22 — S2 `[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]`. Report the failure instead of a false success.
+- [ ] T-23 — S2 `[REQUEST-ID-NEVER-LOGGED]`. Align the MDC key with the logback pattern. Assert a real request id in a log line.
+
+**Cluster E — tests that assert less than their name** (named deferrable tail)
+- [ ] T-24 — S2 `[VACUOUS-NARROWING-ASSERTIONS]`. Seed the excluded row. Send a mixed-case payload.
+- [ ] T-25 — S2 `[TENANT-ISOLATION-IT-PREFIX-COLLISION]`. Give each isolation IT a distinct prefix.
+- [ ] T-26 — S2 `[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]`. Prove which fixture the detail GET reads.
+- [ ] T-27 — S2 `[MOCK-CLUB-ID-SHAPE]`. Give the mock the real `clb-<uuid>` shape.
+- [ ] T-28 — S2 `[NAV-OVERLAY-EATS-CLICKS]`. Stop the overlay from taking the click.
+- [ ] T-29 — S2 op-field-mutate coverage. Assert a changed `nrOfLdgs` on an unchanged-identity crew row.
+- [ ] T-30 — S2 fanout reporting spec over migrated data. Assert `/flightreports` over the migrated dataset.
+
+**Cluster F — structural remainder** (named deferrable tail)
+- [ ] T-31 — S2 `[GH-PAGES-HISTORY-IS-UNBOUNDED]`. Bound the history, not only the published tree.
+- [ ] T-32 — S2 `[J-32-GATE-NITS]`. Fix the four nits.
+- [ ] T-33 — S2 orval positional `getN`. Give the endpoints explicit `operationId`s.
+- [ ] T-34 — S2 JIT-username robustness. Reject a distinct sub that reuses a live username.
+
+**Gate**
+- [ ] T-35 — Thicken both proof specs to the full oracle assertions. Delete `register.spec.ts`'s known-defect declaration.
+- [ ] T-36 — S2 `[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]`. Confirm the push arm fired and the gate read its verdict (AC-10).
+
+Deferred, and re-filed rather than half-shipped: `[SUITE-ISOLATION]` (a test-architecture restructure) and
+`[LEGACY-J2-READINESS]` (a quarantine whose flaky set moves run to run — the carve says do not read it as a
+new defect).
 
 ## Assumptions made
 
