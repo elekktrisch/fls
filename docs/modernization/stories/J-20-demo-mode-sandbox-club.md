@@ -173,7 +173,7 @@ The release valve is the deferrable tail below.
 - [ ] **T-06** — The N `demo1..demoN` Keycloak users: `CLUB_ADMINISTRATOR`, `clubId` = their seat's club, plus the `t_user` rows.
 - [ ] **T-07** — `DemoSeatLease` — lease a free seat under concurrency, one live seat per address, 503 when the pool is empty (AC-8). The per-address cap is the property `demo.max-live-seats-per-address`; see the AC-5/AC-8 decision below.
 - [ ] **T-08** — `POST /api/v1/public/demo-session` — lease + direct grant + its `SecurityConfig` entry.
-- [ ] **T-09** — The sandbox seal — both 403 directions of AC-7 + the S-024 leakage sweep extension.
+- [ ] **T-09** — The sandbox seal — both 403 directions of AC-7 + the S-024 leakage sweep extension. T-03 measured two call sites that read the seat clubs today: `ClubsController.java:42` (`listClubs`) and `SystemDashboardService.java:24-28`. Measure whether `listClubs` is tenant-scoped BEFORE you call either one a leak; then seal or exclude each one deliberately.
 - [ ] **T-10** — `SandboxResetJob` — reclaim expired seats (delete + re-seed per club) + the nightly full pass + the AC-9 isolation proof.
 - [ ] **T-11** — `@LifecycleStateFilter` on the other registered jobs + the registry-scoring test of AC-10.
 - [ ] **T-12** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the seat-busy state, the demo banner, its call-to-action, and the funnel telemetry. Update the cross-journey consumers of the stub: `landing.spec.ts:133` (asserts `demo-stub` visible) and `demo.routes.ts:6`.
