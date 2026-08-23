@@ -72,11 +72,20 @@ this file untouched.
   `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
   would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
   its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
-- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S1] `AuditTrailService.java:83` classifies a **failed**
-  anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
-  `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
-  tell from a cron row. That is the case `[ANON-WRITE-ATTRIBUTION]` named as its motivation, so the
-  motivating case stays open. *(seam: `AuditTrailService.recordFailed` + `RequestAuditFilter`)*
+- **[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]** [S2] J-33 T-04 gave the rejected anonymous write the
+  `ANONYMOUS_PUBLIC` kind. The row still names no club, and it keeps no client IP. Measured on
+  `integration/J-33`: the 429 row reads `tenant_club_id = null` and `client_ip = null`. Two causes sit
+  outside T-04's seam. First, `PublicRegistrationIntake.java:56` runs the abuse guard before
+  `PublicClubResolver.resolve`, so the rejection holds the slug and never the club id. Second,
+  `Tenants.runAs` restores the request hint in its `finally` block, so `RequestAuditFilter.java:80` always
+  reads null — `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]` owns that decision. A row that names no club
+  keeps no client IP by design: `MutationAuditEvent.java:291` refuses the value,
+  `MutationAuditEventListener.java:136` drops it, and `docs/modernization/privacy-notice.md` §1 states the
+  rule. The audit projection also filters by tenant, so no administrator reads this row on `/system/logs`.
+  Decide this rider together with `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`: give the failed row its
+  club first, then record the client IP through the path the successful submission uses. Do not relax the
+  club-scoped rule on its own — the erasure endpoint reaches a row through its club.
+  *(seam: `RequestAuditFilter` + `RequestTenantHint` + `PublicRegistrationIntake`)*
 - **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] The T-45 guard found **fifteen** more audit call sites that
   pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
   EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,

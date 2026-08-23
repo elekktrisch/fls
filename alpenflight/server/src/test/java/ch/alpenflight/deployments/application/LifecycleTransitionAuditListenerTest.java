@@ -77,5 +77,14 @@ class LifecycleTransitionAuditListenerTest {
             throw new AssertionError(
                     "lifecycle transitions emit success rows only: " + action + " " + failureReason);
         }
+
+        @Override
+        public void recordFailedHttpRequest(AuditAction action,
+                                            AuditedTarget target,
+                                            int httpStatus,
+                                            @Nullable String failureReason) {
+            throw new AssertionError(
+                    "a lifecycle transition carries no HTTP request: " + action + " " + failureReason);
+        }
     }
 }

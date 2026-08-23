@@ -74,6 +74,12 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
                 .isEqualTo(400);
         assertThat(row.get("after_state")).isNull();
         assertThat(row.get("failure_reason")).isNotNull();
+        assertThat(row)
+                .as("a failed write of a signed-in administrator names that administrator, and "
+                        + "reads neither as an anonymous submitter nor as the server")
+                .containsEntry("actor_kind", "NORMAL")
+                .containsEntry("system_actor", false);
+        assertThat(row.get("actor_keycloak_sub")).isNotNull();
     }
 
     @Test

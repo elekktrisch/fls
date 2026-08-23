@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuditTrailService implements AuditTrail {
 
+    private static final @Nullable String NO_CLIENT_IP_UNTIL_A_FAILED_ROW_NAMES_ITS_CLUB = null;
+
     private final ApplicationEventPublisher publisher;
     private final ActorResolver actorResolver;
     private final Clock clock;
@@ -56,6 +58,18 @@ public class AuditTrailService implements AuditTrail {
                         true, httpStatus, failureReason)));
     }
 
+    @Override
+    public void recordFailedHttpRequest(AuditAction action,
+                                        AuditedTarget target,
+                                        int httpStatus,
+                                        String failureReason) {
+        publisher.publishEvent(new MutationAuditEventListener.SyntheticFailedMutation(
+                build(action, target,
+                        anonymousPublicAttributionUnlessAPrincipalIsAuthenticated(
+                                NO_CLIENT_IP_UNTIL_A_FAILED_ROW_NAMES_ITS_CLUB),
+                        true, httpStatus, failureReason)));
+    }
+
     private MutationAuditRequest build(AuditAction action,
                                        AuditedTarget target,
                                        ActorAttribution attribution,
@@ -89,7 +103,7 @@ public class AuditTrailService implements AuditTrail {
     }
 
     private static ActorAttribution anonymousPublicAttributionUnlessAPrincipalIsAuthenticated(
-            String clientIp) {
+            @Nullable String clientIp) {
         return anAuthenticatedJwtPrincipalIsPresent()
                 ? attributionOfTheCurrentPrincipal()
                 : new ActorAttribution(AuditActorKind.ANONYMOUS_PUBLIC, false, clientIp);

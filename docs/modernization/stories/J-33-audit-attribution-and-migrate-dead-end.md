@@ -192,7 +192,7 @@ Each task opens by confirming or refuting the rider's stated cause against the t
 - [x] T-03 — `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Add the missing Flyway placeholder. This test is red today, so it ships first.
 
 **Cluster A — audit attribution and legibility (proves on `/system/logs`)**
-- [ ] T-04 — S1 `[ANON-FAILED-WRITE-READS-AS-SYSTEM]`. Give `AuditTrailService.recordFailed` the `ANONYMOUS_PUBLIC` kind and the client IP.
+- [x] T-04 — S1 `[ANON-FAILED-WRITE-READS-AS-SYSTEM]`. Give `AuditTrailService.recordFailed` the `ANONYMOUS_PUBLIC` kind and the client IP. Kind shipped. The client IP needs the club, which `[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]` and T-08 own.
 - [ ] T-05 — S1 `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]`. Declare `actor_user_id` in `AuditLogMapper.foreignKeyColumns()`. Arms the fan-out push trigger.
 - [ ] T-06 — S2 `[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]`. Admit `SYSTEM_ADMINISTRATOR` to the user lookup. Delete the silent fallback. Shared surface — grep the cross-journey consumers first.
 - [ ] T-07 — S2 `[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]`. Decide the snapshot fields for the 15 pinned sites.
