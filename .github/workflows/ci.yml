@@ -49,32 +49,9 @@ jobs:
       # Only the heavy lane consumes this; `required` re-reads the marker itself
       # so its red is caused by the marker, not by a skipped dependency.
       troubleshooting: ${{ steps.troubleshooting.outputs.active }}
-      # J-5 T-14 — the journey-under-work's real-idp proof spec, derived off the
-      # integration branch name (see the "Derive journey proof spec" step). The
-      # per-push `alpenflight-proof` job runs ONLY this spec; `proof_is_baseline`
-      # is 'true' when it resolved to the J-0 Locations baseline (the branch is
-      # not an integration/J-NNN branch, the journey's `parity_test:` is not a
-      # clean-seed `tests/real-idp/` spec — e.g. a showcase-seeded J-4
-      # `tests/profile/` spec, which has its own gating job — or derivation
-      # failed: the FAIL-SAFE always runs a known-good real-chain proof, never
-      # nothing). NOTE J-5's `parity_test:` IS a `tests/real-idp/` spec
-      # (`reservations-migration-parity.spec.ts`), so on `integration/J-5` this
-      # resolves to that spec with `is_baseline=false` — not the baseline.
       proof_spec: ${{ steps.proof_spec.outputs.spec }}
       proof_journey: ${{ steps.proof_spec.outputs.journey }}
       proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
-      # J-6 T-02b — the journey-under-work's OWN mock-auth spec filter, derived
-      # off the integration branch name (see "Derive journey mock-e2e filter").
-      # The per-push `alpenflight-mock-e2e` job runs ONLY this path-filter (the
-      # journey's own `tests/<feature>/` specs); prior journeys' mock specs run
-      # in the FULL chromium suite nightly + at the §4 do-ship gate, never
-      # per-push, so an unrelated flaky mock spec can't red this journey's
-      # `required`. `mock_is_full` is 'true' when derivation fell back to the
-      # WHOLE chromium project (non-integration branch / no `mock_test:`
-      # frontmatter / underivable / the filter's specs are all still
-      # `test.fixme`) — the FAIL-SAFE runs the full suite, never a no-spec run
-      # that Playwright would treat as "match nothing", and never a scoped run
-      # that executes nothing.
       mock_filter: ${{ steps.mock_spec.outputs.filter }}
       mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
     steps:
@@ -96,9 +73,7 @@ jobs:
           python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
           python3 .github/scripts/gha-falsy-ternary-lint.py
 
-      # A missed journey-file lookup does not red the two derive steps below —
-      # it silently swaps in the J-0 baseline and reports green. Pin the rule.
-      - name: Journey-file lookup guard
+      - name: Journey-derive guard (J-33 — the proof lane and the mock lane each carry EVERY spec the journey declares, whatever separator declares it, and a declaration the lane cannot run is dropped loudly, never silently)
         run: bash .github/scripts/journey-derive-selfcheck.sh
 
       - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
@@ -222,288 +197,19 @@ jobs:
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # ---------------------------------------------------------------------
-      # Derive the journey-under-work's real-idp proof spec (J-5 T-14).
-      #
-      # PROBLEM (J-3 retro): the per-push `alpenflight-proof` job used to be
-      # hardcoded to the J-0 Locations spec; the rider asks that — during a
-      # journey's build-up — the per-push proof run the CURRENT journey's spec,
-      # not a fixed prior journey's, so iteration is fast and a prior-journey
-      # flake can't red an unrelated journey's gate.
-      #
-      # DERIVATION (most-robust path, per the rider): read the journey FILE's
-      # `parity_test:` frontmatter off the integration branch name.
-      #   1. branch = github.head_ref (PR) || github.ref_name (push).
-      #   2. integration/J-NNN  →  journey id  J-NNN  (anything else → baseline).
-      #   3. docs/modernization/stories/{,implemented/}J-NNN-*.md  →  the
-      #      `parity_test:` value; take its FIRST path token, normalize to a path
-      #      relative to alpenflight/web/ (so it's runnable from that
-      #      working-directory). BOTH dirs: close-out moves the file mid-branch.
-      #      An integration branch whose journey file is in NEITHER is a hard
-      #      FAIL, not a baseline fall-back — see the step.
-      #   4. Only specs UNDER tests/real-idp/ are runnable by the CLEAN-SEED
-      #      `alpenflight-proof` job (they self-seed in beforeAll). J-5's
-      #      `parity_test:` IS such a spec (real-idp
-      #      `reservations-migration-parity.spec.ts`), so `integration/J-5`
-      #      derives that spec, is_baseline=false — it gates `required` (T-19).
-      #      A `parity_test:` that is NOT a clean-seed real-idp spec — a
-      #      showcase-seeded tests/profile/ spec (J-4 — own showcase-seeded
-      #      gating job), a mock-auth-only tests/… spec that runs in
-      #      `alpenflight-mock-e2e`, or an underivable branch → FALL BACK to the
-      #      journey-agnostic J-0 Locations baseline (`is_baseline=true`).
-      #      FAIL-SAFE: always a known-good real-chain proof, NEVER nothing — the
-      #      baseline keeps the J-0 captions the preview live-link-check greps for.
       - name: Derive journey proof spec
         id: proof_spec
         env:
           HEAD_REF: ${{ github.head_ref }}
           REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          BASELINE='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
-          emit() { # $1 spec  $2 journey  $3 is_baseline
-            echo "spec=$1" >> "$GITHUB_OUTPUT"
-            echo "journey=$2" >> "$GITHUB_OUTPUT"
-            echo "is_baseline=$3" >> "$GITHUB_OUTPUT"
-            echo "── proof spec: $1  (journey=$2, baseline=$3) ──"
-          }
-          branch="${HEAD_REF:-${REF_NAME:-}}"
-          echo "branch under work: '${branch}'"
-          # Only integration/J-NNN branches carry a journey-under-work.
-          jid="$(printf '%s' "$branch" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
-          if [ -z "$jid" ]; then
-            echo "not an integration/J-NNN branch → J-0 Locations baseline (fail-safe)"
-            emit "$BASELINE" "J-0" "true"; exit 0
-          fi
-          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
-          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
-          # also matches `${jid}-*.md` and would otherwise win `head -1`
-          # alphabetically, derailing the derivation.
-          #
-          # BOTH locations: the journey file lives in stories/ while in flight and
-          # `git mv`s to stories/implemented/ at /do-ship close-out — which is a
-          # commit ON THE BRANCH, so searching only stories/ makes every push from
-          # close-out onward derive the baseline (J-17: CI proved the J-0 Locations
-          # spec and published an "unknown" gallery page while `required` read green).
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
-                  docs/modernization/stories/${jid}-*.md \
-                  docs/modernization/stories/implemented/${jid}-*.md \
-                  2>/dev/null | head -1 || true)"
-          if [ -z "$jf" ] || [ ! -f "$jf" ]; then
-            # NOT fail-safe-to-baseline. The branch names a journey, so a baseline
-            # run here would prove a DIFFERENT journey, skip the deployed-journey
-            # gallery guard, and report `required` green — the false-green class
-            # this derivation exists to prevent. Underivable == red.
-            echo "::error title=No journey file for ${jid}::Branch '${branch}' is an integration branch, but no file declares 'id: ${jid}' in docs/modernization/stories/ or docs/modernization/stories/implemented/. Carve the journey file (/do-plan) or fix its frontmatter id — CI will not substitute the J-0 baseline and call that green."
-            exit 1
-          fi
-          # First path token of the `parity_test:` frontmatter value: stop at the
-          # first whitespace, '(', or ';' (the value can carry prose / a second
-          # path after a separator). Strip a leading alpenflight/web/ so the path
-          # is relative to that working-directory.
-          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//' || true)"
-          spec="$(printf '%s' "$raw" | sed -E 's/[[:space:](;].*$//' | sed -E 's#^alpenflight/web/##')"
-          echo "${jid} parity_test first token → '${spec}'"
-          case "$spec" in
-            e2e/tests/real-idp/*.spec.ts)
-              # A CLEAN-SEED real-idp spec the proof job can run directly: the
-              # real-idp specs self-seed in their own beforeAll (Gradle seeder
-              # shell-outs against the clean-seed Postgres), so they run green in
-              # this clean-seed job. (`tests/profile/` is DELIBERATELY excluded:
-              # the J-4 self-edit spec needs the @Profile("showcase") seed, which
-              # only the dedicated showcase-seeded `alpenflight-profile-proof`
-              # job loads — running it here, clean-seed, would red. It already
-              # has its own gating job, so we fall through to the baseline.)
-              if [ -f "alpenflight/web/${spec}" ]; then
-                # The file existing is NOT enough: a STUB spec whose every case
-                # is `test.fixme(` / `test.skip(` (the journey's parity_test
-                # authored at T-01, before its assertions are thickened) runs as
-                # a NO-OP here — zero captures, so the post-deploy
-                # deployed-journey guard then reds demanding a complete
-                # journey-under-work page that this run never produced (J-26
-                # T-31). Require ≥1 ACTIVE real-idp test before treating the
-                # spec as runnable. "Active" = a top-level `test(` declaration
-                # (NOT `test.fixme(` / `test.skip(` — those carry a `.` after
-                # `test`, so `^\s*test\(` excludes them; `test.describe(`
-                # grouping is likewise excluded — only the inner `test(` counts).
-                # When T-27 un-fixmes the assertions, this auto-flips to
-                # is_baseline=false with no workflow change.
-                if grep -qE '^[[:space:]]*test\(' "alpenflight/web/${spec}"; then
-                  emit "$spec" "$jid" "false"; exit 0
-                fi
-                echo "spec '${spec}' exists but has no active (non-fixme) real-idp test → baseline until thickened"
-                emit "$BASELINE" "$jid" "true"; exit 0
-              fi
-              echo "derived spec '${spec}' not found on disk → baseline (fail-safe)"
-              emit "$BASELINE" "$jid" "true"; exit 0
-              ;;
-            *)
-              # A mock-auth parity spec (runs in `alpenflight-mock-e2e`), a
-              # showcase-seeded `tests/profile/` spec (own gating job), or an
-              # unparseable value → run the journey-agnostic J-0 Locations
-              # baseline (fail-safe: a known-good real-chain proof, never nothing).
-              echo "parity spec is not a clean-seed real-idp spec → baseline (fail-safe)"
-              emit "$BASELINE" "$jid" "true"; exit 0
-              ;;
-          esac
+        run: bash .github/scripts/derive-journey-lane.sh proof "${HEAD_REF:-${REF_NAME:-}}"
 
-      # ---------------------------------------------------------------------
-      # Derive the journey-under-work's mock-e2e spec filter (J-6 T-02b).
-      #
-      # MIRRORS the real-idp `proof_spec` step above, for the mock-auth half.
-      # PROBLEM (the pending _BOYSCOUT rider, J-5-held-hostage-by-articles-crud):
-      # the per-push `alpenflight-mock-e2e` job runs the WHOLE `chromium` project
-      # (ALL features' mock specs). One unrelated flaky mock spec then reds the
-      # `required` gate on a journey that touches none of it.
-      #
-      # DERIVATION (same path as proof_spec): read the journey FILE's
-      # `mock_test:` frontmatter off the integration branch name; its FIRST path
-      # token (a `tests/<feature>/` dir or a single spec), normalized relative to
-      # alpenflight/web/, becomes the Playwright positional filter the mock job
-      # passes to `--project=chromium`. The chromium project's own testMatch /
-      # testIgnore still apply on top of the filter, so an excluded spec under
-      # the dir stays excluded.
-      #   1. branch = github.head_ref (PR) || github.ref_name (push).
-      #   2. integration/J-NNN  →  journey id  (anything else → full suite).
-      #   3. docs/.../J-NNN-*.md  →  `mock_test:` value → first path token →
-      #      strip a leading alpenflight/web/ → assert it selects ≥1 spec on disk
-      #      carrying ≥1 active (non-fixme) test.
-      # FAIL-SAFE: a non-integration branch, a missing journey file, no
-      # `mock_test:` frontmatter, a filter that doesn't resolve on disk, or one
-      # whose specs are all still stubbed out →
-      # emit an EMPTY filter + is_full=true, so the mock job runs the WHOLE
-      # chromium project (the pre-T-02b baseline). NEVER a no-spec run — an empty
-      # positional arg to `playwright test` means "run everything", which is
-      # exactly the fail-safe we want, but we make it explicit via is_full so the
-      # job logs which path it took.
       - name: Derive journey mock-e2e filter
         id: mock_spec
         env:
           HEAD_REF: ${{ github.head_ref }}
           REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          emit() { # $1 filter (may be empty)  $2 is_full
-            echo "filter=$1" >> "$GITHUB_OUTPUT"
-            echo "is_full=$2" >> "$GITHUB_OUTPUT"
-            echo "── mock-e2e filter: '${1:-<full chromium suite>}'  (is_full=$2) ──"
-          }
-          branch="${HEAD_REF:-${REF_NAME:-}}"
-          echo "branch under work: '${branch}'"
-          jid="$(printf '%s' "$branch" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
-          if [ -z "$jid" ]; then
-            echo "not an integration/J-NNN branch → full chromium suite (fail-safe)"
-            emit "" "true"; exit 0
-          fi
-          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
-          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
-          # also matches `${jid}-*.md` and would otherwise win `head -1`
-          # alphabetically, silently defeating this step's scoping.
-          # Searches stories/ AND stories/implemented/ for the same reason the
-          # proof-spec step above does — close-out moves the file mid-branch.
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
-                  docs/modernization/stories/${jid}-*.md \
-                  docs/modernization/stories/implemented/${jid}-*.md \
-                  2>/dev/null | head -1 || true)"
-          if [ -z "$jf" ] || [ ! -f "$jf" ]; then
-            # Unreachable: the proof-spec step above already hard-failed the job
-            # on this condition. Kept as a fail-safe, and the full suite is the
-            # safe outcome for the mock half (it runs MORE, never less).
-            echo "no journey file for ${jid} → full chromium suite (fail-safe)"
-            emit "" "true"; exit 0
-          fi
-          raw="$(grep -m1 -E '^mock_test:' "$jf" | sed -E 's/^mock_test:[[:space:]]*//' || true)"
-          if [ -z "$raw" ]; then
-            echo "${jid} has no mock_test: frontmatter → full chromium suite (fail-safe)"
-            emit "" "true"; exit 0
-          fi
-          # Extract the filter token. Stop at whitespace / ';' / '#' so trailing
-          # prose or a comment is dropped — but DELIBERATELY keep '(' '|' ')': a
-          # journey whose own specs span SEVERAL feature dirs (J-6b:
-          # reservations/planning/forms) can't be a single dir without pulling
-          # prior journeys' specs in that dir, so its `mock_test:` is a Playwright
-          # positional REGEX (an alternation over its spec stems). Strip a leading
-          # alpenflight/web/ so the token is relative to that working-directory.
-          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:];#].*$//' | sed -E 's#^alpenflight/web/##')"
-          echo "${jid} mock_test token → '${filter}'"
-          if [ -z "$filter" ]; then
-            echo "empty mock_test token → full chromium suite (fail-safe)"
-            emit "" "true"; exit 0
-          fi
-          # VALIDATE the token resolves to real spec(s) under alpenflight/web/,
-          # else fall back to the full suite (never risk a no-spec run). Two shapes:
-          #   • PLAIN PATH (no regex metachars): a tests/<feature>/ dir OR a single
-          #     spec file.
-          #   • REGEX ALTERNATION (contains '(' or '|'): a Playwright positional
-          #     regex like `tests/(a/x|b/y|c/z)`. Decompose it into its literal
-          #     path stems and require EVERY stem to resolve on disk (a *.spec.ts
-          #     file or a prefix of one). The chromium project's testMatch still
-          #     applies on top, so the regex only narrows — it can't widen.
-          # Both shapes resolve through `specs_for` so the active-test guard below
-          # inspects exactly the files the filter would hand to Playwright.
-          specs_for() { # $1 path stem → the *.spec.ts files it selects
-            if [ -d "alpenflight/web/$1" ]; then
-              find "alpenflight/web/$1" -type f -name '*.spec.ts'
-            elif [ -f "alpenflight/web/$1" ]; then
-              printf '%s\n' "alpenflight/web/$1"
-            else
-              # A positional regex matches by path PREFIX, so a stem like
-              # `…-hardening` selects `…-hardening.spec.ts`.
-              ls "alpenflight/web/$1"*.spec.ts 2>/dev/null || true
-            fi
-          }
-          selected=''
-          ok=1
-          case "$filter" in
-            *'('*|*'|'*)
-              # Expand the alternation: drop the leading `prefix(`, the trailing
-              # `)`, split on '|', and re-prepend the prefix to each branch.
-              prefix="$(printf '%s' "$filter" | sed -E 's/\(.*$//')"
-              inner="$(printf '%s' "$filter" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//')"
-              IFS='|'
-              for branch in $inner; do
-                stem="${prefix}${branch}"
-                found="$(specs_for "$stem")"
-                if [ -z "$found" ]; then
-                  echo "mock filter branch '${stem}' resolves to no spec on disk"
-                  ok=0
-                fi
-                selected="$(printf '%s\n%s\n' "$selected" "$found")"
-              done
-              unset IFS
-              ;;
-            *)
-              selected="$(specs_for "$filter")"
-              if [ -z "$selected" ]; then
-                echo "mock filter '${filter}' resolves to no spec on disk"
-                ok=0
-              fi
-              ;;
-          esac
-          if [ "$ok" != 1 ]; then
-            echo "mock filter '${filter}' does not resolve → full chromium suite (fail-safe)"
-            emit "" "true"; exit 0
-          fi
-          # A filter that resolves on disk can still select ONLY `test.fixme(` /
-          # `test.skip(` cases — a journey's mock spec at stub stage. Scoping to it
-          # would execute ZERO tests and report the gate green for the whole
-          # build-up. So mirror the proof-spec step: narrow only once ≥1 selected
-          # spec declares an active top-level `test(` (a `.` after `test` excludes
-          # fixme/skip/describe), and keep running the full suite until then. This
-          # auto-flips when the assertions are thickened, with no workflow change.
-          active=0
-          while IFS= read -r f; do
-            [ -n "$f" ] || continue
-            if grep -qE '^[[:space:]]*test\(' "$f"; then
-              active=1
-              break
-            fi
-          done <<< "$selected"
-          if [ "$active" = 1 ]; then
-            emit "$filter" "false"; exit 0
-          fi
-          echo "mock filter '${filter}' selects no ACTIVE (non-fixme) test → full chromium suite until thickened"
-          emit "" "true"; exit 0
+        run: bash .github/scripts/derive-journey-lane.sh mock "${HEAD_REF:-${REF_NAME:-}}"
 
 
   # ---------------------------------------------------------------------------
@@ -756,7 +462,7 @@ jobs:
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     # Serialize gh-pages writes across workflows so concurrent deploys from
     # different refs/workflows don't race the gh-pages ref.
     concurrency:
@@ -955,12 +661,12 @@ jobs:
       #     (`alpenflight-e2e-real-idp.yml`'s full `--project=real-idp` run) — the
       #     known `aircraft-migration-parity.spec.ts` flake intermittently red-ed
       #     the per-push `required` gate on journeys touching no aircraft.
-      #   • J-5 T-14 (J-3 retro): the per-push spec is now DERIVED off the
+      #   • J-5 T-14 (J-3 retro): the per-push spec set is now DERIVED off the
       #     integration branch (`changes` job → `proof_spec`), so during a
-      #     journey's build-up this runs THAT journey's real-idp spec, not a
-      #     fixed prior journey's. A `parity_test:` that is NOT a clean-seed
-      #     real-idp spec (a showcase `tests/profile/` spec — J-4, own gating job;
-      #     a mock-auth-only spec) or a non-integration branch falls back to the
+      #     journey's build-up this runs EVERY real-idp spec THAT journey
+      #     declares, not a fixed prior journey's. A `parity_test:` that names no
+      #     clean-seed real-idp spec (a showcase `tests/profile/` spec — J-4, own
+      #     gating job; a mock-auth-only spec) or a non-integration branch falls back to the
       #     stable J-0 Locations baseline (`proof_is_baseline`), so this job still
       #     proves the real Keycloak→@TenantId→Postgres vertical and emits the J-0
       #     captions the per-PR preview live-link-check greps for. J-5 itself
@@ -968,19 +674,17 @@ jobs:
       #     (is_baseline=false). The full cross-journey regression runs NIGHTLY
       #     (the real-idp workflow) + at the §4 do-ship gate (e2e-driver's full
       #     chain) — deliberately NOT on every push.
-      #   • J-5 T-19 (operator decision 2026-06-06): this single-spec run now GATES
+      #   • J-5 T-19 (operator decision 2026-06-06): this journey-scoped run now GATES
       #     `required` again — a failed Playwright assertion here exits the step
       #     non-zero (`set -euo pipefail`; no `|| true`/continue-on-error/always()
       #     on THIS step) → the job fails → `needs.alpenflight-proof.result` is
       #     `failure` → the aggregator reds. The fail-soft maintainability +
       #     gallery steps run AFTER and cannot mask this step's failure.
       #
-      # Single spec → single proof-manifest → the gallery still publishes one
-      # proof video per push.
-      - name: Run real-idp proof spec (journey-under-work)
+      - name: Run real-idp proof specs (journey-under-work)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 15
+        timeout-minutes: 25
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
@@ -989,29 +693,18 @@ jobs:
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
         run: |
           set -euo pipefail
-          # Fail-safe: an empty PROOF_SPEC (output unexpectedly missing) must NOT
-          # become a no-spec run that Playwright would treat as "run everything"
-          # — pin the J-0 baseline.
-          SPEC="${PROOF_SPEC:-e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts}"
-          if [ -z "$SPEC" ]; then
-            SPEC='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
+          EMPTY_DERIVE_OUTPUT_STILL_PROVES_THE_REAL_CHAIN='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
+          read -r -a PROOF_SPECS <<< "${PROOF_SPEC:-}"
+          if [ "${#PROOF_SPECS[@]}" -eq 0 ]; then
+            PROOF_SPECS=("$EMPTY_DERIVE_OUTPUT_STILL_PROVES_THE_REAL_CHAIN")
           fi
-          echo "running per-push proof spec for ${PROOF_JOURNEY:-?}: ${SPEC}"
-          # --workers=1: real-idp must run serial (one realm + one Mailpit inbox);
-          # `workers` is top-level-only so the project's per-project value is a no-op
-          # and would otherwise inherit the top-level CI count.
-          # --max-failures=0: run ALL of the journey spec's cases and report EVERY
-          # failing one in a single ~24-min cycle. Playwright's default already runs
-          # to completion (no global maxFailures in playwright.config.ts), but this
-          # pins the intent locally to THIS clean-seed proof step — it derives+runs
-          # ONLY the one journey-under-work spec, so surfacing all its case gaps at
-          # once (instead of one-per-cycle) has no gate-wide blast radius.
+          echo "running ${#PROOF_SPECS[@]} per-push proof spec(s) for ${PROOF_JOURNEY:-?}: ${PROOF_SPECS[*]}"
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             --workers=1 \
             --max-failures=0 \
-            "$SPEC"
+            "${PROOF_SPECS[@]}"
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +
       # screenshot/video) BEFORE any later step mutates `test-results/`: the
@@ -2300,9 +1993,10 @@ jobs:
             pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
               --shard="${SHARD}/4" --workers=4 --reporter=blob
           else
-            echo "running journey-scoped mock specs, shard ${SHARD}/4: ${MOCK_FILTER}"
+            read -r -a MOCK_FILTERS <<< "${MOCK_FILTER}"
+            echo "running journey-scoped mock specs, shard ${SHARD}/4: ${MOCK_FILTERS[*]}"
             pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
-              --shard="${SHARD}/4" --workers=4 --reporter=blob "${MOCK_FILTER}"
+              --shard="${SHARD}/4" --workers=4 --reporter=blob "${MOCK_FILTERS[@]}"
           fi
 
       # Blob + screenshots as SEPARATE artifacts (merge job merge-multiples each
