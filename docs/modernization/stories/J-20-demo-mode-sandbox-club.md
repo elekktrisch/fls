@@ -92,6 +92,26 @@ deterministic.
 **The cost, stated plainly.** Concurrent demos cap at N. Seat N+1 gets 503 and a readable reason. One
 address holds at most one live seat, so a single visitor cannot drain the pool.
 
+### Cross-tenant masterdata stops at the Deployment — operator decision, 2026-08-23
+
+Aircraft are cross-tenant on purpose. ADR 0008 §77-99 (the S-058 amendment) removed `@TenantId` from
+`Aircraft` for chartered tow planes, `tenant-rules.yaml:215-218` registers `kind: cross-tenant`, and
+`AircraftsTenantIsolationIT.java:46-56` asserts the open read by name. Legacy agrees:
+`AircraftService.cs:166-263` applies no club filter, and the legacy table carries no `ClubId`. So
+AlpenFlight ports legacy correctly and there is no tenancy defect here.
+
+J-20 adds a reader that neither legacy nor the amendment contemplated. Every earlier reader was an
+authenticated member of a real club. A demo seat is a real Keycloak principal, so it inherits the open
+read, and the bleed runs both ways: the 10 seats push 40 demo aircraft into every real club's aircraft
+screen, and a demo visitor reads every customer's fleet and immatriculations.
+
+**The decision: cross-tenant means cross-tenant inside one Deployment.** T-09 filters the aircraft read
+by Deployment in both directions. A real club never reads a sandbox aircraft. A demo visitor never reads
+a real fleet. ADR 0008 keeps its club-level rule unchanged — the sandbox Deployment simply made the
+Deployment boundary meaningful, because no club bound to it until T-03. Each direction needs a negative
+test that seeds a should-be-excluded row and asserts its absence
+([[feedback_safety_claim_needs_negative_test]]).
+
 ### Where AC-5 and AC-8 are proved — decided at T-01, after a measurement
 
 AC-5 needs two live seats at the same time. AC-8 caps one address at one live seat. One Playwright run
@@ -173,7 +193,7 @@ The release valve is the deferrable tail below.
 - [ ] **T-06** — The N `demo1..demoN` Keycloak users: `CLUB_ADMINISTRATOR`, `clubId` = their seat's club, plus the `t_user` rows.
 - [ ] **T-07** — `DemoSeatLease` — lease a free seat under concurrency, one live seat per address, 503 when the pool is empty (AC-8). The per-address cap is the property `demo.max-live-seats-per-address`; see the AC-5/AC-8 decision below.
 - [ ] **T-08** — `POST /api/v1/public/demo-session` — lease + direct grant + its `SecurityConfig` entry.
-- [ ] **T-09** — The sandbox seal — both 403 directions of AC-7 + the S-024 leakage sweep extension. T-03 measured two call sites that read the seat clubs today: `ClubsController.java:42` (`listClubs`) and `SystemDashboardService.java:24-28`. Measure whether `listClubs` is tenant-scoped BEFORE you call either one a leak; then seal or exclude each one deliberately. T-04 measured a third call site: `Aircraft` carries no `@TenantId`, and `AircraftsTenantIsolationIT.java:47` asserts that the aircraft list returns every club's rows. So one demo visitor reads the fleet of every other seat and of every real club. Decide this one deliberately too.
+- [ ] **T-09** — The sandbox seal — both 403 directions of AC-7 + the S-024 leakage sweep extension. T-03 measured two call sites that read the seat clubs today: `ClubsController.java:42` (`listClubs`) and `SystemDashboardService.java:24-28`. Measure whether `listClubs` is tenant-scoped BEFORE you call either one a leak; then seal or exclude each one deliberately. Aircraft: **seal the Deployment in both directions** — see the decision below. Ship a negative test per direction.
 - [ ] **T-10** — `SandboxResetJob` — reclaim expired seats (delete + re-seed per club) + the nightly full pass + the AC-9 isolation proof.
 - [ ] **T-11** — `@LifecycleStateFilter` on the other registered jobs + the registry-scoring test of AC-10.
 - [ ] **T-12** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the seat-busy state, the demo banner, its call-to-action, and the funnel telemetry. Update the cross-journey consumers of the stub: `landing.spec.ts:133` (asserts `demo-stub` visible) and `demo.routes.ts:6`.

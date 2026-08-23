@@ -684,3 +684,22 @@ safety step. **Each rider rides the next touch of its form.**
   all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. *(seam: `server/src/test`, per-touch)*
 
+
+## Pending (filed by /do-ship 2026-08-23, J-20 window)
+
+- **[FLIGHT-TYPES-AUTHZ-IT-REDS-WHEN-ITS-PACKAGE-RUNS-ALONE]** [S2] `RIDES: next` — the 7 cases of
+  `FlightTypesAuthorizationIT` red when the package runs alone. A flight row from
+  `V36__dev_aggregate_list_seed.sql` blocks the flight-type delete the cases need. **Measured
+  pre-existing:** J-20 T-05 saw the identical red on the stashed pre-change tree, so the seat clubs do
+  not cause it. The cases pass in a full run, which is why nobody sees it. A test that only passes in
+  one run order asserts less than it claims. *(seam: `FlightTypesAuthorizationIT` +
+  `V36__dev_aggregate_list_seed.sql`)*
+- **[SANDBOX-PLANNING-DAY-CARRIES-NO-CREW]** [S3] `RIDES: next` — `SandboxOperationsSeeder` writes one
+  planning day per seat, but the seat holds no `t_planning_day_assignment_type` and no service writes a
+  crew assignment. So the demo planning day reads empty. No J-20 acceptance criterion shows the planning
+  day, so this does not block the gate. It does weaken the demo as a sales surface. *(seam:
+  `SandboxOperationsSeeder` + the planning-day assignment types)*
+- **[SANDBOX-SEEDER-CONSTRUCTOR-IS-EIGHT-PARAMETERS]** [S3] `RIDES: next` — T-05 took `SandboxSeeder` to
+  8 constructor parameters, which adds one `ExcessiveParameterList` line to the PMD report. The report is
+  advisory, so `pmdMain` stays green. Group the collaborators when the class next takes a material edit.
+  *(seam: `SandboxSeeder`)*
