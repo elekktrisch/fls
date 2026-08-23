@@ -45,6 +45,20 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   cross-tenant column, so its repair needs the tenancy review too.
   *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
 
+## Pending (filed by /do-ship J-33 T-41, 2026-08-23)
+
+- **[PARITY-FIXTURE-RUNS-AT-THE-CONTAINER-COMPATIBILITY-LEVEL]** [S2] **Symptom (measured, not inferred).**
+  `FlsTestSchemaApplier.java:19` skips every `ALTER DATABASE` batch and seeds into the container default
+  database, so the parity harness scores the producer SELECTs at compatibility level 160 while
+  `e2e/scripts/seed.sh` runs production at 100 (`2 Alter Database.sql:3`). This is the exact twin of the hole
+  T-41 closed in `LegacyExtractFixtureSeeder`, and it is why `ParityOracleHarnessTest` never scored the
+  `TRY_CONVERT` that reded fan-out run 32617774069. **Cause (hypothesis).** The applier was copied from the
+  extract seeder before either fixture needed T-SQL fidelity. **Second finding (measured).** No CI lane runs
+  `migration-bundle`'s own tests: `ci.yml` builds `alpenflight/server` and `alpenflight/migration-tool`, and a
+  composite build never runs the included build's test task. `parityTest`, `parityRejectTest` and
+  `parityMetaTest` therefore run nowhere. Fix both together, or the fixed applier still proves nothing.
+  *(seam: `alpenflight/migration-bundle/src/parity`, `.github/workflows/ci.yml`)*
+
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 
 The red itself is fixed in the carve commit and is **folded into J-33** (see

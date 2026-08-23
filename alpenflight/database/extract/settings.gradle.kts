@@ -3,3 +3,5 @@ plugins {
 }
 
 rootProject.name = "alpenflight-legacy-extract"
+
+includeBuild("../../migration-bundle")

@@ -10,18 +10,23 @@ name: extract
 # land unverified and sit red for three months (J-31 T-18). The two sibling
 # MDs are asserted by MetadataExtractorIntegrationTest, and the legacy
 # FLSTest schema is the fixture the integration test extracts from.
+# migration-bundle holds the producer SELECTs that
+# LegacyProducerSelectCompatibilityLevelTest compiles against the FLSTest
+# fixture at the legacy compatibility level (J-33 T-41).
 
 on:
   push:
     branches: [main]
     paths:
       - 'alpenflight/database/**'
+      - 'alpenflight/migration-bundle/**'
       - 'flsserver/database/FLSTest/**'
       - '.github/workflows/extract.yml'
   pull_request:
     branches: [main]
     paths:
       - 'alpenflight/database/**'
+      - 'alpenflight/migration-bundle/**'
       - 'flsserver/database/FLSTest/**'
       - '.github/workflows/extract.yml'
   workflow_dispatch:

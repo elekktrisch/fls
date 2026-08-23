@@ -24,6 +24,19 @@ public final class MapperLegacyBindings {
     private static final String LEGACY_AUDIT_ENTITY_NAMESPACE_STRIPPED_BY_THE_LEGACY_READ_PATH =
             "FLS.Server.Data.DbEntities.";
 
+    private static final String TSQL_LIKE_HEXADECIMAL_DIGIT = "[0-9A-Fa-f]";
+
+    private static final String TSQL_LIKE_CANONICAL_GUID_SHAPE =
+            TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(8) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(12);
+
+    private static final String AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT =
+            "(al.RecordId LIKE '" + TSQL_LIKE_CANONICAL_GUID_SHAPE + "'"
+                    + " OR al.RecordId LIKE '{" + TSQL_LIKE_CANONICAL_GUID_SHAPE + "}')";
+
     private static final Map<EntityType, Binding> BINDINGS = Map.ofEntries(
             entry(EntityType.COUNTRY, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
@@ -939,9 +952,10 @@ public final class MapperLegacyBindings {
                            END AS ResolvedAction,
                            REPLACE(al.TypeFullName, '%s', '')
                                AS ResolvedTargetEntityType,
-                           TRY_CONVERT(UNIQUEIDENTIFIER, al.RecordId)
-                               AS ResolvedTargetEntityId,
-                           CASE WHEN TRY_CONVERT(UNIQUEIDENTIFIER, al.RecordId) IS NULL
+                           CASE WHEN %s
+                                THEN CONVERT(UNIQUEIDENTIFIER, al.RecordId)
+                           END AS ResolvedTargetEntityId,
+                           CASE WHEN NOT %s
                                 THEN al.RecordId
                            END AS ResolvedLegacyTargetRecordId,
                            CASE WHEN actor.UserId IS NULL
@@ -963,6 +977,8 @@ public final class MapperLegacyBindings {
                     ) actor ON actor.Username = al.UserName AND actor.actor_rn = 1
                     """.formatted(
                             LEGACY_AUDIT_ENTITY_NAMESPACE_STRIPPED_BY_THE_LEGACY_READ_PATH,
+                            AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT,
+                            AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT,
                             LEGACY_ASPNET_SYSTEM_USER_ID_NEVER_MIGRATED),
                     "t_mutation_audit_event",
                     """

@@ -17,10 +17,29 @@ final class LegacyExtractFixtureSeeder {
 
     private static final Pattern GO_SEPARATOR = Pattern.compile("(?m)^\\s*GO\\s*$");
     private static final Pattern BATCH_TARGETING_A_DATABASE_ABSENT_FROM_THE_TEST_CONTAINER = Pattern.compile(
-            "(?i)^\\s*(USE\\s+\\[?(master|FLSTest)|CREATE\\s+DATABASE|ALTER\\s+DATABASE)");
+            "(?i)^\\s*(USE\\s+\\[?(master|FLSTest)|CREATE\\s+DATABASE)");
+    private static final Pattern ALTER_DATABASE_BATCH = Pattern.compile("(?i)^\\s*ALTER\\s+DATABASE");
+    private static final Pattern COMPATIBILITY_LEVEL_ASSIGNMENT =
+            Pattern.compile("(?i)COMPATIBILITY_LEVEL\\s*=\\s*(\\d+)");
     private static final String DATABASE_LEVEL_SETTINGS_SCRIPT_PREFIX = "2 ";
+    private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
     private LegacyExtractFixtureSeeder() {}
+
+    static Path locateFlsTestFixtureRoot() {
+        Path cursor = Path.of(".").toAbsolutePath().normalize();
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
+            Path candidate = cursor.resolve("flsserver/database/FLSTest");
+            if (Files.isDirectory(candidate)) {
+                return candidate;
+            }
+            cursor = cursor.getParent();
+            if (cursor == null) break;
+        }
+        throw new IllegalStateException(
+                "Could not locate flsserver/database/FLSTest from working directory "
+                        + Path.of(".").toAbsolutePath());
+    }
 
     static SeedResult applyAll(DataSource legacySqlServer, Path flsTestRoot) throws IOException {
         Path alterDir = flsTestRoot.resolve("2 alter");
@@ -38,6 +57,7 @@ final class LegacyExtractFixtureSeeder {
         int applied = 0;
         int skipped = 0;
         int failed = 0;
+        Integer compatibilityLevelDeclaredByTheLegacyScripts = null;
         for (Path script : scripts) {
             String content = readScript(script);
             String[] batches = GO_SEPARATOR.split(content);
@@ -51,15 +71,51 @@ final class LegacyExtractFixtureSeeder {
                     skipped++;
                     continue;
                 }
+                var compatibilityLevel = COMPATIBILITY_LEVEL_ASSIGNMENT.matcher(trimmed);
+                boolean setsTheCompatibilityLevel =
+                        ALTER_DATABASE_BATCH.matcher(trimmed).find() && compatibilityLevel.find();
+                if (ALTER_DATABASE_BATCH.matcher(trimmed).find() && !setsTheCompatibilityLevel) {
+                    skipped++;
+                    continue;
+                }
                 try {
                     jdbc.execute(trimmed);
                     applied++;
+                    if (setsTheCompatibilityLevel) {
+                        compatibilityLevelDeclaredByTheLegacyScripts =
+                                Integer.valueOf(compatibilityLevel.group(1));
+                    }
                 } catch (DataAccessException legacyDialectQuirkTheFixtureToleratesSkipping) {
                     failed++;
                 }
             }
         }
-        return new SeedResult(scripts.size(), applied, skipped, failed);
+        int effectiveCompatibilityLevel =
+                requireTheFixtureRunsAtTheCompatibilityLevelTheLegacyScriptsDeclare(
+                        jdbc, compatibilityLevelDeclaredByTheLegacyScripts);
+        return new SeedResult(scripts.size(), applied, skipped, failed, effectiveCompatibilityLevel);
+    }
+
+    private static int requireTheFixtureRunsAtTheCompatibilityLevelTheLegacyScriptsDeclare(
+            JdbcTemplate jdbc, Integer declared) {
+        if (declared == null) {
+            throw new IllegalStateException(
+                    "No ALTER DATABASE ... SET COMPATIBILITY_LEVEL batch ran against the fixture "
+                            + "database. The legacy scripts declare the level the production export "
+                            + "compiles its T-SQL at, so a fixture that never applies it scores every "
+                            + "producer SELECT at the container default and passes falsely.");
+        }
+        Integer effective = jdbc.queryForObject(
+                "SELECT compatibility_level FROM sys.databases WHERE database_id = DB_ID()",
+                Integer.class);
+        if (effective == null || effective.intValue() != declared.intValue()) {
+            throw new IllegalStateException(
+                    "Fixture database runs at compatibility level " + effective
+                            + " but the legacy scripts declare " + declared
+                            + ". A guard over this fixture would score T-SQL the production "
+                            + "export never compiles.");
+        }
+        return effective.intValue();
     }
 
     private static Comparator<Path> semverAwareLegacyInstallOrder() {
@@ -109,5 +165,6 @@ final class LegacyExtractFixtureSeeder {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    record SeedResult(int scriptsProcessed, int batchesApplied, int batchesSkipped, int batchesFailed) {}
+    record SeedResult(int scriptsProcessed, int batchesApplied, int batchesSkipped, int batchesFailed,
+                      int compatibilityLevel) {}
 }
