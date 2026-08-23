@@ -23,6 +23,7 @@ public final class LegacyFixtureSeeder {
     private static final String GERMAN_LANGUAGE_KEY = "de";
 
     private static final int ACTIVE_CLUB_STATE_LEGACY_ID = 1;
+    private static final int ACTIVE_USER_ACCOUNT_STATE_LEGACY_ID = 1;
 
     private final long seed;
     private final Faker faker;
@@ -165,12 +166,12 @@ public final class LegacyFixtureSeeder {
         String sql = """
                 INSERT INTO Users (
                   UserId, ClubId, UserName, FriendlyName, PersonId,
-                  NotificationEmail, PhoneNumber, Remarks, LanguageId,
+                  NotificationEmail, PhoneNumber, Remarks, LanguageId, AccountState,
                   CreatedOn, CreatedByUserId,
                   ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId,
                   RecordState, OwnerId, OwnershipType, IsDeleted)
                 VALUES (?, ?, ?, ?, ?,
-                        ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
                         ?, ?,
                         ?, ?, ?, ?,
                         1, ?, 2, 0)
@@ -189,6 +190,7 @@ public final class LegacyFixtureSeeder {
                     ps.setString(position++, user.phoneNumber());
                     ps.setNull(position++, java.sql.Types.VARCHAR);
                     ps.setInt(position++, languageId);
+                    ps.setInt(position++, ACTIVE_USER_ACCOUNT_STATE_LEGACY_ID);
                     ps.setTimestamp(position++, user.createdOn());
                     ps.setString(position++, user.createdByUserId().toString());
                     ps.setNull(position++, java.sql.Types.TIMESTAMP);

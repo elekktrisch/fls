@@ -74,6 +74,10 @@ tasks.test {
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 
+tasks.check {
+    dependsOn(parity.classesTaskName)
+}
+
 val parityTest by tasks.registering(Test::class) {
     group = "verification"
     description = "Runs the migration-bundle parity oracle (MSSQL → mapper round-trip → Postgres → diff)."

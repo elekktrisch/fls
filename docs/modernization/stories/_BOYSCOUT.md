@@ -45,19 +45,57 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   cross-tenant column, so its repair needs the tenancy review too.
   *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
 
-## Pending (filed by /do-ship J-33 T-41, 2026-08-23)
+## Pending (filed by /do-ship J-33 T-42, 2026-08-23)
 
-- **[PARITY-FIXTURE-RUNS-AT-THE-CONTAINER-COMPATIBILITY-LEVEL]** [S2] **Symptom (measured, not inferred).**
-  `FlsTestSchemaApplier.java:19` skips every `ALTER DATABASE` batch and seeds into the container default
-  database, so the parity harness scores the producer SELECTs at compatibility level 160 while
-  `e2e/scripts/seed.sh` runs production at 100 (`2 Alter Database.sql:3`). This is the exact twin of the hole
-  T-41 closed in `LegacyExtractFixtureSeeder`, and it is why `ParityOracleHarnessTest` never scored the
-  `TRY_CONVERT` that reded fan-out run 32617774069. **Cause (hypothesis).** The applier was copied from the
-  extract seeder before either fixture needed T-SQL fidelity. **Second finding (measured).** No CI lane runs
-  `migration-bundle`'s own tests: `ci.yml` builds `alpenflight/server` and `alpenflight/migration-tool`, and a
-  composite build never runs the included build's test task. `parityTest`, `parityRejectTest` and
-  `parityMetaTest` therefore run nowhere. Fix both together, or the fixed applier still proves nothing.
-  *(seam: `alpenflight/migration-bundle/src/parity`, `.github/workflows/ci.yml`)*
+- **[PARITY-ORACLE-HARNESS-HAS-NEVER-PASSED]** [S1] **Symptom (measured, not inferred).** T-42 wired a lane
+  and ran `parityTest` for the first time. It fails before it reaches any assertion, and it has failed that
+  way since S-187 authored it. T-42 measured and closed three successive causes, and stopped at the fourth
+  because it needs a production decision. The chain, in the order the run surfaces it:
+  1. The fixture skipped every `ALTER DATABASE` batch, so it ran at the container level 160, not the level
+     100 the legacy scripts declare. Closed by T-42, with the T-41 pattern.
+  2. `3 Insert Static Data.sql` carries zero `GO` separators, so the whole 955-line file is ONE batch that
+     starts with `USE [FLSTest]`. The applier dropped that whole batch, so no static data ever landed and
+     `LegacyFixtureSeeder.java:65` could not find Country `CH`. Closed by T-42.
+  3. `LegacyFixtureSeeder.seedUsers` never set `Users.AccountState`, which `DBUpdate_v1.8.0.sql` declares
+     NOT NULL with no default. Closed by T-42.
+  4. **OPEN.** The canonical `System-Verein` club that `3 Insert Static Data.sql:717` inserts carries
+     `ClubStateId = 0`, and `ClubStates` seeds only 1, 2, 4 and 10. The CLUB producer SELECT
+     (`MapperLegacyBindings.java:58`) has no `WHERE`, so that club enters the bundle, and BOTH the parity
+     `ForeignKeyRewriter.java:29` and production `ForeignKeyResolver.java:69` refuse an unresolvable
+     SYSTEM_GLOBAL foreign key. **Cause (hypothesis, not measured).** The real fan-out migrates a chosen
+     club, never the whole `Clubs` table, so it has never presented `System-Verein` to the resolver.
+     **Why it may be a live defect, not only a harness gap.** If any bundle carries a club whose
+     `ClubStateId` names no `ClubStates` row, the ingest rejects the whole stream. The operator decides:
+     enumerate `ClubStateId = 0` in the CLUB_STATE bundle entry, exclude the system club from the CLUB
+     producer SELECT, or let the resolver null an unresolvable reference state.
+  Until 4 is decided, `parityTest` stays out of the gating lane. It is the only thing that scores the
+  MSSQL → mapper → Postgres round-trip.
+  *(seam: `alpenflight/migration-bundle/src/parity`, `MapperLegacyBindings`, `ForeignKeyResolver`)*
+
+- **[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]** [S2] **Symptom (measured).** `parityRejectTest` and
+  `parityMetaTest` both complete `BUILD SUCCESSFUL` in seconds and write an empty result directory. No test
+  in `src/parity/java` carries `@Tag("parity-reject")` or `@Tag("parity-meta")` — `ParityOracleHarnessTest`
+  carries `@Tag("parity")` only. S-187a shipped the two Gradle tasks and S-187d still owes their cases, so
+  each task is a gate that cannot fail. T-42 measured that Gradle 9.4.1 `failOnNoDiscoveredTests` does NOT
+  score this: a tag filter that selects nothing still passes, and an empty `testClassesDirs` makes Gradle
+  skip the task as NO-SOURCE. So the guard must be the missing cases, not a build flag.
+  *(seam: `alpenflight/migration-bundle/build.gradle.kts:89`, S-187d)*
+
+- **[DOCKER-SKIP-TURNS-TWO-MSSQL-GUARDS-GREEN]** [S2] **Symptom (measured).**
+  `LegacyProducerSelectCompatibilityLevelTest:21` and `ParityOracleHarnessTest:35` are both
+  `@EnabledIf("dockerAvailable")`, and each swallows the container start failure. A Docker blip on the
+  runner turns each guard into a silent skip, and the lane reads green. T-42 confirmed both execute today
+  (the extract guard ran 3 tests, 0 skipped, on this box). **Cause (hypothesis).** The condition exists for
+  a developer box with no Docker. A `CI=true` branch that rethrows would keep the dev ergonomics and remove
+  the false green.
+  *(seam: `alpenflight/database/extract/src/test`, `alpenflight/migration-bundle/src/parity`)*
+
+- **[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]** [S2] **Symptom (measured).** `extract.yml` runs
+  `LegacyProducerSelectCompatibilityLevelTest` and `MetadataExtractorIntegrationTest`, but the job is in no
+  `required.needs` list, because `required` lives in `ci.yml` and a job cannot depend on another workflow.
+  A red extract lane shows as a red check and blocks no merge. The same holds for `alpenflight-e2e.yml` and
+  `nightly.yml`. Either move the lane into `ci.yml` or add it to the branch-protection contexts.
+  *(seam: `.github/workflows/extract.yml`, branch protection)*
 
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 
