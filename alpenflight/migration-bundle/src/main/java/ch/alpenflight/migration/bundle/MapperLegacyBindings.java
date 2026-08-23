@@ -21,6 +21,22 @@ public final class MapperLegacyBindings {
     private static final String PLANNING_DAY_SURVIVOR_ORDER_LIVE_ROW_BEATS_SOFT_DELETED =
             "ORDER BY IsDeleted, CreatedOn, PlanningDayId";
 
+    private static final String LEGACY_AUDIT_ENTITY_NAMESPACE_STRIPPED_BY_THE_LEGACY_READ_PATH =
+            "FLS.Server.Data.DbEntities.";
+
+    private static final String TSQL_LIKE_HEXADECIMAL_DIGIT = "[0-9A-Fa-f]";
+
+    private static final String TSQL_LIKE_CANONICAL_GUID_SHAPE =
+            TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(8) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(4) + "-"
+                    + TSQL_LIKE_HEXADECIMAL_DIGIT.repeat(12);
+
+    private static final String AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT =
+            "(al.RecordId LIKE '" + TSQL_LIKE_CANONICAL_GUID_SHAPE + "'"
+                    + " OR al.RecordId LIKE '{" + TSQL_LIKE_CANONICAL_GUID_SHAPE + "}')";
+
     private static final Map<EntityType, Binding> BINDINGS = Map.ofEntries(
             entry(EntityType.COUNTRY, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
@@ -917,6 +933,72 @@ public final class MapperLegacyBindings {
                             ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.AUDIT_LOG, new Binding(
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT CONVERT(UNIQUEIDENTIFIER, CONVERT(BINARY(16), al.AuditLogId))
+                               AS LegacyGuid,
+                           al.AuditLogId,
+                           al.EventDateUTC,
+                           al.UserName,
+                           actor.UserId AS ResolvedActorUserId,
+                           CASE al.EventType
+                                WHEN 0 THEN 'CREATE'
+                                WHEN 1 THEN 'DELETE'
+                                WHEN 2 THEN 'UPDATE'
+                                WHEN 3 THEN 'UPDATE'
+                                WHEN 4 THEN 'UPDATE'
+                           END AS ResolvedAction,
+                           REPLACE(al.TypeFullName, '%s', '')
+                               AS ResolvedTargetEntityType,
+                           CASE WHEN %s
+                                THEN CONVERT(UNIQUEIDENTIFIER, al.RecordId)
+                           END AS ResolvedTargetEntityId,
+                           CASE WHEN NOT %s
+                                THEN al.RecordId
+                           END AS ResolvedLegacyTargetRecordId,
+                           CASE WHEN actor.UserId IS NULL
+                                 AND LTRIM(RTRIM(COALESCE(al.UserName, N''))) <> N''
+                                THEN CONVERT(UNIQUEIDENTIFIER, SUBSTRING(HASHBYTES('SHA2_256',
+                                         LOWER(LTRIM(RTRIM(
+                                             CONVERT(NVARCHAR(4000), al.UserName))))), 1, 16))
+                           END AS ResolvedLegacyOrphanActorId
+                    FROM AuditLogs al
+                    LEFT JOIN (
+                        SELECT Username, UserId,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY Username
+                                   ORDER BY CASE WHEN DeletedOn IS NULL THEN 0 ELSE 1 END,
+                                            CreatedOn, UserId
+                               ) AS actor_rn
+                        FROM Users
+                        WHERE UserId <> '%s'
+                    ) actor ON actor.Username = al.UserName AND actor.actor_rn = 1
+                    """.formatted(
+                            LEGACY_AUDIT_ENTITY_NAMESPACE_STRIPPED_BY_THE_LEGACY_READ_PATH,
+                            AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT,
+                            AUDIT_RECORD_ID_CONVERTS_TO_UNIQUEIDENTIFIER_WITHOUT_TRY_CONVERT,
+                            LEGACY_ASPNET_SYSTEM_USER_ID_NEVER_MIGRATED),
+                    "t_mutation_audit_event",
+                    """
+                    INSERT INTO t_mutation_audit_event (
+                      id, occurred_at,
+                      actor_user_id, actor_keycloak_sub, tenant_club_id,
+                      action, actor_kind,
+                      target_entity_type, target_entity_id,
+                      request_id, before_state, after_state,
+                      failed, system_actor, http_status, failure_reason,
+                      legacy_actor_user_id, legacy_int_id, legacy_target_record_id,
+                      legacy_orphan_actor_id)
+                    VALUES (?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?,
+                            ?)
                     """)));
 
     private MapperLegacyBindings() { }

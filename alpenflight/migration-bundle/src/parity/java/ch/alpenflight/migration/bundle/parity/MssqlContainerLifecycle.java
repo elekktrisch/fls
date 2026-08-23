@@ -14,6 +14,7 @@ public final class MssqlContainerLifecycle {
 
     private static final String IMAGE = "mcr.microsoft.com/mssql/server:2022-latest";
     private static final String SA_PASSWORD = "ParityPa$$w0rd_2026";
+    private static final String LEGACY_DATABASE_NAME = "FLSTest";
     private static final int READINESS_TIMEOUT_SECONDS = 90;
 
     private final String containerName =
@@ -39,10 +40,26 @@ public final class MssqlContainerLifecycle {
         started = true;
         try {
             waitForReady();
+            createLegacyDatabase();
         } catch (RuntimeException failure) {
             started = false;
             stopQuietly();
             throw failure;
+        }
+    }
+
+    private void createLegacyDatabase() {
+        Properties properties = new Properties();
+        properties.setProperty("user", username());
+        properties.setProperty("password", password());
+        try (Connection connection = DriverManager.getConnection(serverJdbcUrl(), properties)) {
+            connection.createStatement().execute(
+                    "IF DB_ID('" + LEGACY_DATABASE_NAME + "') IS NULL"
+                            + " CREATE DATABASE [" + LEGACY_DATABASE_NAME + "]");
+        } catch (SQLException failure) {
+            throw new IllegalStateException(
+                    "could not create the " + LEGACY_DATABASE_NAME + " database in container "
+                            + containerName + ": " + failure.getMessage(), failure);
         }
     }
 
@@ -65,6 +82,10 @@ public final class MssqlContainerLifecycle {
     }
 
     public String jdbcUrl() {
+        return serverJdbcUrl() + ";databaseName=" + LEGACY_DATABASE_NAME;
+    }
+
+    private String serverJdbcUrl() {
         ensureStarted();
         return "jdbc:sqlserver://localhost:" + hostPort
                 + ";encrypt=false;trustServerCertificate=true";
@@ -113,7 +134,7 @@ public final class MssqlContainerLifecycle {
         properties.setProperty("password", password());
         Throwable lastFailure = null;
         while (System.currentTimeMillis() < deadline) {
-            try (Connection connection = DriverManager.getConnection(jdbcUrl(), properties)) {
+            try (Connection connection = DriverManager.getConnection(serverJdbcUrl(), properties)) {
                 connection.createStatement().execute("SELECT 1");
                 return;
             } catch (SQLException retry) {

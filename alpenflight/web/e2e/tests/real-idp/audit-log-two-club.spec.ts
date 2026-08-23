@@ -394,12 +394,13 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-32',
+        journey: 'J-33',
         caption:
-          'J-32 · actor attribution · A club-A administrator creates a Location in the real ' +
+          'J-33 · actor attribution · A club-A administrator creates a Location in the real ' +
           'application. At /system/logs the row for that write names the administrator by ' +
           'username, and no row on the page leaves the actor cell empty. The expanded row ' +
-          'carries the created name.',
+          'carries the created name. The signed-in user is a club administrator. This video ' +
+          'does not show a system administrator.',
         acTag: 'happy',
       });
     }
@@ -562,15 +563,15 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-32',
+        journey: 'J-33',
         caption:
-          'J-32 · anonymous attribution · A registrant submits a public scenic-flight form with ' +
+          'J-33 · anonymous attribution · A registrant submits a public scenic-flight form with ' +
           'no token. At /system/logs the club-B administrator reads that row as the public form. ' +
           'The cell is not empty and shows no raw identifier, and it differs from the ' +
           'administrator row, which the same screen names by username. The real API row carries ' +
-          'actorKind=ANONYMOUS_PUBLIC, systemActor=false and no actor user id. No HTTP surface ' +
-          'produces a SYSTEM row, so AnonymousActorProjectionIT proves the scheduled-job kind in ' +
-          'the data, and audit-logs-list.spec.ts proves its "System" label on the screen.',
+          'actorKind=ANONYMOUS_PUBLIC, systemActor=false and no actor user id. The public form ' +
+          'submission succeeds here. This video does not show a rejected anonymous write, and it ' +
+          'does not show a client IP.',
         acTag: 'happy',
       });
     }

@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.parity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Manifest;
@@ -21,6 +22,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -39,6 +41,12 @@ class ParityOracleHarnessTest {
 
     private static final @Nullable Integer FK_ORPHANS_NOT_MEASURED = null;
 
+    private static final int LEGACY_CLUB_STATE_SYSTEM = 0;
+    private static final int LEGACY_CLUB_STATE_ACTIVE = 1;
+
+    private static final int CANONICAL_STATIC_DATA_CLUB_COUNT = 1;
+    private static final int CANONICAL_STATIC_DATA_MIGRATED_USER_COUNT = 1;
+
     private static final MssqlContainerLifecycle MSSQL = new MssqlContainerLifecycle();
     private static final PostgresContainerLifecycle POSTGRES = new PostgresContainerLifecycle();
     private static final boolean DOCKER_AVAILABLE = tryStartContainers();
@@ -53,13 +61,24 @@ class ParityOracleHarnessTest {
             POSTGRES.start();
             return true;
         } catch (Throwable failure) {
+            stopContainersQuietly();
+            if (dockerIsMandatory()) {
+                throw new IllegalStateException(
+                        "PARITY_REQUIRES_DOCKER is set, so a Docker failure reds this lane "
+                                + "instead of skipping it: an unreachable Docker daemon "
+                                + "otherwise turns the whole parity oracle green without "
+                                + "running one assertion.", failure);
+            }
             System.err.println("""
                     [parity] Skipping ParityOracleHarnessTest — Docker unreachable.
                       Root cause: %s
                     """.formatted(failure.getMessage()));
-            stopContainersQuietly();
             return false;
         }
+    }
+
+    private static boolean dockerIsMandatory() {
+        return "1".equals(System.getenv("PARITY_REQUIRES_DOCKER"));
     }
 
     private static void stopContainersQuietly() {
@@ -122,10 +141,16 @@ class ParityOracleHarnessTest {
 
         ConsumerHarness.IngestOutcome ingestOutcome;
         ParityDiffEngine.DiffOutcome diffOutcome;
+        UUID activeClubStateSeedId;
         try (Connection postgresConnection = openPostgresConnection();
                 Connection legacyConnection = openLegacyConnection()) {
+            Map<EntityType, Map<String, Long>> flywaySeedRowsPresentBeforeIngest =
+                    ParityDiffEngine.countNewSchemaRowsBeforeIngest(
+                            postgresConnection, mappers);
             ingestOutcome = new ConsumerHarness(postgresConnection, mappers).ingest(parsed);
-            diffOutcome = ParityDiffEngine.run(legacyConnection, postgresConnection, mappers);
+            diffOutcome = ParityDiffEngine.run(legacyConnection, postgresConnection, mappers,
+                    flywaySeedRowsPresentBeforeIngest);
+            activeClubStateSeedId = readClubStateSeedIdByCode(postgresConnection, "ACTIVE");
         }
 
         Path reportsDirectory = runIdentity.reportsDirectory(
@@ -146,16 +171,53 @@ class ParityOracleHarnessTest {
                         diffOutcome.rowCountDeltas())
                 .isTrue();
         assertThat(ingestOutcome.rowCountByEntity().get(EntityType.CLUB))
-                .as("Both seeded Clubs must round-trip into t_club")
-                .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT);
+                .as("Both seeded Clubs plus the canonical System-Verein club must "
+                        + "round-trip into t_club")
+                .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT + CANONICAL_STATIC_DATA_CLUB_COUNT);
         assertThat(ingestOutcome.rowCountByEntity().get(EntityType.USER))
-                .as("Every seeded User must round-trip into t_user")
-                .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT * LegacyFixtureSeeder.USERS_PER_CLUB);
+                .as("Every seeded User plus the canonical workflow user must round-trip "
+                        + "into t_user; the canonical ASP.NET system user is the one row "
+                        + "the USER producer SELECT excludes by id")
+                .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT * LegacyFixtureSeeder.USERS_PER_CLUB
+                        + CANONICAL_STATIC_DATA_MIGRATED_USER_COUNT);
         assertThat(ingestOutcome.legacyIdMaps().newIdByLegacyGuidByEntity().keySet())
                 .as("SYSTEM_GLOBAL FK resolution must populate legacy_id_map for "
                         + "every SYSTEM_GLOBAL mapper in the bundle")
                 .containsExactlyInAnyOrder(
                         EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE);
+
+        Map<UUID, UUID> clubStateSeedIdByLegacyGuid =
+                ingestOutcome.legacyIdMaps().requireFor(EntityType.CLUB_STATE);
+        assertThat(clubStateSeedIdByLegacyGuid)
+                .as("legacy ClubStateId 0 (System) and 1 (Active) both map to the V2 code "
+                        + "ACTIVE, so a code-keyed id map drops one of them; every legacy "
+                        + "guid must resolve to the ACTIVE seed row")
+                .containsEntry(legacyClubStateGuid(LEGACY_CLUB_STATE_SYSTEM),
+                        activeClubStateSeedId)
+                .containsEntry(legacyClubStateGuid(LEGACY_CLUB_STATE_ACTIVE),
+                        activeClubStateSeedId);
+        assertThat(clubStateSeedIdByLegacyGuid.keySet())
+                .as("every legacy ClubStates row the producer emitted must carry an entry")
+                .hasSize(producerCounts.get(EntityType.CLUB_STATE));
+    }
+
+    private static UUID legacyClubStateGuid(int legacyClubStateId) {
+        return UUID.fromString(Coercions.legacyIntIdToUuidString(legacyClubStateId));
+    }
+
+    private static UUID readClubStateSeedIdByCode(Connection connection, String code)
+            throws Exception {
+        try (var ps = connection.prepareStatement(
+                "SELECT id FROM t_club_state WHERE code = ?")) {
+            ps.setString(1, code);
+            try (var rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new IllegalStateException(
+                            "V2 seed catalogue has no t_club_state row with code " + code);
+                }
+                return UUID.fromString(rs.getString(1));
+            }
+        }
     }
 
     @Test

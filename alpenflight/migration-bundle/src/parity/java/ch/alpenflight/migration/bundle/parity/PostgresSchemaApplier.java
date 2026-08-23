@@ -6,8 +6,10 @@ import org.flywaydb.core.Flyway;
 
 public final class PostgresSchemaApplier {
 
-    private static final String OPERATOR_KEYCLOAK_SUB_PLACEHOLDER =
-            "00000000-0000-0000-0000-0000000000ff";
+    private static final java.util.Map<String, String>
+            FLYWAY_PLACEHOLDERS_MIRRORING_APPLICATION_TEST_YML = java.util.Map.of(
+                    "alpenflight.operator.keycloak_sub", "00000000-0000-0000-0000-0000000000ff",
+                    "app_role_password", "alpenflight_app");
 
     private PostgresSchemaApplier() { }
 
@@ -18,8 +20,7 @@ public final class PostgresSchemaApplier {
                 .locations("filesystem:" + migrationLocation.toAbsolutePath())
                 .validateMigrationNaming(true)
                 .cleanDisabled(true)
-                .placeholders(java.util.Map.of(
-                        "alpenflight.operator.keycloak_sub", OPERATOR_KEYCLOAK_SUB_PLACEHOLDER))
+                .placeholders(FLYWAY_PLACEHOLDERS_MIRRORING_APPLICATION_TEST_YML)
                 .load();
         flyway.migrate();
     }

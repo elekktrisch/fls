@@ -108,6 +108,54 @@ class UsersListControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void systemAdministratorOfTheSameClub_listsUsers_returns200_soTheAuditActorNamesResolve() {
+        String systemAdministratorToken = tokenForSeededUser(
+                "list-it-sysadmin", "List IT System Administrator", "SYSTEM_ADMINISTRATOR");
+
+        ResponseEntity<String> res = get("/api/v1/users", systemAdministratorToken);
+
+        assertThat(res.getStatusCode())
+                .as("a SYSTEM_ADMINISTRATOR reads /system/logs, so the actor-name lookup "
+                        + "must answer 200 instead of 403 — body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        List<String> usernames = readJson(res).findValuesAsText("username");
+        assertThat(usernames).contains("list-it-admin", "list-it-peer");
+        assertThat(usernames)
+                .as("the widened role stays tenant-scoped — another club's users must not leak")
+                .doesNotContain("list-it-other");
+    }
+
+    @Test
+    void pilotOfTheSameClub_listsUsers_stays403_theWideningAdmitsNoLowerRole() {
+        String pilotToken = tokenForSeededUser("list-it-pilot", "List IT Pilot", "PILOT");
+
+        ResponseEntity<String> res = get("/api/v1/users", pilotToken);
+
+        assertThat(res.getStatusCode())
+                .as("a PILOT must still not read the user directory — body=%s", res.getBody())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    private String tokenForSeededUser(String username, String friendlyName, String realmRole) {
+        UUID sub = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_user (id, club_id, username, friendly_name,
+                                    notification_email, language_id, keycloak_sub)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
+                """,
+                UUID.randomUUID().toString(), MIGRATION_SEEDED_CLUB_1.toString(), username,
+                friendlyName, username + "@example.com", LANG_DE.toString(), sub.toString());
+        when(directory.getRealmRoleMappings(sub)).thenReturn(List.<RealmRoleRef>of());
+        return jwts.mint(c -> c
+                .subject(sub.toString())
+                .claim("clubId", SYMBOLIC_CLUB_ID_CLAIM_FORCING_KEYCLOAK_SUB_TENANT_FALLBACK)
+                .claim("preferred_username", username)
+                .claim("email", username + "@example.com")
+                .claim("realm_access", Map.of("roles", List.of(realmRole))));
+    }
+
+    @Test
     void clubAdmin_orphanedKeycloakSubRow_stillRenders200_withEmptyRoles() {
         UUID orphanSub = UUID.randomUUID();
         jdbc.update("""

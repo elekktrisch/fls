@@ -5,7 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.MapperLegacyBindings;
+import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -18,6 +23,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -27,6 +36,19 @@ class MapperVsSchemaCompatibilityTest {
 
     private static final String LEGACY_GUID_WIRE_COLUMN = "legacy_guid";
     private static final String DESTINATION_PK_COLUMN = "id";
+
+    private static final String MIGRATION_DIRECTORY = "src/main/resources/db/migration";
+    private static final String SQL_MIGRATION_SUFFIX = ".sql";
+
+    private static final Pattern FLYWAY_PLACEHOLDER_REFERENCE =
+            Pattern.compile("\\$\\{([A-Za-z0-9_.\\-]+)}");
+
+    private static final Map<String, String> FLYWAY_PLACEHOLDERS_MIRRORING_APPLICATION_TEST_YML =
+            Map.of(
+                    "alpenflight.operator.keycloak_sub",
+                    "00000000-0000-0000-0000-0000000000ff",
+                    "app_role_password",
+                    PostgresTestContainerLifecycle.APP_ROLE_PASSWORD);
 
     private static final Set<EntityType> SYSTEM_GLOBAL_REFERENCE_MAPPERS = Set.of(
             EntityType.COUNTRY,
@@ -41,9 +63,6 @@ class MapperVsSchemaCompatibilityTest {
     private static final Set<String> COLUMNS_POPULATED_OUTSIDE_ANY_MAPPER = Set.of(
             SEED_POPULATED_SHADOW_COLUMN,
             TENANT_DISCRIMINATOR_POPULATED_BY_THE_APPLICATION_LAYER);
-
-    private static final Map<EntityType, String> DESTINATION_TABLE_OVERRIDE = Map.of(
-            EntityType.AUDIT_LOG, "t_mutation_audit_event");
 
     private static final Set<String> KEYCLOAK_OWNED_SINGLE_WRITER_COLUMNS =
             Set.of("keycloak_sub");
@@ -99,6 +118,24 @@ class MapperVsSchemaCompatibilityTest {
                         + "SYSTEM_GLOBAL reference mappers (COUNTRY / LANGUAGE / CLUB_STATE / "
                         + "START_TYPE) carry the subset check only — V2 owns the destination rows.")
                 .isEmpty();
+    }
+
+    @Test
+    void everyPlaceholderAMigrationReferencesCarriesAValueInThisTestsFlywayConfiguration()
+            throws IOException {
+        Set<String> referenced = placeholdersTheMigrationFilesReference();
+        assertThat(referenced)
+                .as("The migration directory %s must hold at least one placeholder reference, "
+                        + "else this guard passes over an empty scan.", MIGRATION_DIRECTORY)
+                .isNotEmpty();
+        assertThat(FLYWAY_PLACEHOLDERS_MIRRORING_APPLICATION_TEST_YML.keySet())
+                .as("Flyway refuses to parse a migration whose placeholder carries no value. "
+                        + "This test then reds only when it migrates a fresh schema itself — a "
+                        + "run that follows a Spring context finds nothing pending and hides the "
+                        + "gap. This assertion reads the migration files, so it holds in every "
+                        + "run order. Add the missing key here and to "
+                        + "src/main/resources/application-test.yml.")
+                .containsAll(referenced);
     }
 
     private static Set<String> mapperColumnsWithLegacyGuidResolvedToDestinationPk(Mapper mapper) {
@@ -170,8 +207,9 @@ class MapperVsSchemaCompatibilityTest {
     }
 
     private static String destinationTableName(EntityType entity) {
-        String override = DESTINATION_TABLE_OVERRIDE.get(entity);
-        return override != null ? override : "t_" + entity.temporaryTableSuffix();
+        return MapperLegacyBindings.isRegistered(entity)
+                ? MapperLegacyBindings.newSchemaTable(entity)
+                : "t_" + entity.temporaryTableSuffix();
     }
 
     private static TableSchema loadTableSchema(Connection connection, String tableName)
@@ -210,14 +248,28 @@ class MapperVsSchemaCompatibilityTest {
             String jdbcUrl, String user, String password) {
         org.flywaydb.core.Flyway.configure()
                 .dataSource(jdbcUrl, user, password)
-                .locations("filesystem:src/main/resources/db/migration")
+                .locations("filesystem:" + MIGRATION_DIRECTORY)
                 .cleanDisabled(true)
                 .validateMigrationNaming(true)
-                .placeholders(Map.of(
-                        "alpenflight.operator.keycloak_sub",
-                        "00000000-0000-0000-0000-0000000000ff"))
+                .placeholders(FLYWAY_PLACEHOLDERS_MIRRORING_APPLICATION_TEST_YML)
                 .load()
                 .migrate();
+    }
+
+    private static Set<String> placeholdersTheMigrationFilesReference() throws IOException {
+        Set<String> referenced = new TreeSet<>();
+        try (Stream<Path> migrationFiles = Files.list(Path.of(MIGRATION_DIRECTORY))) {
+            List<Path> sqlFiles = migrationFiles
+                    .filter(file -> file.getFileName().toString().endsWith(SQL_MIGRATION_SUFFIX))
+                    .toList();
+            for (Path sqlFile : sqlFiles) {
+                Matcher reference = FLYWAY_PLACEHOLDER_REFERENCE.matcher(Files.readString(sqlFile));
+                while (reference.find()) {
+                    referenced.add(reference.group(1));
+                }
+            }
+        }
+        return referenced;
     }
 
     private record TableSchema(String tableName, Map<String, ColumnInfo> columnsByName) {

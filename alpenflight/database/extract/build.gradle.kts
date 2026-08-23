@@ -26,6 +26,7 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("ch.alpenflight:alpenflight-migration-bundle")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

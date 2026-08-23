@@ -97,10 +97,18 @@ present) — the lessons are then reconstruction-only.
 3. **Re-shape the backlog — boyscout-riders by default, never tiny stories.**
    Mechanical or bounded work (a bug fix, a one-line regex, a doc reconciliation, a
    guard test, deleting files — *however many*) does **NOT** get its own story/journey.
-   Record it as a **boyscout rider** in `docs/modernization/stories/_BOYSCOUT.md` (one
-   bullet: what + which seam + why), to be folded into the **next journey** that runs
-   the gate — so the fix flows through the do-* workflow and produces a gate + gallery
-   proof the operator can see. A tiny standalone story bypasses that proof loop and is
+   Record it as a **boyscout rider** in `docs/modernization/stories/_BOYSCOUT.md`, to be
+   folded into the **next journey** that runs the gate — so the fix flows through the
+   do-* workflow and produces a gate + gallery proof the operator can see.
+   **File the SYMPTOM as evidence and the CAUSE as a hypothesis** (operator 2026-08-21).
+   A rider carries `SYMPTOM:` (what was observed + the `file:line` that shows it, required)
+   and `SUSPECTED CAUSE:` (optional, and explicitly unverified). Never write a cause as
+   fact. J-32 burned ~16 rider causes and **eight were wrong** — a "hard delete" that
+   soft-deletes and names a different column, a `flush()` blamed on `em.merge` that had
+   three unrelated reasons, an "unexplainable" entry explained in its own first commit,
+   and four riders whose defects J-27 fixed two months earlier. The symptoms were sound
+   every time; the diagnoses rotted. `/do-ship` opens each burndown task by confirming or
+   refuting the stated cause, so a wrong guess costs minutes instead of a wrong fix. A tiny standalone story bypasses that proof loop and is
    an anti-pattern. **File a standalone journey ONLY for genuinely new vertical feature
    scope** (a missing screen, a re-carve of an oversized journey) — that, and only that,
    feeds `/do-plan`. Infra/efficiency work (proof-chain speedups, flake fixes, CI

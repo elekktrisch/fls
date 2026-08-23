@@ -1,5 +1,10 @@
 import { type Route } from '@playwright/test';
-import { expect, test } from '../_helpers/console-guard';
+import {
+  allowConsoleErrors,
+  consoleErrorAllowanceForStatusesOnEndpoint,
+  expect,
+  test,
+} from '../_helpers/console-guard';
 import type { AuditEventPage } from '../../../src/app/api/generated/model/auditEventPage';
 import type { AuditEventRow } from '../../../src/app/api/generated/model/auditEventRow';
 import { AuditEventRowAction } from '../../../src/app/api/generated/model/auditEventRowAction';
@@ -249,4 +254,39 @@ test('audit-logs: the actor column tells an authenticated user, an anonymous pub
   await expect(federated.getByTestId('audit-row-actor')).toHaveText(UNLISTED_ACTOR_KEYCLOAK_SUB);
 
   await page.screenshot({ path: 'screenshots/audit-logs/02-anonymous-actor.png', fullPage: true });
+});
+
+const THE_REJECTED_ACTOR_NAME_LOOKUP_IS_THE_SUBJECT_OF_THIS_TEST =
+  consoleErrorAllowanceForStatusesOnEndpoint([403], '/api/v1/users');
+
+test('audit-logs: a rejected actor-name lookup names the failure on the screen instead of degrading in silence', async ({
+  page,
+}, testInfo) => {
+  allowConsoleErrors(testInfo, THE_REJECTED_ACTOR_NAME_LOOKUP_IS_THE_SUBJECT_OF_THIS_TEST);
+
+  const rows = seedRows.map((r) => ({ ...r }));
+  await page.route('**/api/v1/admin/audit-events**', setupAuditBackend(rows));
+  await page.route('**/api/v1/users', (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 403, detail: 'Forbidden' }),
+    }),
+  );
+
+  await page.goto('/system/logs');
+
+  const notice = page.getByTestId('audit-actor-names-unresolved');
+  await expect(notice, 'the screen tells the operator the names did not load').toBeVisible();
+  await expect(notice).toContainText('403');
+
+  await expect(
+    page.locator(`[data-audit-id="${USER_ROW_ID}"]`).getByTestId('audit-row-actor'),
+    'the cell still falls back to the Keycloak subject, but the fallback is now declared',
+  ).toHaveText(ACTOR_KEYCLOAK_SUB);
+
+  await page.screenshot({
+    path: 'screenshots/audit-logs/03-actor-names-unresolved.png',
+    fullPage: true,
+  });
 });

@@ -22,8 +22,7 @@ class MapperBindingContractTest {
     private static final Set<EntityType> KNOWN_UNBOUND = EnumSet.of(
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,
-            EntityType.PERSON_CATEGORY_ASSIGNMENT,
-            EntityType.AUDIT_LOG);
+            EntityType.PERSON_CATEGORY_ASSIGNMENT);
 
     private static final Pattern LEGACY_CURSOR_READ_LITERAL =
             Pattern.compile("source\\.get\\w+\\(\"([^\"]+)\"");

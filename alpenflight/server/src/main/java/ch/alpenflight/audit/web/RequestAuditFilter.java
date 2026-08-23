@@ -82,14 +82,14 @@ class RequestAuditFilter extends OncePerRequestFilter {
             if (targetTenantHint != null
                     && !ClubTenantIdentifierResolver.NO_TENANT.equals(targetTenantHint)) {
                 Tenants.runAs(targetTenantHint, () -> {
-                    auditTrail.recordFailed(
+                    auditTrail.recordFailedHttpRequest(
                             action,
                             new AuditedTarget(entityType, null, null, null),
                             status,
                             reason);
                 });
             } else {
-                auditTrail.recordFailed(
+                auditTrail.recordFailedHttpRequest(
                         action,
                         new AuditedTarget(entityType, null, null, null),
                         status,

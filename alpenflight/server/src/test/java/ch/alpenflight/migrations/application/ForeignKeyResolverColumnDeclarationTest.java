@@ -2,6 +2,7 @@ package ch.alpenflight.migrations.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -11,13 +12,18 @@ import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.LegacyIdMapTables;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.flight.AircraftMapper;
+import ch.alpenflight.migration.bundle.identity.AuditLogMapper;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayOutputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -136,6 +142,71 @@ class ForeignKeyResolverColumnDeclarationTest {
                         + "legacy value, even though the same pass also rewrites "
                         + "managing_club_id itself to the new club id")
                 .isEqualTo(homebaseNewForManagingClub.toString());
+    }
+
+    @Test
+    void real_audit_log_mapper_resolves_the_actor_user_id_its_own_writeNdjson_emits()
+            throws Exception {
+        UUID legacyActorUserId = UUID.randomUUID();
+        UUID migratedActorUserId = UUID.randomUUID();
+
+        Connection connection = stubConnection(Map.of(
+                EntityType.USER, Map.of(legacyActorUserId, migratedActorUserId)));
+
+        ObjectNode row = auditLogRowAsTheProducerWritesIt(legacyActorUserId);
+        assertThat(row.has("actor_user_id"))
+                .as("the wire field name comes from AuditLogMapper.writeNdjson, so a synthetic "
+                        + "row cannot alias it and hide the defect")
+                .isTrue();
+        assertThat(row.has("user_id"))
+                .as("the mapper emits no conventional user_id, so the resolver's "
+                        + "<target>_id fallback has nothing to rewrite")
+                .isFalse();
+
+        try (ForeignKeyResolver resolver = new ForeignKeyResolver(connection, emptyManifest())) {
+            resolver.rewriteForeignKeys(new AuditLogMapper(), row);
+        }
+
+        assertThat(row.get("actor_user_id").asText())
+                .as("AuditLogMapper must declare actor_user_id in foreignKeyColumns(); without "
+                        + "the declaration the resolver seeks user_id, finds nothing, and the "
+                        + "migrated audit row keeps the raw legacy actor guid %s that "
+                        + "/system/logs then renders in place of a user name", legacyActorUserId)
+                .isEqualTo(migratedActorUserId.toString());
+    }
+
+    private static ObjectNode auditLogRowAsTheProducerWritesIt(UUID legacyActorUserId)
+            throws Exception {
+        Map<String, Object> legacyCursorRow = Map.of(
+                "LegacyGuid", UUID.randomUUID().toString(),
+                "EventDateUTC", Timestamp.from(Instant.parse("2024-06-15T08:30:00Z")),
+                "ResolvedActorUserId", legacyActorUserId.toString(),
+                "ResolvedAction", "UPDATE",
+                "ResolvedTargetEntityType", "Flight",
+                "ResolvedTargetEntityId", UUID.randomUUID().toString(),
+                "UserName", "j.doe",
+                "AuditLogId", 1_234_567L,
+                "ResolvedLegacyTargetRecordId", "42");
+
+        ResultSet legacyCursor = mock(ResultSet.class);
+        org.mockito.Mockito.lenient().when(legacyCursor.getString(anyString()))
+                .thenAnswer(call -> {
+                    Object value = legacyCursorRow.get(call.<String>getArgument(0));
+                    return value == null ? null : value.toString();
+                });
+        org.mockito.Mockito.lenient().when(legacyCursor.getTimestamp(anyString()))
+                .thenAnswer(call -> legacyCursorRow.get(call.<String>getArgument(0)));
+        org.mockito.Mockito.lenient().when(legacyCursor.getLong(anyString()))
+                .thenAnswer(call -> {
+                    Object value = legacyCursorRow.get(call.<String>getArgument(0));
+                    return value instanceof Number number ? number.longValue() : 0L;
+                });
+
+        ByteArrayOutputStream ndjson = new ByteArrayOutputStream();
+        try (JsonGenerator generator = JSON.getFactory().createGenerator(ndjson)) {
+            new AuditLogMapper().writeNdjson(legacyCursor, generator);
+        }
+        return (ObjectNode) JSON.readTree(ndjson.toByteArray());
     }
 
     private static BundleManifest emptyManifest() {

@@ -129,6 +129,8 @@ const en: Translations = {
       system: 'System',
       unknown: 'Unknown',
     },
+    actorNamesUnresolved:
+      'User names did not load ({{reason}}). The column shows the Keycloak subject.',
     columns: {
       action: 'Action',
       target: 'Target',

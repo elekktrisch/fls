@@ -7,8 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -23,7 +21,7 @@ import org.springframework.test.context.DynamicPropertySource;
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class MetadataExtractorIntegrationTest {
 
-    private static final MssqlTestContainerLifecycle MSSQL = new MssqlTestContainerLifecycle();
+    private static final MssqlTestContainerLifecycle MSSQL = MssqlTestContainerLifecycle.shared();
     private static final boolean DOCKER_AVAILABLE = tryStartContainer();
 
     private static boolean tryStartContainer() {
@@ -54,11 +52,6 @@ class MetadataExtractorIntegrationTest {
         return DOCKER_AVAILABLE;
     }
 
-    @AfterAll
-    static void stopContainer() {
-        MSSQL.stop();
-    }
-
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
         r.add("spring.datasource.url", MSSQL::jdbcUrl);
@@ -67,11 +60,9 @@ class MetadataExtractorIntegrationTest {
         r.add("spring.datasource.driver-class-name", () -> "com.microsoft.sqlserver.jdbc.SQLServerDriver");
     }
 
-    @Autowired DataSource dataSource;
     @Autowired MetadataExtractor extractor;
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Path LEGACY_FLSTEST_FIXTURE_ROOT = locateFlsTestFixture();
     private static final int MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ = 50;
     private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
@@ -87,9 +78,9 @@ class MetadataExtractorIntegrationTest {
     }
 
     @BeforeAll
-    static void seedFlsTestFixture(@Autowired DataSource ds) throws IOException {
+    static void seedFlsTestFixture() throws IOException {
         LegacyExtractFixtureSeeder.SeedResult result =
-                LegacyExtractFixtureSeeder.applyAll(ds, LEGACY_FLSTEST_FIXTURE_ROOT);
+                MSSQL.seedLegacyFixtureOnce(LegacyExtractFixtureSeeder.locateFlsTestFixtureRoot());
         assertThat(result.batchesApplied())
                 .as("FLSTest fixture seed produced no successful batches")
                 .isGreaterThan(MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ);
@@ -393,22 +384,6 @@ class MetadataExtractorIntegrationTest {
             if (cursor == null) break;
         }
         return Paths.get(repoRelativePath);
-    }
-
-
-    private static Path locateFlsTestFixture() {
-        Path cursor = Paths.get(".").toAbsolutePath().normalize();
-        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
-            Path candidate = cursor.resolve("flsserver/database/FLSTest");
-            if (candidate.toFile().isDirectory()) {
-                return candidate;
-            }
-            cursor = cursor.getParent();
-            if (cursor == null) break;
-        }
-        throw new IllegalStateException(
-                "Could not locate flsserver/database/FLSTest from working directory "
-                        + Paths.get(".").toAbsolutePath());
     }
 
     private static java.util.List<String> nodeValues(JsonNode array, String field) {

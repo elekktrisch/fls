@@ -5,7 +5,7 @@ name: alpenflight e2e real-idp
 # backend. NOT a PR gate — the mock-auth suite (`alpenflight-e2e.yml`) + the
 # per-push scoped `ci.yml` proofs stay the gates; real-idp's cross-process
 # flakiness must not gate feature work. The per-push `ci.yml` `alpenflight-proof`
-# job runs only the journey-under-work's single spec, so this run is the sole
+# job runs only the journey-under-work's own specs, so this run is the sole
 # full-regression path (nightly + once at the §4 do-ship gate).
 #
 # Sharded across a 4-way matrix (`--shard=i/4`, `reporter: blob`) merged by the

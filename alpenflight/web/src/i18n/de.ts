@@ -129,6 +129,8 @@ const de = {
       system: 'System',
       unknown: 'Unbekannt',
     },
+    actorNamesUnresolved:
+      'Benutzernamen nicht geladen ({{reason}}). Die Spalte zeigt die Keycloak-Kennung.',
     columns: {
       action: 'Aktion',
       target: 'Objekt',

@@ -10,4 +10,9 @@ public interface AuditTrail {
                       AuditedTarget target,
                       int httpStatus,
                       String failureReason);
+
+    void recordFailedHttpRequest(AuditAction action,
+                                 AuditedTarget target,
+                                 int httpStatus,
+                                 String failureReason);
 }

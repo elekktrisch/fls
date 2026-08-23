@@ -20,12 +20,98 @@ stragglers each ceremony so the file shrinks.
 **Burndown moved to a dedicated journey (operator, 2026-08-19).** Neither oldest-first (J-17 retro) nor
 severity-first (J-31 retro) drained this file: it went ~17 → 45 riders, and J-19 alone burned 2 while filing 9.
 A per-journey slot cannot match the discovery rate, and throttling the filing would be worse — J-19's riders
-came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns draining every S1 and S2.**
+came from real `gap-hunter` and worker findings. J-32 (hardening) drained the S1 riders and re-filed the
+S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-08-22).
 `/do-ship` still folds on-surface riders opportunistically. Filing stays unrestricted.
 
 **Severity markers** — `/do-retro` tags every rider, `/do-ship` burns them down highest-first:
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
+
+## Pending (filed by /do-ship J-33 T-05, 2026-08-23)
+
+- **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] **Symptom (measured, not inferred).**
+  T-05 added `MapperForeignKeyColumnDeclarationTest`, which scores every `KnownMappers` entry against the
+  column `ForeignKeyResolver` seeks. It reds on four mappers. T-05 fixed `AuditLogMapper`. Three remain, and
+  the test pins them in `KNOWN_UNDECLARED_AWAITING_ITS_OWN_MIGRATION_PROOF`: `DeliveryMapper` seeks `club_id`
+  and `person_id` while it emits `operating_club_id` and `recipient_person_id`; `DeliveryItemMapper` seeks
+  `club_id` while it emits `operating_club_id`; `PersonFlightTimeCreditTransactionMapper` seeks
+  `person_flight_time_credit_id` while it emits `credit_id`. **Cause (hypothesis).** Each declares
+  `foreignKeyTargets()` but no `foreignKeyColumns()`, so the resolver falls back to the `<target>_id`
+  convention and rewrites nothing. `ArticleMapper:61`, `AccountingRuleFilterMapper:100` and
+  `PlanningDayMapper:58` declare the same column correctly, so the omission looks like drift, not a decision.
+  Unlike `AUDIT_LOG`, all three entities carry a `MapperLegacyBindings` producer entry, so the real fan-out
+  exports them. Measure each against the real ingest before you fix it; `recipient_person_id` is a reviewed
+  cross-tenant column, so its repair needs the tenancy review too.
+  *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
+
+## Pending (filed by /do-ship J-33 T-42, 2026-08-23)
+
+- **[PARITY-DIFF-ENGINE-TRUSTS-THE-PRODUCER-SELECT]** [S2] **Symptom (measured).** T-43 made
+  `ParityDiffEngine` count the legacy side through `MapperLegacyBindings.selectForProducer`, because the
+  raw-table count scored the one `Users` row the USER producer SELECT excludes by id as a false red. The
+  oracle now proves "every row the producer emitted landed in Postgres". It no longer proves "the producer
+  emitted every row the legacy table holds": a producer SELECT that silently drops legacy rows shrinks both
+  sides of the comparison and stays green. **Cause (hypothesis, not measured).** The engine has no
+  declaration of which legacy rows a mapper deliberately excludes, so it cannot separate a deliberate
+  exclusion from a lost row. A per-binding exclusion count that the engine adds back would score both
+  classes. [[project_synth_bundle_doesnt_validate_producer_select]]
+  *(seam: `ParityDiffEngine.java:23`, `MapperLegacyBindings`)*
+
+- **[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]** [S2] **Symptom (measured).** `parityRejectTest` and
+  `parityMetaTest` both complete `BUILD SUCCESSFUL` in seconds and write an empty result directory. No test
+  in `src/parity/java` carries `@Tag("parity-reject")` or `@Tag("parity-meta")` — `ParityOracleHarnessTest`
+  carries `@Tag("parity")` only. S-187a shipped the two Gradle tasks and S-187d still owes their cases, so
+  each task is a gate that cannot fail. T-42 measured that Gradle 9.4.1 `failOnNoDiscoveredTests` does NOT
+  score this: a tag filter that selects nothing still passes, and an empty `testClassesDirs` makes Gradle
+  skip the task as NO-SOURCE. So the guard must be the missing cases, not a build flag. T-43 re-measured
+  it: still zero tagged cases, and T-43 did not invent any.
+  *(seam: `alpenflight/migration-bundle/build.gradle.kts:89`, S-187d)*
+
+- **[DOCKER-SKIP-TURNS-AN-MSSQL-GUARD-GREEN]** [S2] **Symptom (measured).**
+  `LegacyProducerSelectCompatibilityLevelTest:21` is `@EnabledIf("dockerAvailable")` and swallows the
+  container start failure. A Docker blip on the runner turns the guard into a silent skip, and the lane
+  reads green. T-42 confirmed it executes today (3 tests, 0 skipped, on this box). **Cause (hypothesis).**
+  The condition exists for a developer box with no Docker. T-43 closed the same hole on the parity side
+  with a `PARITY_REQUIRES_DOCKER` env var that rethrows, and measured both arms: unreachable Docker with
+  the variable reads `initializationError FAILED`, without it reads `BUILD SUCCESSFUL`. The extract guard
+  owes the same treatment.
+  *(seam: `alpenflight/database/extract/src/test`)*
+
+- **[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]** [S2] **Symptom (measured).** `extract.yml` runs
+  `LegacyProducerSelectCompatibilityLevelTest` and `MetadataExtractorIntegrationTest`, but the job is in no
+  `required.needs` list, because `required` lives in `ci.yml` and a job cannot depend on another workflow.
+  A red extract lane shows as a red check and blocks no merge. The same holds for `alpenflight-e2e.yml` and
+  `nightly.yml`. Either move the lane into `ci.yml` or add it to the branch-protection contexts.
+  *(seam: `.github/workflows/extract.yml`, branch protection)*
+
+## Pending (filed by /do-ship J-33 gate, 2026-08-23)
+
+- **[FIXTURE-TABLE-NAMING-GUARD-SCANS-PROSE]** S3 — `FixtureTableNamingConventionTest` applies its
+  `FROM <token>` bare-table-name regex to English prose inside assertion description strings, not only
+  to SQL. **Symptom (evidence):** it failed the CI server build on
+  `ForeignKeyResolverColumnDeclarationTest.java:158` for the phrase "not from this test", reporting the
+  table name `this`. **Cause (hypothesis, unmeasured):** the scan does not distinguish a SQL string
+  from an `.as(...)` description. **Seam:** `FixtureTableNamingConventionTest.java:83`. J-33 reworded
+  the sentence rather than allow-list `this`, which would have blunted the guard for a real token. The
+  guard is otherwise live — proven red on the original string and green on the reworded one.
+
+## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
+
+The red itself is fixed in the carve commit and is **folded into J-33** (see
+`J-33-audit-attribution-and-migrate-dead-end.md` §"Main-branch red"). The gate hole it exposed
+outlives that fix and stays here.
+
+- **[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]** [S2] `nightly.yml` triggers on `schedule` and
+  `workflow_dispatch` only, so a spec added under `e2e/` **never runs before merge**. J-19 authored
+  `lostpassword-parity-J19.spec.ts`, CI stayed green, and the spec's FIRST real run was the
+  2026-08-20 nightly — which reds deterministically on a `#username` strict-mode violation and stayed
+  red for three nights. The legacy stack is too heavy for every pull request, so the answer is not
+  "run the nightly on push". Options: run only the specs a pull request TOUCHES under `e2e/`, or gate
+  the merge on a dispatched nightly when the diff reaches `e2e/`. A suite that cannot red before
+  merge does not gate the change that breaks it.
+  *(seam: `nightly.yml` triggers + an `e2e/`-touching pull-request lane)*
+  [[feedback_verify_infra_is_run_not_just_authored]] [[project_gate_must_cover_its_own_inputs]]
 
 ## Pending (filed by /do-ship J-32 close-out, 2026-08-21)
 
@@ -42,18 +128,6 @@ this file untouched.
   wired wrong in a way only an end-to-end run reveals
   ([[feedback_verify_infra_is_run_not_just_authored]]). *(seam:
   `.github/workflows/alpenflight-proof-fanout.yml` `on.push` + `fanout-parity-verdict.py` `resolve()`)*
-- **[E2E-HELPERS-ARE-LINTED-BY-NOTHING]** [S2] `alpenflight/web/e2e/tests/_helpers/**` sits outside
-  `angular.json` `lintFilePatterns`, so the helpers every spec depends on are gated by no lint. T-63
-  banned importing installer-named exports from `_helpers/` into a real-idp spec, which guards the
-  import but not the helper. T-68 then added a new helper there that nothing lints. *(seam:
-  `angular.json` `lintFilePatterns`; related to `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`)*
-- **[FANOUT-VERDICT-BLAMES-A-FIXED-RUN-WHILE-THE-NEW-ONE-RUNS]** [S2] When the newest covering fan-out
-  run reads `STILL_RUNNING`, `fanout-parity-verdict.py` lets an older red decide and prints
-  `PARITY_STEP_RED_SPEC_UNNAMED` with text that tells the developer to open the failed run. The gate
-  blocks correctly — an unproven parity must not merge — but the message names the wrong thing: the old
-  red may already be fixed by the very commit under test, as it was on `a999eda96`. Give the transient
-  case its own verdict that says the covering run is still running and names it. *(seam:
-  `.github/scripts/fanout-parity-verdict.py` `decide()` + `READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR`)*
 - **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
   directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
   **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
@@ -66,11 +140,20 @@ this file untouched.
   `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
   would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
   its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
-- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S2] `AuditTrailService.java:83` classifies a **failed**
-  anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
-  `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
-  tell from a cron row. That is the case `[ANON-WRITE-ATTRIBUTION]` named as its motivation, so the
-  motivating case stays open. *(seam: `AuditTrailService.recordFailed` + `RequestAuditFilter`)*
+- **[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]** [S2] J-33 T-04 gave the rejected anonymous write the
+  `ANONYMOUS_PUBLIC` kind. The row still names no club, and it keeps no client IP. Measured on
+  `integration/J-33`: the 429 row reads `tenant_club_id = null` and `client_ip = null`. Two causes sit
+  outside T-04's seam. First, `PublicRegistrationIntake.java:56` runs the abuse guard before
+  `PublicClubResolver.resolve`, so the rejection holds the slug and never the club id. Second,
+  `Tenants.runAs` restores the request hint in its `finally` block, so `RequestAuditFilter.java:80` always
+  reads null — `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]` owns that decision. A row that names no club
+  keeps no client IP by design: `MutationAuditEvent.java:291` refuses the value,
+  `MutationAuditEventListener.java:136` drops it, and `docs/modernization/privacy-notice.md` §1 states the
+  rule. The audit projection also filters by tenant, so no administrator reads this row on `/system/logs`.
+  Decide this rider together with `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`: give the failed row its
+  club first, then record the client IP through the path the successful submission uses. Do not relax the
+  club-scoped rule on its own — the erasure endpoint reaches a row through its club.
+  *(seam: `RequestAuditFilter` + `RequestTenantHint` + `PublicRegistrationIntake`)*
 - **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] The T-45 guard found **fifteen** more audit call sites that
   pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
   EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,
@@ -80,16 +163,18 @@ this file untouched.
 - **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
   and reports the aircraft device sync as a success. The job writes nothing and says it worked. T-07d
   found this while it enumerated the `ObjectProvider` injection shape. *(seam: `HttpOgnDeviceDatabase`)*
-- **[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]** [S2] `audit-logs.store.ts:93` calls `listUsers`, which
-  admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too
-  (`AuditAdminController.java:28`). A system administrator gets a 403, the store falls back to the raw
-  subject, and the console guard probably reds. *(seam: `audit-logs.store` + `UsersController`)*
+- **[SYSTEM-ADMINISTRATOR-CANNOT-REACH-THE-AUDIT-SCREEN]** [S2] T-06 opened the backend for a system
+  administrator: `UsersController.listUsers` and `AuditAdminController` now admit the same two roles. The
+  SPA still refuses the screen. `audit-logs.routes.ts:7` applies `clubAdminGuard`, which demands
+  `currentClubId() !== null` AND `isClubAdmin()`, and `nav-sections.ts:26` lists `/system/logs` under
+  `MASTERDATA_CLUB_ADMIN_ITEMS`. The seeded `sysadmin` realm user carries no `clubId` attribute
+  (`realm-export.json`), so it fails both halves of the guard and reads no tenant. Two decisions belong to
+  the operator: does a system administrator get `/system/logs`, and which tenant do they read? Until then
+  no real-idp spec can drive AC-1 with a SYSTEM_ADMINISTRATOR-only principal.
+  *(seam: `clubAdminGuard` + `nav-sections` + the sysadmin tenant)*
 - **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
   rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
   operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
-- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S2] `AuditLogMapper` declares no
-  `foreignKeyColumns()`, so `ForeignKeyResolver` looks for the conventional `user_id` while the wire field
-  is `actor_user_id`. This is latent only because `AUDIT_LOG` is unregistered; it bites when it ships.
 - **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
   behind it. T-10 found it while it drove the proof spec. *(seam: the nav overlay)*
 - **[J-32-GATE-NITS]** [S2] Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
@@ -122,7 +207,7 @@ this file untouched.
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
 
-- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S2] The J-31 sweep deleted every comment in
+- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S3] The J-31 sweep deleted every comment in
   `alpenflight/` and `e2e/`, and the gate at `ci.yml:105` reads those two roots only. `.github/`
   was never swept, so it still holds 1850 comment lines in 5895 (31%), and `ci.yml` alone holds 883
   in 2501 (35%). The operator reads that narration as a policy breach, because the rule is one rule
@@ -219,22 +304,12 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 
-- **[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]** [S2] `MapperVsSchemaCompatibilityTest` has been **red since J-13**
-  (`f042781de`), not since this journey — T-14 proved it by stashing its own diff and re-running the test red
-  identically. `MapperVsSchemaCompatibilityTest.java:213`'s placeholder map is missing `${app_role_password}`,
-  which `V54__split_app_role_append_only_audit.sql:48` needs. One-line fix. Worth asking how it stayed red
-  across several journeys without anyone noticing. *(seam: that test's Flyway placeholder map)*
 - **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** [S2] `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
   TypeScript 6 rejects as deprecated (TS5107), so `npx tsc -p e2e/tsconfig.json` cannot run at all on the
   top-level suite. Pre-existing and unrelated to the sweep, but it means that suite has **no typecheck gate**
   — alongside the finding that `angular.json`'s `lintFilePatterns` is `src/**` only, so `e2e/` has no lint gate
   either. J-31's `--check` is currently the only automated guard covering that directory.
   *(seam: `e2e/tsconfig.json` + an `e2e` lint/typecheck lane)*
-- **[INLINE-ANGULAR-TEMPLATES-ARE-NOT-TYPECHECKED]** [S2] A rename inside an inline `template:` literal compiles
-  clean and breaks at runtime — `tsc` never checks it. T-14 hit this on `CalendarDay.iso/key` and updated five
-  template sites by hand. This is a standing rename hazard for the whole `web/src` codebase, not a J-31 artifact;
-  worth a lint rule or a note in `web/CLAUDE.md` §4. *(seam: inline-template type checking)*
-
 ## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
 
 - **[SCHEMA-DECISIONS-NOTE]** [S3] T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
@@ -398,17 +473,9 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
-- **[RESERVATIONS-EVICTED-BODY]** [S2] `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
-  `response.json()` on a body the SPA has already evicted by navigating on POST-success — the documented
-  trap on this project ([[project_spa_nav_evicts_post_response_body]]); read the created id from the `201`
-  `Location` header or a re-GET instead. Found by J-17's compose-free local real-idp run, where it reds
-  **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
-  establishing which, because a spec that passes on CI and fails locally erodes trust in both.
-  Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
-
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
-- **[FORM-FIRST-PAINT-RED]** [S2] `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+- **[FORM-FIRST-PAINT-RED]** [S3] `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
   blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
   gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
   **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
@@ -507,14 +574,6 @@ safety step. **Each rider rides the next touch of its form.**
   DIVE handlers)*
 
 ## Pending (filed by /do-retro 2026-06-07, J-6 window)
-
-- **Un-mask the migration-ingest constraint in dev/test (operator grill, J-6 retro).** [S2] The bundle-ingest path
-  catches the JDBC `SQLException` and returns only `{"detail":"Database error during ingest [sqlstate=23505]",
-  "errorCode":"INGEST_INTERNAL_ERROR"}` — the real constraint name (`ux_pln_club_date_loc`, the FK name) is
-  buried in the server log. In dev/test profiles, include the constraint name in the error body/detail so a
-  fanout red is diagnosable without server-log archaeology (J-6 23505/23503 each cost a log-dig). Keep prod
-  masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
-  [[project_synth_bundle_doesnt_validate_producer_select]]
 
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
