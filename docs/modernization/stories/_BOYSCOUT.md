@@ -703,3 +703,9 @@ safety step. **Each rider rides the next touch of its form.**
   8 constructor parameters, which adds one `ExcessiveParameterList` line to the PMD report. The report is
   advisory, so `pmdMain` stays green. Group the collaborators when the class next takes a material edit.
   *(seam: `SandboxSeeder`)*
+- **[DEMO-SEAT-RETRY-BUDGET-IS-A-LITERAL-WHILE-THE-POOL-SIZE-IS-A-PROPERTY]** [S3] `RIDES: next` — the
+  lease retry budget in `DemoSeatLeaseService` is the literal 24, but `demo.pool-size` is a configuration
+  property. The pair is safe today, because the property can only shrink below the 10 rows that
+  `V62__demo_seat_pool.sql` inserts. A larger pool needs a migration, and that migration must raise the
+  budget too. Derive the budget from the pool size, so the coupling cannot rot.
+  *(seam: `DemoSeatLeaseService` + `demo.pool-size`)*
