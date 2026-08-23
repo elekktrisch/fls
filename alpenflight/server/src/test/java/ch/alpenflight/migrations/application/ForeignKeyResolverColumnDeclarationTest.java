@@ -155,8 +155,8 @@ class ForeignKeyResolverColumnDeclarationTest {
 
         ObjectNode row = auditLogRowAsTheProducerWritesIt(legacyActorUserId);
         assertThat(row.has("actor_user_id"))
-                .as("the wire field name comes from AuditLogMapper.writeNdjson, not from this "
-                        + "test — a synthetic row could alias it and hide the defect")
+                .as("the wire field name comes from AuditLogMapper.writeNdjson, so a synthetic "
+                        + "row cannot alias it and hide the defect")
                 .isTrue();
         assertThat(row.has("user_id"))
                 .as("the mapper emits no conventional user_id, so the resolver's "

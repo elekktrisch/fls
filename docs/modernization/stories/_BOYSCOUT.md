@@ -85,6 +85,17 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   `nightly.yml`. Either move the lane into `ci.yml` or add it to the branch-protection contexts.
   *(seam: `.github/workflows/extract.yml`, branch protection)*
 
+## Pending (filed by /do-ship J-33 gate, 2026-08-23)
+
+- **[FIXTURE-TABLE-NAMING-GUARD-SCANS-PROSE]** S3 — `FixtureTableNamingConventionTest` applies its
+  `FROM <token>` bare-table-name regex to English prose inside assertion description strings, not only
+  to SQL. **Symptom (evidence):** it failed the CI server build on
+  `ForeignKeyResolverColumnDeclarationTest.java:158` for the phrase "not from this test", reporting the
+  table name `this`. **Cause (hypothesis, unmeasured):** the scan does not distinguish a SQL string
+  from an `.as(...)` description. **Seam:** `FixtureTableNamingConventionTest.java:83`. J-33 reworded
+  the sentence rather than allow-list `this`, which would have blunted the guard for a real token. The
+  guard is otherwise live — proven red on the original string and green on the reworded one.
+
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 
 The red itself is fixed in the carve commit and is **folded into J-33** (see
