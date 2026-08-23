@@ -2,7 +2,8 @@
 id: J-20
 title: Demo mode — a visitor with no account enters a populated sandbox club (/demo)
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-08-23
 journey0: false
 hardening: false
 carved: true
@@ -149,6 +150,29 @@ If the gate surfaces heavy unforeseen work, ship the demo with **flights, aircra
 locations only**. Defer the reservations and the planning day, and narrow AC-2 to the three entities
 that ship. Do not defer the reset job: the demo user writes, so the reset is the only thing that stops
 the sandbox from filling with visitor data.
+
+## Tasks
+
+**Agent budget.** A `/do-task` worker costs about 12 agents. A session caps at 200 agents, so it
+finishes about **16 tasks**. This list holds **15**, so gate-surfaced work has about one slot of slack.
+The release valve is the deferrable tail below — drop the reservations and the planning day from the
+seed, and narrow AC-2 to the three entities that ship.
+
+- [ ] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions.
+- [ ] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP.
+- [ ] **T-03** — Sandbox Club rows (Flyway, bound to Deployment `…0001`) + `SandboxSeeder` masterdata: locations, aircraft, persons.
+- [ ] **T-04** — `SandboxSeeder` operational data: flights over the last 30 days, reservations over the next 14 days, one planning day. Every date relative to the run date.
+- [ ] **T-05** — Keycloak `demo` realm user: `CLUB_ADMINISTRATOR`, `clubId` = the sandbox club, plus the `t_user` row.
+- [ ] **T-06** — `POST /api/v1/public/demo-session` — direct grant, rate-limited (AC-7), plus its `SecurityConfig` entry.
+- [ ] **T-07** — The sandbox seal — both 403 directions of AC-6 + the S-024 leakage sweep extension.
+- [ ] **T-08** — `SandboxResetJob` + the AC-8 isolation proof (adversarial non-sandbox row) + change→reset→restored.
+- [ ] **T-09** — `@LifecycleStateFilter` on the other registered jobs + the registry-scoring test of AC-9.
+- [ ] **T-10** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the demo banner, its call-to-action, and the funnel telemetry.
+- [ ] **T-11** — Rider R1 — `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`.
+- [ ] **T-12** — Rider R2 — the audit-attribution pair. **Needs an operator decision** (ADR 0008 §Amendment S-159). Ask before dispatch.
+- [ ] **T-13** — Rider R3 — `[FORM-FIRST-PAINT-RED]`.
+- [ ] **T-14** — Rider R4 — `[PROD-DENSITY-ATTR-MISSING]`.
+- [ ] **T-15** — Thicken the real-IdP proof spec to the full assertions + the gallery captures.
 
 ## Riders
 
