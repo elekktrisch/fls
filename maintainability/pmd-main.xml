@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-21T15:59:00.921">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-23T04:35:46.024">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
 <violation beginline="70" endline="79" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
@@ -89,7 +89,7 @@ The method 'transitionByAdmin(LifecycleState, Clock)' has a cyclomatic complexit
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/DailyReportJob.java">
-<violation beginline="65" endline="72" begincolumn="26" endcolumn="39" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flights.application" class="DailyReportJob" method="DailyReportJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="66" endline="73" begincolumn="26" endcolumn="39" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flights.application" class="DailyReportJob" method="DailyReportJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
 </violation>
 </file>
@@ -202,10 +202,10 @@ The method 'readLine()' has a cognitive complexity of 18, current threshold is 1
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/application/EntityStreamIngestor.java">
-<violation beginline="150" endline="150" begincolumn="10" endcolumn="28" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="EntityStreamIngestor" method="ingestEntityNdjson" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
+<violation beginline="151" endline="151" begincolumn="10" endcolumn="28" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="EntityStreamIngestor" method="ingestEntityNdjson" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
 The method 'ingestEntityNdjson(Connection, Mapper, InputStream, ForeignKeyResolver, ReferenceLookupResolver)' has a cognitive complexity of 18, current threshold is 15
 </violation>
-<violation beginline="150" endline="150" begincolumn="10" endcolumn="28" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="EntityStreamIngestor" method="ingestEntityNdjson" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="151" endline="151" begincolumn="10" endcolumn="28" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="EntityStreamIngestor" method="ingestEntityNdjson" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'ingestEntityNdjson(Connection, Mapper, InputStream, ForeignKeyResolver, ReferenceLookupResolver)' has a cyclomatic complexity of 14.
 </violation>
 </file>
@@ -264,7 +264,7 @@ Avoid long parameter lists (21 parameters - threshold is 8).
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/application/PlanningDayNotificationJob.java">
-<violation beginline="85" endline="96" begincolumn="38" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.planning.application" class="PlanningDayNotificationJob" method="PlanningDayNotificationJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="86" endline="97" begincolumn="38" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.planning.application" class="PlanningDayNotificationJob" method="PlanningDayNotificationJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (12 parameters - threshold is 8).
 </violation>
 </file>
