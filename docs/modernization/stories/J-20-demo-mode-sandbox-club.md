@@ -146,7 +146,7 @@ Rider R1 below covers the guard.
 finishes about **16 tasks**. This list holds **14**, so gate-surfaced work has about two slots of slack.
 The release valve is the deferrable tail below.
 
-- [ ] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions.
+- [x] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions.
 - [ ] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP.
 - [ ] **T-03** — `t_demo_seat` (platform table, no tenant column) + the N seat Clubs under Deployment `…0001` (Flyway).
 - [ ] **T-04** — `SandboxSeeder` masterdata, parameterized by club: locations, aircraft, persons.

@@ -1066,6 +1066,26 @@ jobs:
               "alpenflight-audit-row-detail.png" \
               "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."
           fi
+          if [ "${PROOF_JOURNEY:-}" = "J-20" ]; then
+            add_af_only "J-20" "demo" "dashboard" \
+              "alpenflight-demo-dashboard.png" \
+              "AlpenFlight (greenfield, no legacy peer): the /start dashboard of a visitor with no account, one action after the landing page. The tiles read above zero, because the sandbox seat carries seeded flights, and the demo banner sits on the screen."
+            add_af_only "J-20" "demo" "flights" \
+              "alpenflight-demo-flights.png" \
+              "AlpenFlight (greenfield, no legacy peer): the /flights logbook of the demo seat. It holds the seeded flights of the last 30 days, and the demo banner rides the screen."
+            add_af_only "J-20" "demo" "changed" \
+              "alpenflight-demo-flight-changed.png" \
+              "AlpenFlight: the flight of the first demo visitor, re-opened after the save. The comment holds the value that visitor wrote, so a demo visitor can change the sandbox."
+            add_af_only "J-20" "demo" "isolation" \
+              "alpenflight-demo-isolation.png" \
+              "AlpenFlight: the same flight in the seat of the second demo visitor. The comment holds the seeded value, and the value the first visitor wrote is absent from the screen."
+            add_af_only "J-20" "demo" "restored" \
+              "alpenflight-demo-flight-restored.png" \
+              "AlpenFlight: the flight after a system administrator ran sandbox-reset from /system/jobs. The job reclaimed the expired seat, and the seeded value is back."
+            add_af_only "J-20" "demo" "seat-busy" \
+              "alpenflight-demo-seat-busy.png" \
+              "AlpenFlight: the /demo page when every seat is leased. The page keeps the visitor on /demo and names a readable reason, instead of a half-started session."
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
