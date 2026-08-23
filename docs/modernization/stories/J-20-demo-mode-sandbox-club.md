@@ -91,6 +91,24 @@ deterministic.
 **The cost, stated plainly.** Concurrent demos cap at N. Seat N+1 gets 503 and a readable reason. One
 address holds at most one live seat, so a single visitor cannot drain the pool.
 
+### Where AC-5 and AC-8 are proved — decided at T-01, after a measurement
+
+AC-5 needs two live seats at the same time. AC-8 caps one address at one live seat. One Playwright run
+uses one source address, so the cap rejects the second visitor and AC-5 cannot pass. The address is the
+only honest key for the cap, because an anonymous caller controls its own headers. So the cap is
+correct and the proof splits:
+
+| Claim | Where it is proved |
+| --- | --- |
+| AC-5 — two visitors, two seats, absence of visitor A's value | real-IdP spec, with `demo.max-live-seats-per-address` raised in the end-to-end profile |
+| AC-8 — one address holds at most one live seat | integration test, at the production default of 1 |
+| AC-8 — the endpoint answers 503 when the pool is empty | integration test, which leases every seat |
+| AC-8 — `/demo` renders the seat-busy state | mocked inner-loop spec, over the real `ProblemDetail` shape; declared as a mocked seam |
+
+The production default stays 1. Only the end-to-end profile raises the property. AC-7 already proves
+its two 403 directions by integration test, so this journey uses one pattern for both. Each AC line in
+the PR carries this qualification.
+
 ### The demo front-door — decided at carve time
 
 S-136 specifies a bespoke signed `af_anon` cookie, and asks the tenant resolver to accept it as a second
@@ -146,18 +164,18 @@ Rider R1 below covers the guard.
 finishes about **16 tasks**. This list holds **14**, so gate-surfaced work has about two slots of slack.
 The release valve is the deferrable tail below.
 
-- [x] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions.
-- [ ] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP.
+- [x] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions. *(`869d2bea9` — 4 real-IdP + 4 mocked cases, each `test.fixme` naming its unskipping task; gallery `<h1>` = `J-20 — proof`.)*
+- [ ] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP. Also move the frontmatter `parity_test:` mock-spec path to `mock_test:` (it warns on every push).
 - [ ] **T-03** — `t_demo_seat` (platform table, no tenant column) + the N seat Clubs under Deployment `…0001` (Flyway).
 - [ ] **T-04** — `SandboxSeeder` masterdata, parameterized by club: locations, aircraft, persons.
 - [ ] **T-05** — `SandboxSeeder` operational data: flights over the last 30 days, reservations over the next 14 days, one planning day. Every date relative to the run date.
 - [ ] **T-06** — The N `demo1..demoN` Keycloak users: `CLUB_ADMINISTRATOR`, `clubId` = their seat's club, plus the `t_user` rows.
-- [ ] **T-07** — `DemoSeatLease` — lease a free seat under concurrency, one live seat per address, 503 when the pool is empty (AC-8).
+- [ ] **T-07** — `DemoSeatLease` — lease a free seat under concurrency, one live seat per address, 503 when the pool is empty (AC-8). The per-address cap is the property `demo.max-live-seats-per-address`; see the AC-5/AC-8 decision below.
 - [ ] **T-08** — `POST /api/v1/public/demo-session` — lease + direct grant + its `SecurityConfig` entry.
 - [ ] **T-09** — The sandbox seal — both 403 directions of AC-7 + the S-024 leakage sweep extension.
 - [ ] **T-10** — `SandboxResetJob` — reclaim expired seats (delete + re-seed per club) + the nightly full pass + the AC-9 isolation proof.
 - [ ] **T-11** — `@LifecycleStateFilter` on the other registered jobs + the registry-scoring test of AC-10.
-- [ ] **T-12** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the seat-busy state, the demo banner, its call-to-action, and the funnel telemetry.
+- [ ] **T-12** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the seat-busy state, the demo banner, its call-to-action, and the funnel telemetry. Update the cross-journey consumers of the stub: `landing.spec.ts:133` (asserts `demo-stub` visible) and `demo.routes.ts:6`.
 - [ ] **T-13** — Rider R1 — `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`.
 - [ ] **T-14** — Thicken the real-IdP proof spec, including the two-visitor isolation assertion of AC-5, + the gallery captures.
 
