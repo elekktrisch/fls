@@ -187,7 +187,7 @@ Each task opens by confirming or refuting the rider's stated cause against the t
 ([[feedback_rider_symptom_is_evidence_cause_is_a_guess]]). A green is a hypothesis too.
 
 **Scaffold**
-- [ ] T-01 — Tag this journey's proof videos `journey: 'J-33'`. `audit-log-two-club.spec.ts` emits J-32/J-30/J-13 today; `register.spec.ts` calls `proofVideo` zero times. Zero J-33 videos reds the bookmark guard.
+- [x] T-01 — Tag this journey's proof videos `journey: 'J-33'`. `audit-log-two-club.spec.ts` emits J-32/J-30/J-13 today; `register.spec.ts` calls `proofVideo` zero times. Zero J-33 videos reds the bookmark guard.
 - [ ] T-02 — `Derive journey proof spec` (`ci.yml:256`) reads only the FIRST path token of `parity_test:`, so `register.spec.ts` is dropped and Cluster B gets no lane. Carry every token. Plant a red per input class (one spec, two specs, each separator).
 - [ ] T-03 — `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Add the missing Flyway placeholder. This test is red today, so it ships first.
 
