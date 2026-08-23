@@ -2,15 +2,16 @@
 id: J-33
 title: Audit attribution and the migrate dead-end — drain every S1 and S2 rider (hardening)
 epic: E-13
-status: in_progress
+status: done
 started_at: 2026-08-23
+done_at: 2026-08-23
 journey0: false
 hardening: true
 carved: true
 depends_on: []
 rolls_up: []
 acceptance:
-  - "[happy] A system administrator opens /system/logs and reads a user name in every actor cell, not a raw Keycloak subject."
+  - "[happy] A club administrator opens /system/logs. Every actor cell reads a user name or a named notice, never a raw Keycloak subject."
   - "[key-error] The abuse guard rejects an anonymous public write. The row shows ANONYMOUS_PUBLIC and the client IP, not SYSTEM."
   - "[happy] A migrated audit row shows a resolved AlpenFlight user, not a raw legacy identifier."
   - "[edge] An audit row for an Article, a PlanningDay or an EmailTemplate shows its decided snapshot fields, not an empty cell."
@@ -44,10 +45,11 @@ does not complete.
 
 ### `/system/logs` — every row is attributable and legible
 
-1. A system administrator signs in and opens `/system/logs`. Each actor cell renders a user name.
-   Today `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while
-   `AuditAdminController.java:28` admits `SYSTEM_ADMINISTRATOR` too. The store swallows the 403 and
-   falls back to the raw subject.
+1. A club administrator signs in and opens `/system/logs`. Each actor cell reads a user name or a
+   named notice. **AC-1 was re-worded on 2026-08-23 (operator).** The original said "a system
+   administrator". That scenario has never been reachable: `check-realm-shape.sh:75` enforces that
+   `sysadmin` carries no `clubId`, and `club-admin.guard.ts:11` redirects a principal without one.
+   No `systemAdminGuard` exists. All nine specs on this screen sign in as a club administrator.
 2. The abuse guard rejects an anonymous public write. The resulting row carries `ANONYMOUS_PUBLIC`
    and the client IP. Today `AuditTrailService.attributionOfTheCurrentPrincipal()` answers
    `SYSTEM`, `systemActor=true`, `clientIp=null` for that case.
@@ -73,79 +75,10 @@ does not complete.
 
 ### The nightly is green on main
 
-8. The nightly legacy suite reads 0 failed. See §"Main-branch red" below.
-
-## Main-branch red — fold in, do not re-carve
-
-The `nightly` workflow is red on `main` on 2026-08-20, 2026-08-21 and 2026-08-22. It is one
-deterministic failure, not a flake: 1 failed, 1 flaky, 155 passed, and the failure exhausted all four
-attempts.
-
-- **Symptom (evidence).** `e2e/tests/auth/lostpassword-parity-J19.spec.ts:42` fails with
-  `strict mode violation: locator('#username') resolved to 2 elements`.
-- **Cause (measured, not inferred).** `lostpassword.html:20` carries `id="username"` inside the
-  `lostpassword-form`. `login-form-directive.html:11` carries a second `id="username"`, and
-  `navigation-bar-directive.html:171` renders that directive on every page. Line 40 uses a
-  page-global locator while line 38 already holds the scoped form. Line 80 of the same spec already
-  scopes its button to its form, so the fix follows the spec's own pattern.
-- **Why no gate caught it.** `nightly.yml` triggers on `schedule` and `workflow_dispatch` only. A
-  spec added under `e2e/` never runs before merge. J-19 authored this spec and its first real run was
-  the 2026-08-20 nightly. This is the same class as the riders below
-  ([[feedback_verify_infra_is_run_not_just_authored]]).
-- **Blast radius (checked).** `#newPassword` and `#newPasswordConfirm` exist only in
-  `confirm-email.html`. Every other page-global id locator in `e2e/tests/` sits on an authenticated
-  screen, where the nav login form is absent. Only `#username` collides.
-
-The one-line fix ships with the carve. The gate hole it exposes is a new rider,
-`[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]`, recorded in `_BOYSCOUT.md`.
-
-**Proven, not claimed.** The carve dispatched the nightly on `integration/J-33`
-([run 32554637416](https://github.com/elekktrisch/fls/actions/runs/32554637416)). Read at step level:
-the spec **ran and passed** — `✓ 17 [auth] › lostpassword-parity-J19.spec.ts:21:5` in 12.5s — and the
-tally reads 155 passed, **0 failed**, 2 flaky. The prior main run read 155 passed, 1 failed, 1 flaky.
-So AC-8 is already met on this branch; `main` un-reds when J-33 merges.
-
-Two DIFFERENT specs flaked on this run — `locking-workflow.spec.ts:43` and
-`reservations-parity-J5.spec.ts:55` — where the prior run flaked `planning-parity-J6`. Both recovered
-on retry. The flaky set moves run to run, which is the legacy Mono and AngularJS stack under CI load
-that `[LEGACY-J2-READINESS]` already names. Do not read a moving flaky set as a new defect.
-
-## The rider inventory — 3 S1, 30 S2
-
-Full text and seams stay in `_BOYSCOUT.md`. `/do-ship` deletes each bullet as it ships. Per
-[[feedback_rider_symptom_is_evidence_cause_is_a_guess]], each task opens by confirming or refuting
-the stated cause: J-32 burned about sixteen causes and eight were wrong.
-
-**Cluster A — audit attribution and legibility (proves on `/system/logs`)**
-`[ANON-FAILED-WRITE-READS-AS-SYSTEM]` S1 · `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]` S1 ·
-`[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]` S2 · `[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]` S2 (15 sites) ·
-`[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]` S2 (needs the operator — ADR 0008 §Amendment S-159 names
-`RequestAuditFilter` as a `runAs` seam). The S3 rider `[AUDIT-ACTOR-KIND]` decides with this cluster.
-
-**Cluster B — the migrate and signup funnel (proves on `/migrate/start`)**
-`[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]` S1 · `[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]`
-S2 · `[BARE-SIGNUP-JOIN-FUNNEL-UNCOVERED]` S2.
-
-**Cluster C — gates that never run, or do not read their own inputs**
-`[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]` S2 · `[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]`
-S2 · `[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]` S2 · `[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]` S2 ·
-`[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]` S2 · `[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]` S2 ·
-`[GATING-LANE-SKIP-HAS-NO-GUARD]` S2 · `[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]` S2 ·
-`[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]` S2 · `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]` S2 ·
-plus the new `[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]` S2.
-
-**Cluster D — silent failures**
-`[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]` S2 · `[REQUEST-ID-NEVER-LOGGED]` S2.
-
-**Cluster E — tests that assert less than their name**
-`[VACUOUS-NARROWING-ASSERTIONS]` S2 · `[TENANT-ISOLATION-IT-PREFIX-COLLISION]` S2 ·
-`[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]` S2 · `[MOCK-CLUB-ID-SHAPE]` S2 · `[SUITE-ISOLATION]` S2 ·
-`[NAV-OVERLAY-EATS-CLICKS]` S2 · `[LEGACY-J2-READINESS]` S2 · op-field-mutate coverage S2 ·
-fanout reporting spec over migrated data S2.
-
-**Cluster F — structural remainder**
-`[GH-PAGES-HISTORY-IS-UNBOUNDED]` S2 · `[J-32-GATE-NITS]` S2 (four nits) · orval positional `getN` S2 ·
-JIT-username robustness S2.
+8. The nightly legacy suite reads 0 failed. The carve fixed a `#username` strict-mode violation in
+   `lostpassword-parity-J19.spec.ts` and proved it on
+   [run 32554637416](https://github.com/elekktrisch/fls/actions/runs/32554637416): 155 passed,
+   **0 failed**. `main` un-reds when this journey merges.
 
 ## Notes
 
@@ -250,6 +183,37 @@ Every guard here plants a violation per input class and scores the old code ([[f
 **Gate**
 - [ ] T-35 — Thicken both proof specs to the full oracle assertions. Delete `register.spec.ts`'s known-defect declaration.
 - [ ] T-36 — S2 `[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]`. The arm FIRED on the T-05 push ([run 32616326231](https://github.com/elekktrisch/fls/actions/runs/32616326231), event `push`). Confirm the gate WAITS for it and READS its verdict (AC-10).
+
+## Outcome
+
+**The operator closed this journey early on 2026-08-23, with clusters B to F deferred.** The session
+reached its subagent limit, and the operator chose a smaller honest PR over a degraded full run.
+Eleven tasks shipped. Twenty-eight are re-filed.
+
+**Shipped.** Cluster A's audit attribution (T-04, T-05, T-06), the whole migration chain
+(T-37, T-40, T-41, T-43), the gate work (T-01, T-02, T-42) and the red mapper-versus-schema test
+(T-03). All three carved S1 riders are fixed, plus two S1 defects that this journey's own new guard
+found.
+
+**Deferred to `/do-plan`.** Cluster B (the migrate funnel, T-10 to T-12), cluster C's remaining gate
+riders (T-13 to T-21), cluster D (T-22, T-23), clusters E and F (T-24 to T-34), plus T-38, T-39,
+T-35 and T-36. The rider bullets stay in `_BOYSCOUT.md`, so nothing is lost.
+
+**Acceptance criteria not met.** AC-4, AC-5, AC-6 and AC-7 are NOT met — their tasks did not run.
+AC-2 is HALF met: the actor kind reads `ANONYMOUS_PUBLIC`, but the client IP does not land, because
+T-39 did not run. AC-3 is proved at the data layer, not on the screen, because T-35 did not run. The
+PR checklist states each one on its line.
+
+**Five rider causes were wrong as stated.** The mapper-versus-schema test was not rotting in CI, it
+is order-dependent. `[AUDIT-ACTOR-KIND]` is stale. The first AC-2 chain named the wrong link — the
+client IP is dropped at `AuditTrailService.java:22`. The parity S1 escalation was test-harness-only,
+and its claim about the seeded `ClubStates` set was false. AC-1's own persona was unreachable. Every
+catch came from a worker or an investigation that MEASURED
+([[feedback_rider_symptom_is_evidence_cause_is_a_guess]]).
+
+**The largest find.** No CI lane ran `migration-bundle`'s tests, so 492 unit tests scored nothing —
+including the guards T-05 and T-37 shipped in this journey. T-42 wired a root-level lane. T-43 then
+made the parity oracle pass for the first time and wired it to execute.
 
 ## Decisions
 
