@@ -57,6 +57,11 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
+demo:
+  pool-size: ${ALPENFLIGHT_DEMO_POOL_SIZE:10}
+  max-live-seats-per-address: ${ALPENFLIGHT_DEMO_MAX_LIVE_SEATS_PER_ADDRESS:1}
+  lease-idle-period: ${ALPENFLIGHT_DEMO_LEASE_IDLE_PERIOD:PT30M}
+
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}

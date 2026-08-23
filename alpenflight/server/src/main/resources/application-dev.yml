@@ -16,6 +16,9 @@ spring:
         jwt:
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs}
 
+demo:
+  max-live-seats-per-address: ${ALPENFLIGHT_DEMO_MAX_LIVE_SEATS_PER_ADDRESS:4}
+
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://localhost:8090}
