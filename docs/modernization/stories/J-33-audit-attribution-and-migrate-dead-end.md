@@ -239,6 +239,7 @@ Every guard here plants a violation per input class and scores the old code ([[f
 - [x] T-37 — S1. `AUDIT_LOG` has no `MapperLegacyBindings` entry, and `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`, not `t_mutation_audit_event`. Both halves CONFIRMED and closed. `AUDIT_LOG` left `KNOWN_UNBOUND`, so the real fan-out now exports audit rows. A third gap remains and it belongs to the operator: a migrated row carries no tenant, so `/system/logs` renders none of them — filed as `[MIGRATED-AUDIT-ROW-CARRIES-NO-TENANT-SO-NO-SCREEN-RENDERS-IT]`.
 - [ ] T-38 — S1. T-05's new guard found the same missing `foreignKeyColumns()` in three producer-bound mappers: `DeliveryMapper` (`club_id`, `person_id`), `DeliveryItemMapper` (`club_id`), `PersonFlightTimeCreditTransactionMapper` (`person_flight_time_credit_id`). The real fan-out exports all three. Fix them and unpin the guard.
 - [ ] T-39 — AC-2's client IP. Resolve the club from the URL slug BEFORE the abuse guard, and cache the slug lookup (operator, 2026-08-23). `AuditTrailService.java:22` also hard-codes a null client IP — a club alone does not make the IP land.
+- [ ] T-40 — AC-3 on the screen. Backfill each migrated audit row's `tenant_club_id` from the entity the row describes, per S-189 (operator, 2026-08-23). Today the mapper writes NULL, so the tenant filter hides every migrated row from `/system/logs`. Rows whose target entity is not migrated stay NULL — state that limit in the test and the caption.
 
 **Gate**
 - [ ] T-35 — Thicken both proof specs to the full oracle assertions. Delete `register.spec.ts`'s known-defect declaration.
@@ -252,6 +253,13 @@ and an audit entry that names the club and the IP, so today's code violates a sh
 cache answers the one measured risk: an uncached database read in front of the rate limiter.
 Rejected: a club-less row that carries an IP (it needs a `privacy-notice.md` §1 amendment) and
 dropping the IP from AC-2 (it leaves the S-025 violation open).
+
+**2026-08-23 — AC-3 on the screen (operator).** Backfill the migrated audit row's club from the
+entity the row describes, per S-189. ADR 0008 makes tenancy structural, so a NULL-tenant row is an
+anomaly that would also break the retention sweep and the erasure endpoint later. Rejected: an
+unscoped system-administrator read (it adds a tenancy bypass to an audit surface, and a club
+administrator would still see no migrated row) and proving AC-3 at the data layer only (the operator
+prefers proof through the UI).
 
 **2026-08-23 — `RequestTenantHint` (operator).** Delete it. ADR 0008 §Amendment S-159 names
 `RequestAuditFilter`, never `RequestTenantHint`, and it permits rather than requires. Every writer is
