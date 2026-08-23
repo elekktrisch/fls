@@ -196,8 +196,8 @@ Each task opens by confirming or refuting the rider's stated cause against the t
 - [x] T-05 — S1 `[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]`. Declare `actor_user_id` in `AuditLogMapper.foreignKeyColumns()`. Arms the fan-out push trigger. Cause confirmed. A new class guard scores every mapper and found three more mappers with the same defect, filed in `_BOYSCOUT.md`. `AUDIT_LOG` still has no producer binding and no ingest table, so AC-3 needs that rider too.
 - [ ] T-06 — S2 `[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]`. Admit `SYSTEM_ADMINISTRATOR` to the user lookup. Delete the silent fallback. Shared surface — grep the cross-journey consumers first.
 - [ ] T-07 — S2 `[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]`. Decide the snapshot fields for the 15 pinned sites.
-- [ ] T-08 — S2 `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`. Measure the seam. Raise the ADR 0008 decision to the operator. Do not choose.
-- [ ] T-09 — S3 `[AUDIT-ACTOR-KIND]`. Decide the dead `SYSTEM` constant with cluster A.
+- [ ] T-08 — S2 `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`. Delete `RequestTenantHint` (operator, 2026-08-23). No ADR amendment is owed — see §Decisions.
+- [ ] T-09 — S3 `[AUDIT-ACTOR-KIND]`. The rider is STALE: `SYSTEM` has a live writer and `AuditEventRow` carries `actorKind` (T-04 measured this). Re-confirm, then delete the rider. Expect no code change.
 
 **Cluster B — the migrate and signup funnel (proves on `/migrate/start`)**
 - [ ] T-10 — S1 `[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]`. Materialize the club-less registrant so the handshake issues. Keep the scope at the handshake — do not build J-21's wizard.
@@ -235,9 +235,28 @@ Every guard here plants a violation per input class and scores the old code ([[f
 - [ ] T-33 — S2 orval positional `getN`. Give the endpoints explicit `operationId`s.
 - [ ] T-34 — S2 JIT-username robustness. Reject a distinct sub that reuses a live username.
 
+**Gate-surfaced — these block an AC, so they ship in-journey**
+- [ ] T-37 — S1. `AUDIT_LOG` has no `MapperLegacyBindings` entry, and `EntityStreamIngestor.destinationTableFor` computes `t_audit_log`, not `t_mutation_audit_event`. **AC-3 cannot be proved on the fan-out until both close.**
+- [ ] T-38 — S1. T-05's new guard found the same missing `foreignKeyColumns()` in three producer-bound mappers: `DeliveryMapper` (`club_id`, `person_id`), `DeliveryItemMapper` (`club_id`), `PersonFlightTimeCreditTransactionMapper` (`person_flight_time_credit_id`). The real fan-out exports all three. Fix them and unpin the guard.
+- [ ] T-39 — AC-2's client IP. Resolve the club from the URL slug BEFORE the abuse guard, and cache the slug lookup (operator, 2026-08-23). `AuditTrailService.java:22` also hard-codes a null client IP — a club alone does not make the IP land.
+
 **Gate**
 - [ ] T-35 — Thicken both proof specs to the full oracle assertions. Delete `register.spec.ts`'s known-defect declaration.
-- [ ] T-36 — S2 `[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]`. Confirm the push arm fired and the gate read its verdict (AC-10).
+- [ ] T-36 — S2 `[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]`. The arm FIRED on the T-05 push ([run 32616326231](https://github.com/elekktrisch/fls/actions/runs/32616326231), event `push`). Confirm the gate WAITS for it and READS its verdict (AC-10).
+
+## Decisions
+
+**2026-08-23 — AC-2's client IP (operator).** Resolve the club from the URL slug before the abuse
+guard, and add a slug cache. S-025 already requires tenant context before the controller body runs,
+and an audit entry that names the club and the IP, so today's code violates a shipped contract. The
+cache answers the one measured risk: an uncached database read in front of the rate limiter.
+Rejected: a club-less row that carries an IP (it needs a `privacy-notice.md` §1 amendment) and
+dropping the IP from AC-2 (it leaves the S-025 violation open).
+
+**2026-08-23 — `RequestTenantHint` (operator).** Delete it. ADR 0008 §Amendment S-159 names
+`RequestAuditFilter`, never `RequestTenantHint`, and it permits rather than requires. Every writer is
+package-private, the one reader always gets null, and an ArchUnit rule already forbids a new
+producer. No ADR amendment is owed.
 
 Deferred, and re-filed rather than half-shipped: `[SUITE-ISOLATION]` (a test-architecture restructure) and
 `[LEGACY-J2-READINESS]` (a quarantine whose flaky set moves run to run — the carve says do not read it as a
