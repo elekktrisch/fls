@@ -23,7 +23,8 @@ acceptance:
 screen: /demo (new) → /start, /flights, /aircraft, /reservations in demo mode — replacing the `DemoStubComponent` placeholder
 headless_pulled_in: "SandboxResetJob → `/system/jobs` Run-now (the J-15 admin console); the sandbox seeder → the same job"
 migration: "N/A — greenfield"
-parity_test: alpenflight/web/e2e/tests/real-idp/demo-sandbox.spec.ts (new) + alpenflight/web/e2e/tests/demo/demo-mode.spec.ts (mocked inner loop, new)
+parity_test: alpenflight/web/e2e/tests/real-idp/demo-sandbox.spec.ts
+mock_test: alpenflight/web/e2e/tests/demo/
 adr_refs: [0007, 0008, 0018, 0022, 0024]
 ---
 
@@ -165,7 +166,7 @@ finishes about **16 tasks**. This list holds **14**, so gate-surfaced work has a
 The release valve is the deferrable tail below.
 
 - [x] **T-01** — Spec stub + the journey proof-gallery page. Selectors and flow, thin assertions. *(`869d2bea9` — 4 real-IdP + 4 mocked cases, each `test.fixme` naming its unskipping task; gallery `<h1>` = `J-20 — proof`.)*
-- [ ] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP. Also move the frontmatter `parity_test:` mock-spec path to `mock_test:` (it warns on every push).
+- [x] **T-02** — Scope the per-push gate: prior journeys run mock-IdP; only J-20's spec runs real-IdP. Also move the frontmatter `parity_test:` mock-spec path to `mock_test:` (it warns on every push). *(the existing `derive-journey-lane.sh` mechanism, no new one; the wrong-key warning is gone; both lanes stay on their fail-safe until T-12 and T-14 unskip the cases.)*
 - [ ] **T-03** — `t_demo_seat` (platform table, no tenant column) + the N seat Clubs under Deployment `…0001` (Flyway).
 - [ ] **T-04** — `SandboxSeeder` masterdata, parameterized by club: locations, aircraft, persons.
 - [ ] **T-05** — `SandboxSeeder` operational data: flights over the last 30 days, reservations over the next 14 days, one planning day. Every date relative to the run date.
