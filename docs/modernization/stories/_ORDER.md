@@ -18,7 +18,8 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
+| J-20 🔨 | Demo mode — a visitor with no account enters a populated sandbox club (`/demo`) — **carved 2026-08-23** | E-15 | J-2, J-3, J-5, J-15 | S-135, S-136 | N/A (greenfield) | none (new) → `/demo` |
+| J-34 | Gate coverage sweep (hardening — reuses a built screen for its proof) | E-13 | — | — | N/A (infra) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | J-28 | Documentation site — user manual + architecture (infra) | E-13 | J-24 | — | N/A (docs tooling) | gh-pages docs site (manual from proof captures + C4 architecture) |
@@ -68,9 +69,25 @@ gate** (S-062g, S-110). `Location` is tenant-scoped, low row count, no inbound F
 — the safest possible first mapper. Every later journey inherits the working gate
 and the proven mapper pattern.
 
+**J-34 — Gate coverage sweep (hardening)** (filed by `/do-plan` 2026-08-23, on the J-33 retro's routing
+result). About twenty riders in `_BOYSCOUT.md` are one coherent cluster: a gate that does not read its own
+inputs, or a lane that reds nothing a merge depends on. Named members: `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`,
+`[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]`, `[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]`,
+`[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]`, `[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]`,
+`[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]`, `[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]`,
+`[DOCKER-SKIP-TURNS-AN-MSSQL-GUARD-GREEN]`, `[GATING-LANE-SKIP-HAS-NO-GUARD]`,
+`[FIXTURE-TABLE-NAMING-GUARD-SCANS-PROSE]`, `[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]`,
+`[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]`, `[QODANA-BUILD-FILE-BLIND-SPOT]`.
+Splitting the cluster across the 40% slots of several feature journeys makes it stop being coherent, which
+is why it takes the `hardening: true` type. It holds the SAME bar as any journey: **≥1 provable screen
+result + a green gate**, and it may reuse a built screen for that proof. Every guard it ships must plant a
+violation per input class and score the old code ([[feedback_gate_must_prove_a_red_per_input_class]]).
+Not carved — carve it with `/do-plan J-34`.
+
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
+- **J-20:** A visitor with no account selects the demo call-to-action, lands on a populated `/start`, changes a flight, and a system administrator's `sandbox-reset` Run-now restores the seeded value.
+- **J-34:** A guard that was blind to an input class reds on a planted violation, and the built screen it reuses stays green.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
 

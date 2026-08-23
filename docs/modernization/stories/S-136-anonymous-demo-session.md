@@ -3,6 +3,7 @@ id: S-136
 title: Anonymous demo-session scoping — sandbox Deployment access without Keycloak
 epic: E-15
 status: todo
+rolled_up_into: J-20
 depends_on: [S-022, S-135, S-137]
 acceptance:
   - Navigating to `/demo` provisions a short-lived signed session cookie (`af_anon`, HttpOnly + Secure + SameSite=Lax, 24 h max) carrying a synthetic anon identity `{ user_id: anon-<uuid>, deployment_id: <sandbox-uuid>, club_id: <sandbox-default-club>, roles: [demo-user] }`. If the sandbox Deployment has multiple Clubs, the UX lets the user pick one (default to the first); the picked club_id goes into the cookie.
