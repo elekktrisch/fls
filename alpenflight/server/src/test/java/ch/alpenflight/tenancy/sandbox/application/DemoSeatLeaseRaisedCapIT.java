@@ -12,6 +12,7 @@ import ch.alpenflight.tenancy.sandbox.domain.NoDemoSeatAvailableException.Reason
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,11 @@ class DemoSeatLeaseRaisedCapIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void everySeatStartsFree() {
+        returnEverySeatToThePool(seats, transactionManager, clock);
+    }
+
+    @AfterEach
+    void everySeatGoesBackSoTheNextTestClassReadsThePoolAsFlywayCreatedIt() {
         returnEverySeatToThePool(seats, transactionManager, clock);
     }
 

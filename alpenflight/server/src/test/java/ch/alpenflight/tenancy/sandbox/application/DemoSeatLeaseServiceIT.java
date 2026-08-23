@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,11 @@ class DemoSeatLeaseServiceIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void everySeatStartsFree() {
+        returnEverySeatToThePool(seats, transactionManager, clock);
+    }
+
+    @AfterEach
+    void everySeatGoesBackSoTheNextTestClassReadsThePoolAsFlywayCreatedIt() {
         returnEverySeatToThePool(seats, transactionManager, clock);
     }
 
@@ -90,7 +96,9 @@ class DemoSeatLeaseServiceIT extends PostgresIntegrationTest {
 
         assertThat(refused.reason())
                 .isEqualTo(Reason.THIS_ADDRESS_ALREADY_HOLDS_A_LIVE_DEMO_SEAT);
-        assertThat(refused.readableReason()).isNotBlank();
+        assertThat(refused.readableReason())
+                .isEqualTo("Your address holds a demo session already. Use that session, or wait "
+                        + "until it expires.");
     }
 
     @Test
@@ -103,7 +111,8 @@ class DemoSeatLeaseServiceIT extends PostgresIntegrationTest {
                 () -> leases.leaseFreeSeatFor(ADDRESS_THAT_HOLDS_NO_SEAT_YET));
 
         assertThat(refused.reason()).isEqualTo(Reason.EVERY_DEMO_SEAT_IS_IN_USE);
-        assertThat(refused.readableReason()).isNotBlank();
+        assertThat(refused.readableReason())
+                .isEqualTo("All demo seats are in use. Please try again later.");
     }
 
     @Test
