@@ -189,7 +189,7 @@ Each task opens by confirming or refuting the rider's stated cause against the t
 **Scaffold**
 - [x] T-01 — Tag this journey's proof videos `journey: 'J-33'`. `audit-log-two-club.spec.ts` emits J-32/J-30/J-13 today; `register.spec.ts` calls `proofVideo` zero times. Zero J-33 videos reds the bookmark guard.
 - [x] T-02 — `Derive journey proof spec` (`ci.yml:256`) reads only the FIRST path token of `parity_test:`, so `register.spec.ts` is dropped and Cluster B gets no lane. Carry every token. Plant a red per input class (one spec, two specs, each separator).
-- [ ] T-03 — `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Add the missing Flyway placeholder. This test is red today, so it ships first.
+- [x] T-03 — `[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Add the missing Flyway placeholder. This test is red today, so it ships first.
 
 **Cluster A — audit attribution and legibility (proves on `/system/logs`)**
 - [ ] T-04 — S1 `[ANON-FAILED-WRITE-READS-AS-SYSTEM]`. Give `AuditTrailService.recordFailed` the `ANONYMOUS_PUBLIC` kind and the client IP.

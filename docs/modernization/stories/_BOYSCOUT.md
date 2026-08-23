@@ -229,11 +229,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 
-- **[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]** [S2] `MapperVsSchemaCompatibilityTest` has been **red since J-13**
-  (`f042781de`), not since this journey — T-14 proved it by stashing its own diff and re-running the test red
-  identically. `MapperVsSchemaCompatibilityTest.java:213`'s placeholder map is missing `${app_role_password}`,
-  which `V54__split_app_role_append_only_audit.sql:48` needs. One-line fix. Worth asking how it stayed red
-  across several journeys without anyone noticing. *(seam: that test's Flyway placeholder map)*
 - **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** [S2] `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
   TypeScript 6 rejects as deprecated (TS5107), so `npx tsc -p e2e/tsconfig.json` cannot run at all on the
   top-level suite. Pre-existing and unrelated to the sweep, but it means that suite has **no typecheck gate**
