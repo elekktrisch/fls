@@ -207,7 +207,8 @@ class MigrationFolderConventionsTest {
             SECURITY_REVIEWED_ROLE_PROVISIONING_PATTERNS_PER_MIGRATION =
                     Map.of(
                             "V54__", ROLE_PROVISIONING_PATTERNS,
-                            "V60__", Set.of("\\bGRANT\\s"));
+                            "V60__", Set.of("\\bGRANT\\s"),
+                            "V61__", Set.of("\\bGRANT\\s"));
 
     private static boolean isRoleProvisioningException(String filename, String patternText) {
         return SECURITY_REVIEWED_ROLE_PROVISIONING_PATTERNS_PER_MIGRATION.entrySet().stream()

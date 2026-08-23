@@ -380,6 +380,9 @@ public class MigrationBundleIngestService {
                 drainEntityStreams(connection, run, tarStream, manifest, provisioned,
                         foreignKeyResolver, referenceLookupResolver);
             }
+            reportTenantBackfill(
+                    MigratedAuditRowTenantBackfill
+                            .giveEachMigratedRowTheTenantOfTheEntityItDescribes(connection));
 
             run.transitionTo(MigrationRunState.COMPLETING);
             upload.markConsumed(clock);
@@ -407,6 +410,14 @@ public class MigrationBundleIngestService {
                     detail,
                     sql);
         }
+    }
+
+    private static void reportTenantBackfill(MigratedAuditRowTenantBackfill.Result result) {
+        LOG.info("MigrationBundleIngest: {} migrated audit rows now carry the club of the entity "
+                        + "they describe; {} stay without a club because the entity they describe "
+                        + "is cross-tenant, fanned out or not migrated",
+                result.rowsGivenTheTenantOfTheEntityTheyDescribe(),
+                result.rowsWhoseDescribedEntityYieldsNoClub());
     }
 
     private static void rejectEntityPoliciesOutsideAllowList(BundleManifest manifest) {

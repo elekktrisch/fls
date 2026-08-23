@@ -55,6 +55,54 @@ class AppendOnlyAuditRoleIT extends PostgresIntegrationTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    void app_role_may_name_the_tenant_of_a_migrated_audit_row_and_nothing_else_on_it()
+            throws SQLException {
+        UUID seededId = seedMigratedAuditRowWithoutATenantAsOwner();
+        UUID owningClub = anyExistingClubId();
+
+        try (Connection appRole = openAppRoleOrSkip()) {
+            assertTenantBackfillSucceeds(appRole, seededId, owningClub);
+            assertUpdateDeniedWith42501(appRole, seededId);
+            assertDeleteDeniedWith42501(appRole, seededId);
+        }
+
+        migratorJdbc.update("DELETE FROM t_mutation_audit_event WHERE id = ?::uuid",
+                seededId.toString());
+    }
+
+    private void assertTenantBackfillSucceeds(Connection appRole, UUID seededId, UUID owningClub)
+            throws SQLException {
+        try (Statement st = appRole.createStatement()) {
+            int backfilled = st.executeUpdate(
+                    "UPDATE t_mutation_audit_event SET tenant_club_id = '" + owningClub
+                            + "' WHERE id = '" + seededId + "' AND tenant_club_id IS NULL");
+            assertThat(backfilled)
+                    .as("the column-level UPDATE grant lets the migration ingest give a migrated "
+                            + "row the club of the entity it describes; without it the ingest "
+                            + "dies with sqlstate 42501 under the app role CI boots with")
+                    .isEqualTo(1);
+        }
+        assertThat(migratorJdbc.queryForObject(
+                "SELECT tenant_club_id FROM t_mutation_audit_event WHERE id = ?::uuid",
+                UUID.class, seededId.toString()))
+                .isEqualTo(owningClub);
+    }
+
+    private UUID seedMigratedAuditRowWithoutATenantAsOwner() {
+        UUID id = UUID.randomUUID();
+        migratorJdbc.update(
+                "INSERT INTO t_mutation_audit_event "
+                        + "(id, action, target_entity_type, actor_kind, tenant_club_id) "
+                        + "VALUES (?::uuid, ?, ?, ?, NULL)",
+                id.toString(), "UPDATE", "AppendOnlyProbe", "LEGACY_MIGRATED");
+        return id;
+    }
+
+    private UUID anyExistingClubId() {
+        return migratorJdbc.queryForObject("SELECT id FROM t_club LIMIT 1", UUID.class);
+    }
+
     private void assertClientIpRedactionSucceeds(Connection appRole, UUID seededId)
             throws SQLException {
         try (Statement st = appRole.createStatement()) {

@@ -45,22 +45,6 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   cross-tenant column, so its repair needs the tenancy review too.
   *(seam: `DeliveryMapper`, `DeliveryItemMapper`, `PersonFlightTimeCreditTransactionMapper`)*
 
-## Pending (filed by /do-ship J-33 T-37, 2026-08-23)
-
-- **[MIGRATED-AUDIT-ROW-CARRIES-NO-TENANT-SO-NO-SCREEN-RENDERS-IT]** [S1] **Symptom (measured, not
-  inferred).** `AuditLogTenantBypassGrantsTheActorNotTheRowIT:107` already proves it: the row it names
-  `rowMigratedWithNoTenantAtAll` is invisible to every club principal, by list (line 107) and by primary
-  key (line 114).
-  `MutationAuditEvent:38` carries `@TenantId` on `tenant_club_id`, `AuditLogMapper:115` writes that field
-  NULL on every migrated row, and `AuditAdminController:44` offers no unscoped read. So T-37 lands the
-  migrated rows in `t_mutation_audit_event` with the actor resolved, and `/system/logs` still renders none
-  of them. **Consequence.** J-33 AC-3 is provable at the ingest and at the API row, and NOT on the screen.
-  **Decision owed to the operator.** S-189 resolves the tenant from the TARGET entity's operating club and
-  runs post-cutover. A producer that used the ACTOR's `Users.ClubId` instead is a different answer and
-  contradicts the shipped S-186 contract ("`tenant_club_id` all-NULL for migrated rows"). The alternative is
-  an unscoped read for `SYSTEM_ADMINISTRATOR` on this one screen. Pick one before AC-3 claims the screen.
-  *(seam: `AuditLogMapper.TENANT_CLUB_ID`, `MutationAuditEvent`, `AuditQueryService`, S-189)*
-
 ## Pending (filed by /do-plan J-33 carve, 2026-08-22 — main-branch red)
 
 The red itself is fixed in the carve commit and is **folded into J-33** (see

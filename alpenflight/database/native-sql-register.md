@@ -246,6 +246,37 @@ carries an expiry + removal plan.
   the rows through JPA, OR Hibernate exposes a per-read "leave null" switch for
   `@TenantId`.
 
+### `migrated-audit-event-tenant-backfill` — `Tenant of a migrated audit row, from the entity it describes`
+
+- **Caller:** `src/main/java/ch/alpenflight/migrations/application/MigratedAuditRowTenantBackfill.java`
+- **Tenant-scoped tables touched:** `t_mutation_audit_event`
+- **Justification:** legacy `AuditLogs` carries no `ClubId`, so every migrated row
+  arrives with `tenant_club_id` NULL and Hibernate's `@TenantId` discriminator
+  hides it from every club, including `NO_TENANT`. S-189 resolves the club from
+  the entity the row describes, which means walking `target_entity_type` +
+  `target_entity_id` across one destination table per entity. JPA cannot express
+  that: the target is polymorphic, the row is not an entity association, and the
+  discriminator the statement writes is the very column `@TenantId` owns — a JPA
+  write would overwrite it with the ambient tenant. The statement runs once per
+  ingest, on the ingest connection, inside the ingest transaction where the
+  `legacy_id_map_*` temporary tables still live.
+- **Tenancy gate:** the UPDATE selects on `tenant_club_id IS NULL` and
+  `actor_kind = 'LEGACY_MIGRATED'`, so it touches no row a club already owns and
+  no live row at all. The club it writes comes from the described row's own
+  `operating_club_id` / `club_id`, read through `legacy_id_map_<entity>`, never
+  from the actor and never from a caller-supplied value. Every entity name and
+  table name is a compile-time constant of `MapperLegacyBindings`; the two
+  runtime values are parameter-bound. V61 grants the app role
+  `UPDATE (tenant_club_id)` on this table alone, so the V54 append-only carve-out
+  still refuses every other UPDATE and every DELETE.
+- **Reviewer:** auto-registered with J-33 T-40; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-08-23.
+- **Expires:** 2027-08-23
+- **Remove when:** the producer can name the owning club at export time, so the
+  migrated row arrives with `tenant_club_id` already set and no post-ingest
+  statement is owed.
+
 ## Re-affirm log
 
 - **J-26 T-17 (2026-06-12) — full re-affirm pass.** Every entry above was
