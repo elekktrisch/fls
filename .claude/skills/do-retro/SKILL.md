@@ -100,21 +100,22 @@ present) — the lessons are then reconstruction-only.
    Record it as a **boyscout rider** in `docs/modernization/stories/_BOYSCOUT.md`, to be
    folded into the **next journey** that runs the gate — so the fix flows through the
    do-* workflow and produces a gate + gallery proof the operator can see.
+   **Every rider carries `RIDES: J-NNN`** (operator 2026-08-23) — the journey that owns its seam, or
+   `RIDES: next` when none does. `/do-plan`'s carve MOVES the addressed riders into that journey's file and
+   deletes them from `_BOYSCOUT.md`, so the flat file stops being a dumping ground. Two dedicated burndown
+   journeys still left it net-growing, because unaddressed riders have no route home.
    **File the SYMPTOM as evidence and the CAUSE as a hypothesis** (operator 2026-08-21).
    A rider carries `SYMPTOM:` (what was observed + the `file:line` that shows it, required)
    and `SUSPECTED CAUSE:` (optional, and explicitly unverified). Never write a cause as
-   fact. J-32 burned ~16 rider causes and **eight were wrong** — a "hard delete" that
-   soft-deletes and names a different column, a `flush()` blamed on `em.merge` that had
-   three unrelated reasons, an "unexplainable" entry explained in its own first commit,
-   and four riders whose defects J-27 fixed two months earlier. The symptoms were sound
-   every time; the diagnoses rotted. `/do-ship` opens each burndown task by confirming or
-   refuting the stated cause, so a wrong guess costs minutes instead of a wrong fix. A tiny standalone story bypasses that proof loop and is
-   an anti-pattern. **File a standalone journey ONLY for genuinely new vertical feature
+   fact. **About half of stated causes are wrong**, while the symptoms hold up — diagnoses rot,
+   evidence does not. `/do-ship` opens each burndown task by confirming or refuting the stated
+   cause, so a wrong guess costs minutes instead of a wrong fix. A tiny standalone story bypasses
+   that proof loop and is an anti-pattern. **File a standalone journey ONLY for genuinely new vertical feature
    scope** (a missing screen, a re-carve of an oversized journey) — that, and only that,
    feeds `/do-plan`. Infra/efficiency work (proof-chain speedups, flake fixes, CI
    hardening) is a rider too unless it's a vertical slice in its own right.
-   **The retro TRIAGES `_BOYSCOUT.md`** (operator 2026-08-15 — surface-only folding let it grow ~17 → 40
-   riders / 30 sections): tag every rider's severity inline right after its `**[NAME]**` — `[S1]` security /
+   **The retro TRIAGES `_BOYSCOUT.md`** (operator 2026-08-15 — surface-only folding lets it grow
+   unboundedly): tag every rider's severity inline right after its `**[NAME]**` — `[S1]` security /
    tenancy / correctness / money, `[S2]` coverage gap / silent-failure risk, `[S3]` cosmetic / dead code /
    doc — which is the order `/do-ship` burns them down in; and DELETE riders that are genuinely won't-fix or
    superseded, stating the reason in the commit message. **Never delete a security-relevant rider.**
@@ -136,15 +137,10 @@ present) — the lessons are then reconstruction-only.
 
 ## Retiring superseded tooling
 
-The do-* suite once coexisted with the legacy `modernize-*` skills + 12 agents.
-They were **retired in J-3 T-15** (the sunset rider): once do-* was proven across
-J-0/J-0b/J-0c/J-1/J-2/J-3 — including the non-migration feature journeys — the
-superseded `modernize-*` skills/agents were deleted and the `rolled_up_into:`
-horizontal stories pruned. The 47 `implemented/` stories and their docs stay as
-history. The lesson generalizes: when a do-* coexists with older tooling it
-supersedes, prove it on 2-3 real journeys, then record the cleanup as a
-**boyscout rider** (mechanical deletion, however many files — not its own journey)
-that rides the next journey via `/do-ship`. Don't delete on day one.
+When a do-* skill coexists with older tooling it supersedes: **prove it on 2-3 real journeys first**
+(including one outside the new tool's easiest case), then record the cleanup as a **boyscout rider** —
+mechanical deletion, however many files, never its own journey — that rides the next journey via
+`/do-ship`. **Don't delete on day one.** Shipped stories and their docs stay as history.
 
 ## Procedure
 

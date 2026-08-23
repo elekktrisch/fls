@@ -18,11 +18,9 @@ split it across the next 2-3 journeys' budgets (WORKFLOW-SLIM is the current exa
 
 **The exception — a HARDENING journey** (`hardening: true`). Debt/infra whose shape is a *sweep* can't
 be split across 40% slots without ceasing to be coherent, and a blanket "pure tech-debt never earns its
-own journey" only forced an operator override every time: J-26 (hardening), J-27 (migration-fidelity),
-J-29 (scheduled-proof stabilization), J-30 (nightly gate) and J-31 (comment sweep) all shipped as
-essentially pure infra/debt. Name the type and hold it to the SAME bar as any journey: **≥1 provable
-screen result + a green gate.** It may REUSE an already-built screen for that proof (J-31 drove the
-landing page, exactly as Journey-0 drove Locations) — it owes no NEW screen. No screen result, or no
+own journey" only forced an operator override every time. Name the type and hold it to the SAME bar as
+any journey: **≥1 provable screen result + a green gate.** It may REUSE an already-built screen for that
+proof — it owes no NEW screen. No screen result, or no
 green gate → not a journey; back to riders. Every other standalone journey is genuinely new vertical
 AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
 
@@ -89,9 +87,11 @@ journey files in `stories/implemented/`. So when resolving a `depends_on` journe
    (the ADR-0024 pixel oracle) for this screen — bake its STRUCTURE into the ACs + "Spec
    must assert" so the screen is built to the design the FIRST time (avoids building one shape then
    redesigning to another). If no reference screen exists, say so explicitly in the journey file.
-   Also scan `docs/modernization/stories/_BOYSCOUT.md` for
-   pending riders that touch this journey's surface — note them in the journey file
-   so `/do-ship` folds them into the task list (they ride forward, not as own stories).
+   **Pull this journey's addressed riders.** Every rider in `docs/modernization/stories/_BOYSCOUT.md`
+   carries a `RIDES: J-NNN` field (operator 2026-08-23). Move the riders addressed to THIS journey into
+   the journey file and DELETE their bullets from `_BOYSCOUT.md` — the journey file is their home from
+   the carve onward, so the flat file stops being a dumping ground. Also scan `RIDES: next` riders (no
+   owning journey) for any that touch this journey's surface, and pull those too.
    **Always sweep newly-filed GitHub bugs into riders.** On every `/do-plan` invocation run
    `gh issue list --label bug --state open` (also `--search "is:open is:issue bug"` for unlabeled
    reports); for each open bug not already tracked, record it as a boyscout rider in `_BOYSCOUT.md`
@@ -116,10 +116,22 @@ journey files in `stories/implemented/`. So when resolving a `depends_on` journe
      already **squash-merged** to `main`, the `/do-retro` branch is now divergent history (it carries the
      prior journey's pre-squash commits). Do NOT branch off it — base on `origin/main` and **cherry-pick the
      retro's net commit** on top (`git cherry-pick <retro-sha>`). Branching off the stale retro branch drags
-     the squashed commits back in (J-6: a clean 11-file diff but 83 junk commits). Verify: `git diff
+     the squashed commits back in (a clean file diff carrying dozens of junk commits). Verify: `git diff
      origin/main <retro-sha>^ --stat` is empty → the squash == the retro's parent, so the cherry-pick is clean.
    - Commit the journey file + `rolled_up_into` stamps (carrying the retro commit if it's
      the base), then `git push -u origin integration/J-NNN`. Print the branch name.
+
+**Carve budget — about 15 tasks of scope** (operator 2026-08-23). A `/do-task` worker consumes about
+**12 agents**, not one, because it dispatches its own helpers. A session caps at 200 agents, so it
+finishes about 16 tasks. Gates reliably add 50-80% more, so a 15-task carve lands near 22 and still
+fits. **A carve larger than one session dies mid-flight with acceptance criteria unmet.** Size the carve
+so one session finishes it. If the scope needs more, carve two journeys and say which ships first.
+
+**Check the acceptance criteria are REACHABLE before you write them.** When an AC names a persona and
+a screen, verify that persona can actually reach that screen — read the route guard and the seeded
+principal. A realm invariant or a route guard can make the named persona structurally unable to reach
+the screen, and the journey then discovers it at the gate. Likewise confirm every spec named in
+`parity_test:` exists and is runnable.
 
 Do **not** decompose into tasks here — that's `/do-ship`'s job at ship time
 (with fresh full context on the current code), and each task runs in its own
@@ -142,14 +154,12 @@ clean-context `/do-task` worker on `integration/J-NNN` (now already created + pu
 - **A migration journey owes its FK-dependency entities.** Before setting `depends_on`, check the
   migrated entity's new-schema FKs: any `NOT NULL`/`RESTRICT` FK to an entity migrated by ANOTHER
   (later/unbuilt) journey makes THAT journey a `depends_on` — else the binding's FK-target closure forces
-  a worker to bind the other journey's entity unscoped, regressing the whole fanout (J-10: `DeliveryItem.
-  article_id` → ARTICLE, J-11's entity → the Delivery migration had to defer to J-10b after J-11). If the
-  dependency journey isn't built yet, carve the migration half as its own later journey.
-  **Indirect tenancy counts as a dependency too** (J-9b): an entity carrying no `club_id` whose tenant-scoping
-  read *pivots through* another entity (`PersonFlightTimeCredit` scoped via `Person→PersonClub`) owes that
-  pivot entity's migration as a `depends_on` — even with no direct NOT-NULL FK column — else the migrated rows
-  are invisible to every `@TenantId`-filtered query. Check the repo's tenant-scoping query, not just the FK
-  columns. (J-9b found PERSON_CLUB had never been migrated — a latent J-4 gap — only at the gate.)
+  a worker to bind the other journey's entity unscoped, regressing the whole fanout. If the dependency
+  journey isn't built yet, carve the migration half as its own later journey.
+  **Indirect tenancy counts as a dependency too:** an entity carrying no `club_id` whose tenant-scoping read
+  *pivots through* another entity owes that pivot entity's migration as a `depends_on` — even with no direct
+  NOT-NULL FK column — else the migrated rows are invisible to every `@TenantId`-filtered query. Check the
+  repo's tenant-scoping query, not just the FK columns.
 
 ## Journey file — `docs/modernization/stories/J-NNN-<slug>.md`
 

@@ -133,13 +133,13 @@ done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.co
 **The packaged artifact must start.** When a task adds a Spring bean, a dependency, or an
 `@Value`/config key, green tests are NOT evidence that production boots: `spring-boot-starter-test`
 puts auto-config on the test classpath that the boot jar does not carry, so `@SpringBootTest` ITs pass
-over an application that dies at startup. J-15 shipped five green job ITs while `RestClient.Builder`
+over an application that dies at startup. Green job ITs have shipped while `RestClient.Builder`
 was unresolvable in the packaged app, and every real-idp proof job died at "wait for backend health".
 Smoke it: `./gradlew bootJar` → run the jar with the `.bashrc` `DATASOURCE_*` → probe
 `/actuator/health` → kill it. ~2 min, and it fails in the same way CI would.
 [[project_test_classpath_hides_boot_failures]]
 
-**Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **Backend: run `./gradlew check`, NOT `test`** — the build gate's red-makers (`cpdRatchet`, `pmdMain`, the arch-guards, `OpenApiSnapshotIT`) live in `check`, not `test`; a `test`-green commit reds CI on `cpdRatchet` (J-6 T-04/05). And run it on **every module your change reaches, not just the obvious one** — a binding edit in `migration-bundle` reds an `ExportCommandSmokeTest` in `migration-tool` (J-6 T-11); when unsure, `check` from the repo root. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — run `actionlint` or a real dispatch (it misses GitHub's expression-length limit + `success()`/`!cancelled()` step-skip semantics).
+**Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **Backend: run `./gradlew check`, NOT `test`** — the build gate's red-makers (`cpdRatchet`, `pmdMain`, the arch-guards, `OpenApiSnapshotIT`) live in `check`, not `test`; a `test`-green commit reds CI on `cpdRatchet`. And run it on **every module your change reaches, not just the obvious one** — a binding edit in one module reds a smoke test in another; when unsure, `check` from the repo root. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — run `actionlint` or a real dispatch (it misses GitHub's expression-length limit + `success()`/`!cancelled()` step-skip semantics).
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it
@@ -153,6 +153,17 @@ Return a lean summary (this is what the manager keeps): task id + status (done /
 overflow / escalated / blocked), commit subjects, ACs touched, any `@mocked:` seam
 declared, and escalations. **Then stop** — do not pick up the next task.
 
+## Measure a capability before you declare it blocked
+
+**"I cannot run X here" is a claim. Measure it in the same breath you make it.** A stale capability belief
+sends an untested change to a ~30-minute gate run for a defect a local run catches in minutes, and it has
+also produced wrong operator questions ([[project_real_idp_runs_locally]]). Before you write "blocked" or
+"CI-only": run `df -h`, check `docker images`, and try it. State the number you measured, not the
+impression. **Local-first is the default**, and a stale blocker is how it quietly stops being one.
+
+**Never dispatch a workflow.** The manager owns CI triggering. A hand-dispatched run competes with the
+gate's own run and proves nothing about the push arm; if a gate needs a human trigger, that is the defect.
+
 ## Escalate, don't guess
 
 Stop and escalate (to `/do-ship`'s manager, or the operator if standalone) when:
@@ -163,7 +174,7 @@ exclusion` is legitimate only if cosmetic or proven-unreachable** — before you
 deliberate not-matching-legacy behavior (an exclusion line, a caveat, or a forward rider),
 justify it as cosmetic OR cite the data/config that makes it unreachable; a *reachable*
 divergence (especially money/safety — billing/accounting/hours/limits) is a suspected bug →
-escalate it, don't bury it (J-9b credit over-credit). Consider a one-shot read-only consult
+escalate it, don't bury it. Consider a one-shot read-only consult
 first (`legacy-oracle` for behavior; `e2e-driver` for a flaky spec) — one consult per fork, no
 chaining.
 
