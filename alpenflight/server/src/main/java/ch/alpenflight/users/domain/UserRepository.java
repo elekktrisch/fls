@@ -31,6 +31,8 @@ public interface UserRepository {
 
     long countAllActive();
 
+    long countAllActiveExcludingDeployment(UUID excludedDeploymentId);
+
     boolean languageExists(UUID languageId);
 
     User save(User user);

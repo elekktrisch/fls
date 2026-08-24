@@ -91,6 +91,11 @@ public class UsersService {
     }
 
     @Transactional(readOnly = true)
+    public long countAllActiveUsersExcludingDeployment(UUID excludedDeploymentId) {
+        return users.countAllActiveExcludingDeployment(excludedDeploymentId);
+    }
+
+    @Transactional(readOnly = true)
     public List<UserListItem> listInCurrentTenant() {
         UUID tenant = currentTenantOrThrow();
         List<UserRepository.ListRow> rows = users.findActiveInClub(tenant);

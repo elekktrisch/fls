@@ -3,11 +3,15 @@ package ch.alpenflight.me.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
+import ch.alpenflight.tenancy.sandbox.application.DemoSeatPoolTestFixture;
+import ch.alpenflight.tenancy.sandbox.domain.DemoSeat;
+import ch.alpenflight.tenancy.sandbox.domain.DemoSeatRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -51,6 +55,7 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired ClubRepository clubs;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
+    @Autowired DemoSeatRepository seats;
 
     private UUID clubA;
     private UUID clubB;
@@ -97,6 +102,55 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
                 .as("spans both clubs (A's 2 + B's 3) — a count scoped to the calling "
                         + "sysadmin's own club A would report only 2")
                 .isGreaterThanOrEqualTo(5L);
+    }
+
+    @Test
+    void the_totals_leave_out_the_sandbox_deployment() {
+        long clubsInTheSandboxDeployment = countClubsInDeployment(Deployment.SANDBOX_ID);
+        assertThat(clubsInTheSandboxDeployment)
+                .as("the adversarial rows must exist, else the exclusion below passes vacuously")
+                .isGreaterThanOrEqualTo(10L);
+        long clubsOutsideTheSandboxDeployment = countClubsOutsideDeployment(Deployment.SANDBOX_ID);
+
+        DemoSeat firstSeat = DemoSeatPoolTestFixture.seatNumbered(seats, 1);
+        UUID seatClub = firstSeat.getClubId().value();
+        String seatAircraftExternal = "ac-" + seedAircraft(seatClub);
+        String seatToken = seatPrincipalToken(firstSeat);
+        long flightsBeforeTheSeatFlies =
+                get(tenantLessSysadminTokenCarryingNoClubIdClaim()).get("totalFlights").asLong();
+        createFlight(seatToken, seatAircraftExternal);
+        createFlight(seatToken, seatAircraftExternal);
+
+        JsonNode body = get(tenantLessSysadminTokenCarryingNoClubIdClaim());
+
+        assertThat(body.get("totalClubs").asLong())
+                .as("the operator metrics count the real clubs only — the seat pool is capacity, "
+                        + "not usage")
+                .isEqualTo(clubsOutsideTheSandboxDeployment);
+        assertThat(body.get("totalFlights").asLong())
+                .as("two flights inside a sandbox seat must not move the operator flight total")
+                .isEqualTo(flightsBeforeTheSeatFlies);
+    }
+
+    private String seatPrincipalToken(DemoSeat seat) {
+        return jwts.mint(c -> c
+                .claim("clubId", seat.getClubId().value().toString())
+                .claim("preferred_username", seat.getKeycloakUsername())
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
+    }
+
+    private long countClubsInDeployment(UUID deploymentId) {
+        Long count = jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE deleted_on IS NULL AND deployment_id = ?::uuid",
+                Long.class, deploymentId.toString());
+        return count == null ? 0L : count;
+    }
+
+    private long countClubsOutsideDeployment(UUID deploymentId) {
+        Long count = jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE deleted_on IS NULL AND deployment_id <> ?::uuid",
+                Long.class, deploymentId.toString());
+        return count == null ? 0L : count;
     }
 
     @Test

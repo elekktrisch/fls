@@ -6,12 +6,14 @@ import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
 import ch.alpenflight.clubs.application.ClubDtos.JoinCodeResponse;
 import ch.alpenflight.clubs.application.ClubsService;
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,17 +34,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClubsController {
 
     private final ClubsService service;
+    private final ClubTenantIdentifierResolver tenantResolver;
 
-    public ClubsController(ClubsService service) {
+    public ClubsController(ClubsService service, ClubTenantIdentifierResolver tenantResolver) {
         this.service = service;
+        this.tenantResolver = tenantResolver;
     }
 
-    @Operation(summary = "List all clubs (active, sorted by name).")
+    @Operation(summary = "List active clubs sorted by name. A system administrator reads every "
+            + "club. Any other caller reads the clubs of its own Deployment.")
     @ApiResponse(responseCode = "200", description = "Array of club projections.")
     @GetMapping
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')")
-    public List<ClubResponse> listClubs() {
-        return service.listClubs();
+    public List<ClubResponse> listClubs(Authentication authentication) {
+        if (hasRole(authentication, "ROLE_SYSTEM_ADMINISTRATOR")) {
+            return service.listClubs();
+        }
+        return clubsOfTheCallersOwnDeployment();
+    }
+
+    private List<ClubResponse> clubsOfTheCallersOwnDeployment() {
+        UUID ownClub = tenantResolver.resolveForAuthenticatedPrincipalIgnoringRunAsOverride()
+                .filter(tenant -> !ClubTenantIdentifierResolver.NO_TENANT.equals(tenant))
+                .orElse(null);
+        return ownClub == null ? List.of() : service.listClubsInSameDeploymentAs(ownClub);
     }
 
     @Operation(summary = "Read a single club by id.")

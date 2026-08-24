@@ -3236,7 +3236,7 @@
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
-        "summary" : "List all clubs (active, sorted by name).",
+        "summary" : "List active clubs sorted by name. A system administrator reads every club. Any other caller reads the clubs of its own Deployment.",
         "operationId" : "listClubs",
         "responses" : {
           "200" : {

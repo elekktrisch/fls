@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubRepository {
 
@@ -15,12 +16,31 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     List<Club> findAllActive();
 
     @Override
+    @Query("select c from Club c "
+            + "join Club reading on reading.id = :readingClubId "
+            + "  and reading.deploymentId = c.deploymentId "
+            + "where c.deletedOn is null order by c.clubname")
+    List<Club> findAllActiveInSameDeploymentAs(@Param("readingClubId") UUID readingClubId);
+
+    @Override
     @Query("select count(c) from Club c where c.deletedOn is null")
     long countActive();
 
     @Override
+    @Query("select count(c) from Club c where c.deletedOn is null "
+            + "and c.deploymentId <> :excludedDeploymentId")
+    long countActiveExcludingDeployment(
+            @Param("excludedDeploymentId") UUID excludedDeploymentId);
+
+    @Override
     @Query("select c.id from Club c where c.deletedOn is null order by c.id")
     List<UUID> activeIds();
+
+    @Override
+    @Query("select c.id from Club c where c.deletedOn is null "
+            + "and c.deploymentId <> :excludedDeploymentId order by c.id")
+    List<UUID> activeIdsExcludingDeployment(
+            @Param("excludedDeploymentId") UUID excludedDeploymentId);
 
     @Override
     @Query("select c from Club c where c.id = :id and c.deletedOn is null")

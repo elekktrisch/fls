@@ -64,13 +64,29 @@ public class ClubsService {
     }
 
     @Transactional(readOnly = true)
+    public List<ClubResponse> listClubsInSameDeploymentAs(UUID readingClubId) {
+        return clubs.findAllActiveInSameDeploymentAs(readingClubId).stream()
+                .map(ClubMapper::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
     public long countActiveClubs() {
         return clubs.countActive();
     }
 
     @Transactional(readOnly = true)
+    public long countActiveClubsExcludingDeployment(UUID excludedDeploymentId) {
+        return clubs.countActiveExcludingDeployment(excludedDeploymentId);
+    }
+
+    @Transactional(readOnly = true)
     public List<UUID> activeClubIds() {
         return clubs.activeIds();
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> activeClubIdsExcludingDeployment(UUID excludedDeploymentId) {
+        return clubs.activeIdsExcludingDeployment(excludedDeploymentId);
     }
 
     @Transactional(readOnly = true)
