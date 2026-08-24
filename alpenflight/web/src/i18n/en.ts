@@ -305,6 +305,11 @@ const en: Translations = {
       back: 'Back to the landing page',
       start: 'Start the demo',
     },
+    banner: {
+      cta: 'Sign up to keep your data',
+      expiry: 'The session expires. AlpenFlight then resets the demo club.',
+      privacy: 'The demo club is private to this session.',
+    },
     body: 'The demo club belongs to this session only. Change the data freely. AlpenFlight resets the club later.',
     eyebrow: 'Demo',
     headline: 'Test AlpenFlight with real data',

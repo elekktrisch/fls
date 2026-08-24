@@ -307,6 +307,11 @@ const fr: Translations = {
       back: 'Retour à la page d’accueil',
       start: 'Démarrer la démo',
     },
+    banner: {
+      cta: 'Créez un compte pour garder vos données',
+      expiry: 'La session expire. AlpenFlight réinitialise ensuite le club de démonstration.',
+      privacy: 'Le club de démonstration appartient à cette session seulement.',
+    },
     body: 'Le club de démonstration appartient à cette session seulement. Modifiez les données librement. AlpenFlight réinitialise le club plus tard.',
     eyebrow: 'Démo',
     headline: 'Testez AlpenFlight avec des données réelles',

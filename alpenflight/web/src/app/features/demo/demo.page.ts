@@ -23,6 +23,8 @@ import { SessionStore } from '@core/session/session.store';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
 
+import { emitFunnelEvent } from '../signup/funnel-telemetry';
+
 const PATH_THE_LEASED_SEAT_OPENS_ON = '/start';
 
 const MILLISECONDS_A_LEASE_MAY_TAKE_BEFORE_THE_VISITOR_NEEDS_A_PROGRESS_NOTICE = 300;
@@ -146,6 +148,11 @@ export class DemoPage implements OnDestroy {
     }
     this.#demoSeat.hold(leased.accessToken);
     applyClaimsToSession(claimsOfAccessToken(leased.accessToken), this.#session);
+    emitFunnelEvent({
+      event_id: 'demo.session_started',
+      timestamp: new Date().toISOString(),
+      properties: { lease_seconds: String(leased.expiresInSeconds ?? 0) },
+    });
     void this.#router.navigateByUrl(PATH_THE_LEASED_SEAT_OPENS_ON);
   }
 

@@ -305,6 +305,11 @@ const de = {
       back: 'Zurück zur Startseite',
       start: 'Demo starten',
     },
+    banner: {
+      cta: 'Registriere dich, um deine Daten zu behalten',
+      expiry: 'Die Sitzung läuft ab. AlpenFlight setzt den Demoklub dann zurück.',
+      privacy: 'Der Demoklub gehört nur dieser Sitzung.',
+    },
     body: 'Der Demoklub gehört nur dieser Sitzung. Ändere die Daten frei. AlpenFlight setzt den Klub später zurück.',
     eyebrow: 'Demo',
     headline: 'AlpenFlight mit echten Daten testen',

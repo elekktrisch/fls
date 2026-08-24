@@ -31,6 +31,23 @@ const TESTIDS = {
   reservationsDayGrid: 'reservations-day-grid',
 };
 
+const DEMO_SCREENS_A_SEAT_PRINCIPAL_REACHES = [
+  { path: FLIGHTS_PATH, testId: TESTIDS.flightsTable },
+  { path: AIRCRAFT_PATH, testId: TESTIDS.aircraftTable },
+  { path: RESERVATIONS_PATH, testId: TESTIDS.reservationsDayGrid },
+];
+
+const FUNNEL_CONSOLE_PREFIX = '[funnel]';
+
+const VIEWPORT_TOO_SHORT_FOR_A_SCREEN_TO_FIT_SO_EVERY_SCREEN_SCROLLS = {
+  width: 1280,
+  height: 240,
+};
+
+const PIXELS_TO_SCROLL_PAST_THE_BANNERS_RESTING_PLACE = 1200;
+
+const VIEWPORT_THE_OTHER_CASES_USE = { width: 1280, height: 720 };
+
 const SEAT_CLUB_ID_V62_BUILDS_FOR_SEAT_ONE = '019e30c3-2c00-7001-8000-0000000de001';
 
 const SEAT_TOKEN_CLAIMS_KEYCLOAK_MINTS_FOR_A_DIRECT_GRANT = {
@@ -84,6 +101,16 @@ async function refusesEveryDemoSeat(route: Route): Promise<void> {
   });
 }
 
+function recordsTheFunnelEvents(page: Page): string[] {
+  const emitted: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().startsWith(FUNNEL_CONSOLE_PREFIX)) {
+      emitted.push(message.text());
+    }
+  });
+  return emitted;
+}
+
 async function openTheDemoPageFromTheLanding(page: Page): Promise<void> {
   await page.goto('/?lang=en');
   await page.getByTestId(TESTIDS.landingDemoCta).click();
@@ -102,7 +129,7 @@ test.describe('demo mode — the /demo front door and the demo banner (mocked in
     await page.screenshot({ path: 'screenshots/demo/01-entry.png', fullPage: true });
   });
 
-  test.fixme('the start action leases a seat and lands the visitor on /start with the demo banner [T-12c unskips this, after it ships the demo banner]', async ({
+  test('the start action leases a seat and lands the visitor on /start with the demo banner', async ({
     page,
   }) => {
     const leasedEndpointCalls: string[] = [];
@@ -118,31 +145,67 @@ test.describe('demo mode — the /demo front door and the demo banner (mocked in
     await page.screenshot({ path: 'screenshots/demo/02-start.png', fullPage: true });
   });
 
-  test.fixme('the demo banner rides every demo screen and its action opens the migrate signup [T-12c unskips this, after it ships the demo banner]', async ({
+  test('the demo banner rides every demo screen and its action opens the migrate signup', async ({
     page,
   }) => {
+    const funnelEvents = recordsTheFunnelEvents(page);
     await page.route(DEMO_SESSION_ENDPOINT_GLOB, grantsADemoSeat([]));
 
     await openTheDemoPageFromTheLanding(page);
     await page.getByTestId(TESTIDS.demoStart).click();
     await expect(page).toHaveURL(new RegExp(`${START_PATH}(\\?|$)`));
 
-    for (const { path, testId } of [
-      { path: FLIGHTS_PATH, testId: TESTIDS.flightsTable },
-      { path: AIRCRAFT_PATH, testId: TESTIDS.aircraftTable },
-      { path: RESERVATIONS_PATH, testId: TESTIDS.reservationsDayGrid },
-    ]) {
+    await page.setViewportSize(VIEWPORT_TOO_SHORT_FOR_A_SCREEN_TO_FIT_SO_EVERY_SCREEN_SCROLLS);
+
+    for (const { path, testId } of DEMO_SCREENS_A_SEAT_PRINCIPAL_REACHES) {
       await page.goto(`${path}?lang=en`);
       await expect(page.getByTestId(testId)).toBeVisible();
       await expect(
         page.getByTestId(TESTIDS.demoBanner),
         `the demo banner is permanent, so ${path} carries it too`,
       ).toBeVisible();
+
+      await page.mouse.wheel(0, PIXELS_TO_SCROLL_PAST_THE_BANNERS_RESTING_PLACE);
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY), {
+          message: `${path} must scroll, else the permanence assertion passes vacuously`,
+        })
+        .toBeGreaterThan(0);
+      const bannerAfterTheScroll = await page.getByTestId(TESTIDS.demoBanner).boundingBox();
+      expect(
+        bannerAfterTheScroll?.y,
+        `the demo banner is permanent, so a scroll on ${path} keeps it at the top of the screen`,
+      ).toBeCloseTo(0, 0);
     }
 
+    await page.setViewportSize(VIEWPORT_THE_OTHER_CASES_USE);
+    await page.goto(`${START_PATH}?lang=en`);
+    await expect(page.getByTestId(TESTIDS.demoBanner)).toBeVisible();
+    await page.screenshot({ path: 'screenshots/demo/03-banner.png', fullPage: true });
     await page.getByTestId(TESTIDS.demoBannerCta).click();
     await expect(page).toHaveURL(/\/signup\?.*intent=migrate/);
-    await page.screenshot({ path: 'screenshots/demo/03-banner.png', fullPage: true });
+
+    expect(
+      funnelEvents.filter((line) => line.includes('demo.session_started')),
+      'the lease emits one funnel event for the started demo session',
+    ).toHaveLength(1);
+    expect(
+      funnelEvents.filter((line) => line.includes('demo.signup_cta_click')),
+      'the banner action emits one funnel event for the migrate signup click',
+    ).toHaveLength(1);
+  });
+
+  test('a club principal that holds no demo seat reads no demo banner on the same screens', async ({
+    page,
+  }) => {
+    for (const { path, testId } of DEMO_SCREENS_A_SEAT_PRINCIPAL_REACHES) {
+      await page.goto(`${path}?lang=en`);
+      await expect(page.getByTestId(testId)).toBeVisible();
+      await expect(
+        page.getByTestId(TESTIDS.demoBanner),
+        `${path} carries the banner for a demo seat, so a club principal must read none`,
+      ).toHaveCount(0);
+    }
   });
 
   test('an exhausted pool keeps the visitor on /demo and shows a readable reason', async ({
