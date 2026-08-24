@@ -74,6 +74,10 @@ Filing stays unrestricted.
   legacy system id at ingest, then repoint `created_by_user_id` onto it. That alternative crosses three
   modules and it needs a backfill too, so T-15b did not take it.
 
+## Pending (filed by /do-ship J-20 T-12c, 2026-08-24)
+
+- **[NAV-BAR-DECLARES-STICKY-AND-SCROLLS-AWAY]** [S3] `RIDES: next` **Symptom (measured).** `af-nav-bar.component.ts:55` declares `sticky top-0`, and the nav bar still scrolls off the screen. J-20 T-12c measured the same fault on the shell: the banner sat at y = -529 at scroll 1200. **Cause (hypothesis, not measured for the nav bar).** The host box of the component is its own containing block, so the sticky range is zero. T-12c fixed the shell at `app.component.ts:14`, which makes the banner hold the top. It did not change `af-nav-bar`, so the nav bar is a second instance of the fault. **How to score it.** Assert the y position of the nav bar after a scroll, and red the current code first. A `toBeLessThan(1)` assertion passes on a negative y, so it is vacuous — T-12c wrote that assertion, measured it, and replaced it (`demo-mode.spec.ts:177`).
+
 ## Pending (filed by /do-ship J-33 T-05, 2026-08-23)
 
 - **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] `RIDES: J-21` **Symptom (measured, not inferred).**
