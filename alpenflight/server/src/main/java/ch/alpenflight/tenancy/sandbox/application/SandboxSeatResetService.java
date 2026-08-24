@@ -88,9 +88,25 @@ public class SandboxSeatResetService {
         return new SeatResetSummary(reclaimed, refreshed, stillLeased, failed);
     }
 
+    public boolean seedTheLeasedSeatUnlessItAlreadyHoldsTheSeedOfTheRunDate(UUID seatClubId,
+                                                                           int seatNumber) {
+        if (seatClubId == null) {
+            throw new IllegalArgumentException("seatClubId must not be null");
+        }
+        if (seeder.holdsTheSeedOfTheRunDate(seatClubId)) {
+            return false;
+        }
+        deleteAndReSeed(seatClubId, seatNumber);
+        return true;
+    }
+
     private void deleteAndReSeedThenReturnToPool(UUID seatId, UUID seatClubId, int seatNumber) {
+        deleteAndReSeed(seatClubId, seatNumber);
+        leases.returnSeatToPool(seatId);
+    }
+
+    private void deleteAndReSeed(UUID seatClubId, int seatNumber) {
         purge.deleteEveryRowOf(seatClubId);
         seeder.seed(seatClubId, seatNumber);
-        leases.returnSeatToPool(seatId);
     }
 }

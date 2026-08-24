@@ -238,7 +238,7 @@ The release valve is the deferrable tail below.
 - [x] **T-16a** — **F4. `DemoSeatPrincipalBinding.pool()` failed open.** The cache now keeps only a read that found a seat, so an empty read re-arms the filter on the next request. `DemoSeatPrincipalBindingTest.java:26` scores the defect red on the old code.
 - [ ] **T-16b** — **F2 + F5. Two suites that score nothing.** `LeakageSweepIT.java:105-147`'s 36 sandbox cases pass on pre-J-20 code and exclude the three entities the seal is about. `DemoSeatPrincipalBindingIT.java:326-337` carries AC-7's headline name and passes on pre-J-20 code. Score a planted violation per input class, or withdraw the class.
 - [ ] **T-16c** — **F3. The entity catalog cannot see the bypass.** `TenantScopedEntityCatalog.java:43` collects only entities that already carry `@TenantId`, so `PersonClubMembershipOutsideTheTenantFilter` is invisible to the sweep, to the floor test and to `tenant-rules.yaml`.
-- [ ] **T-17** — **Seed the pool at startup.** T-10 measured that `sandbox-reset` is the only production caller of `SandboxSeeder`, so a fresh environment holds 10 empty seat clubs. AC-1 needs the tiles to read sandbox data, not zeros, on the first visit. Decide between a startup seeder and a seed-on-first-lease, and say why.
+- [x] **T-17** — **The front door seeds the seat it leases.** `DemoSessionStarter.java:58` seeds the leased seat before it asks the realm for the token, so the visitor cannot read a half-populated club: the token is the only door into the seat, and the seed commits first. The path is `SandboxSeatResetService.seedTheLeasedSeatUnlessItAlreadyHoldsTheSeedOfTheRunDate`, which reuses the purge and the seeder of the reset job. No startup seeder runs, so a boot, a test context and the packaged jar cost nothing. A cold lease of an empty seat club costs 3.3 s and a warm lease costs 0.14 s, measured against the packaged jar and the real realm. `DemoSessionControllerIT.java:291` reads the row counts back from the database.
 
 - [x] **T-18** — **The branch is RED. Start here.** Two T-09b test fixtures write rows and never delete them, so they contaminate later classes on the shared Postgres. Give `SystemDashboardControllerIT.java:223-237` (`seedAircraft`, a raw INSERT, and the class holds no `@AfterEach` or `@AfterAll`) and `TwoClubFixture.java:85-97` (`seedAdditionalClubInDeployment`) an `@AfterEach` that deletes what each one writes.
 
@@ -342,9 +342,10 @@ ten seats, every profile sets `spring.flyway.enabled: true`, and no code deletes
 `SandboxSeatResetService.java:91` deletes the rows *of* a seat club and keeps the seat. A test also
 pinned a non-empty pool already — `DemoSeatPoolTestFixture.java:27` fails when seat 1 or seat 2 is absent.
 
-T-17 makes the trigger live. Spring Boot 4.0.6 starts the web server inside `refreshContext` and calls
-each `ApplicationRunner` after it. A startup seeder on the shape of `ShowcaseSeedRunner.java:15` runs
-while Tomcat already serves requests. A request in that window reads an empty pool.
+Spring Boot 4.0.6 starts the web server inside `refreshContext` and calls each `ApplicationRunner`
+after it. A startup seeder on the shape of `ShowcaseSeedRunner.java:15` runs while Tomcat already serves
+requests, and a request in that window reads an empty pool. T-17 therefore adds no startup seeder: the
+front door seeds the seat it leases, so no window exists.
 
 The fix caches only a read that found a seat. An empty pool holds no seat club and no seat principal, so
 the filter refuses nobody while it is empty, and it re-arms at the first read that finds a seat.

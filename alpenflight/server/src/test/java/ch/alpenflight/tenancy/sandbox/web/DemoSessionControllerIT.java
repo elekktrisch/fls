@@ -18,6 +18,7 @@ import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.tenancy.sandbox.application.DemoSeatLeaseProperties;
+import ch.alpenflight.tenancy.sandbox.application.SandboxClubPurge;
 import ch.alpenflight.tenancy.sandbox.domain.DemoSeat;
 import ch.alpenflight.tenancy.sandbox.domain.DemoSeatRepository;
 import ch.alpenflight.tenancy.sandbox.domain.NoDemoSeatAvailableException.Reason;
@@ -88,6 +89,12 @@ class DemoSessionControllerIT {
     private static final int SEAT_INSIDE_THE_POOL = 1;
     private static final int SEAT_OUTSIDE_THE_POOL = 2;
 
+    private static final int AIRFIELDS_PER_SEAT = 4;
+    private static final int AIRCRAFT_PER_SEAT = 4;
+    private static final int MEMBERS_PER_SEAT = 6;
+    private static final int FLIGHTS_REQUIRED_BY_AC2 = 20;
+    private static final int RESERVATIONS_REQUIRED_BY_AC2 = 5;
+
     private static final String COUNTRY_ISO2_SWITZERLAND = "CH";
     private static final String LOCATION_TYPE_GLIDER_AIRFIELD = "GLIDER_AIRFIELD";
 
@@ -132,6 +139,9 @@ class DemoSessionControllerIT {
     private LocationsService locations;
 
     @Autowired
+    private SandboxClubPurge purge;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Autowired
@@ -153,6 +163,7 @@ class DemoSessionControllerIT {
     @AfterEach
     void everySeatGoesBackSoTheNextTestClassReadsThePoolAsFlywayCreatedIt() {
         returnEverySeatToThePool(seats, transactionManager, clock);
+        purge.deleteEveryRowOf(leasableSeatClub());
         deleteTheLocationsThisTestWroteInsideASeatClub();
     }
 
@@ -192,9 +203,7 @@ class DemoSessionControllerIT {
     @Test
     void the_leased_seats_token_reads_that_seats_club_and_never_the_neighbour_seats_club()
             throws Exception {
-        UUID leasableSeatClub = seatNumbered(seats, SEAT_INSIDE_THE_POOL).getClubId().value();
         UUID neighbourSeatClub = seatNumbered(seats, SEAT_OUTSIDE_THE_POOL).getClubId().value();
-        String nameOnlyTheLeasedSeatMayRead = aLocationNamed("Seat-under-lease field", leasableSeatClub);
         String nameNoDemoVisitorMayReadFromAnotherSeat =
                 aLocationNamed("Neighbour seat field", neighbourSeatClub);
 
@@ -203,6 +212,9 @@ class DemoSessionControllerIT {
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString())
                 .get("accessToken").asText();
+
+        String nameOnlyTheLeasedSeatMayRead =
+                aLocationNamed("Seat-under-lease field", leasableSeatClub());
 
         String locationsTheSeatReads = mvc
                 .perform(get("/api/v1/locations")
@@ -273,6 +285,97 @@ class DemoSessionControllerIT {
 
         assertThat(json.readTree(problem).get("detail").asText())
                 .isEqualTo(Reason.THIS_ADDRESS_ALREADY_HOLDS_A_LIVE_DEMO_SEAT.readableReason());
+    }
+
+    @Test
+    void the_front_door_seeds_the_seat_before_it_answers_so_the_first_visitor_reads_no_zeros()
+            throws Exception {
+        UUID leasableSeatClub = leasableSeatClub();
+        purge.deleteEveryRowOf(leasableSeatClub);
+        assertThat(flightCountOf(leasableSeatClub))
+                .as("a fresh environment holds an empty seat club before the first lease")
+                .isZero();
+
+        String accessToken = json
+                .readTree(mvc.perform(post(DEMO_SESSION_PATH).with(fromPeerAddress(VISITOR_ADDRESS)))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString())
+                .get("accessToken").asText();
+
+        assertThat(airfieldCountOf(leasableSeatClub)).isEqualTo(AIRFIELDS_PER_SEAT);
+        assertThat(aircraftCountManagedBy(leasableSeatClub)).isEqualTo(AIRCRAFT_PER_SEAT);
+        assertThat(memberCountOf(leasableSeatClub)).isEqualTo(MEMBERS_PER_SEAT);
+        assertThat(flightCountOf(leasableSeatClub))
+                .as("AC-2 asks the /flights screen for at least %d rows", FLIGHTS_REQUIRED_BY_AC2)
+                .isGreaterThanOrEqualTo(FLIGHTS_REQUIRED_BY_AC2);
+        assertThat(reservationCountOf(leasableSeatClub))
+                .as("AC-2 asks the /reservations screen for at least %d rows",
+                        RESERVATIONS_REQUIRED_BY_AC2)
+                .isGreaterThanOrEqualTo(RESERVATIONS_REQUIRED_BY_AC2);
+
+        String flightsTheVisitorReads = mvc
+                .perform(get("/api/v1/flights")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(flightsTheVisitorReads).get("items").size())
+                .as("the token the front door just handed out already reads the seeded flights")
+                .isGreaterThanOrEqualTo(FLIGHTS_REQUIRED_BY_AC2);
+    }
+
+    @Test
+    void a_lease_of_a_seat_that_already_holds_the_seed_of_the_run_date_writes_no_second_copy()
+            throws Exception {
+        UUID leasableSeatClub = leasableSeatClub();
+        purge.deleteEveryRowOf(leasableSeatClub);
+        mvc.perform(post(DEMO_SESSION_PATH).with(fromPeerAddress(VISITOR_ADDRESS)))
+                .andExpect(status().isOk());
+        int flightsTheFirstLeaseSeeded = flightCountOf(leasableSeatClub);
+        returnEverySeatToThePool(seats, transactionManager, clock);
+
+        mvc.perform(post(DEMO_SESSION_PATH).with(fromPeerAddress(A_SECOND_VISITOR_ADDRESS)))
+                .andExpect(status().isOk());
+
+        assertThat(flightCountOf(leasableSeatClub))
+                .as("the second lease reads the seed of the run date and writes nothing")
+                .isEqualTo(flightsTheFirstLeaseSeeded);
+        assertThat(airfieldCountOf(leasableSeatClub)).isEqualTo(AIRFIELDS_PER_SEAT);
+        assertThat(aircraftCountManagedBy(leasableSeatClub)).isEqualTo(AIRCRAFT_PER_SEAT);
+        assertThat(memberCountOf(leasableSeatClub)).isEqualTo(MEMBERS_PER_SEAT);
+    }
+
+    private UUID leasableSeatClub() {
+        return seatNumbered(seats, SEAT_INSIDE_THE_POOL).getClubId().value();
+    }
+
+    private int airfieldCountOf(UUID clubId) {
+        return count("SELECT count(*) FROM t_location WHERE club_id = ?::uuid "
+                + "AND deleted_on IS NULL", clubId);
+    }
+
+    private int aircraftCountManagedBy(UUID clubId) {
+        return count("SELECT count(*) FROM t_aircraft WHERE managing_club_id = ?::uuid "
+                + "AND deleted_on IS NULL", clubId);
+    }
+
+    private int memberCountOf(UUID clubId) {
+        return count("SELECT count(*) FROM t_person_club WHERE club_id = ?::uuid "
+                + "AND deleted_on IS NULL", clubId);
+    }
+
+    private int flightCountOf(UUID clubId) {
+        return count("SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid "
+                + "AND deleted_on IS NULL", clubId);
+    }
+
+    private int reservationCountOf(UUID clubId) {
+        return count("SELECT count(*) FROM t_aircraft_reservation "
+                + "WHERE operating_club_id = ?::uuid AND deleted_on IS NULL", clubId);
+    }
+
+    private int count(String sql, UUID clubId) {
+        Integer rows = jdbc.queryForObject(sql, Integer.class, clubId.toString());
+        return rows == null ? 0 : rows;
     }
 
     private static List<String> fieldNamesOf(JsonNode node) {

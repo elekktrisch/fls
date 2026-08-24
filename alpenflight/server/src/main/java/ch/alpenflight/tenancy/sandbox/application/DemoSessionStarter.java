@@ -28,15 +28,18 @@ public class DemoSessionStarter {
     static final String AUDITED_ENTITY_TYPE = "DemoSeatLease";
 
     private final DemoSeatLeaseService leases;
+    private final SandboxSeatResetService seatSeeding;
     private final DemoSeatTokenIssuer seatTokens;
     private final AuditTrail auditTrail;
     private final TransactionTemplate oneTransactionForTheAuditRow;
 
     public DemoSessionStarter(DemoSeatLeaseService leases,
+                              SandboxSeatResetService seatSeeding,
                               DemoSeatTokenIssuer seatTokens,
                               AuditTrail auditTrail,
                               PlatformTransactionManager transactionManager) {
         this.leases = leases;
+        this.seatSeeding = seatSeeding;
         this.seatTokens = seatTokens;
         this.auditTrail = auditTrail;
         this.oneTransactionForTheAuditRow = new TransactionTemplate(transactionManager);
@@ -46,18 +49,20 @@ public class DemoSessionStarter {
 
     public StartedDemoSession startFor(String visitorAddress) {
         LeasedDemoSeat seat = leases.leaseFreeSeatFor(visitorAddress);
-        IssuedAccessToken token = issueOrGiveTheSeatBackToThePool(seat);
+        IssuedAccessToken token = fillTheSeatThenIssueOrGiveTheSeatBackToThePool(seat);
         recordTheLease(seat, visitorAddress);
         return new StartedDemoSession(
                 token.accessToken(), token.expiresInSeconds(), seat.leaseExpiresAt());
     }
 
-    private IssuedAccessToken issueOrGiveTheSeatBackToThePool(LeasedDemoSeat seat) {
+    private IssuedAccessToken fillTheSeatThenIssueOrGiveTheSeatBackToThePool(LeasedDemoSeat seat) {
         try {
+            seatSeeding.seedTheLeasedSeatUnlessItAlreadyHoldsTheSeedOfTheRunDate(
+                    seat.clubId().value(), seat.seatNumber());
             return seatTokens.issueAccessTokenForSeatPrincipal(seat.keycloakUsername());
-        } catch (RuntimeException theIdentityProviderIssuedNoToken) {
+        } catch (RuntimeException theSeatCannotServeThisVisitor) {
             leases.returnSeatToPool(seat.seatId());
-            throw theIdentityProviderIssuedNoToken;
+            throw theSeatCannotServeThisVisitor;
         }
     }
 
