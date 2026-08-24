@@ -34,7 +34,10 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
                     + "    and hostingDeployment.lifecycleState <> "
                     + "        ch.alpenflight.deployments.domain.LifecycleState.SANDBOX)) ";
 
-    String REACHED_FROM_THE_READING_CLUB =
+    String REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP =
+            "and (" + JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT + ") ";
+
+    String REACHED_BY_ID_ALSO_WITHOUT_A_CLUB_MEMBERSHIP =
             "and (" + JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT
                     + "or " + JOINED_NO_CLUB_AND_THE_READING_CLUB_IS_OUTSIDE_EVERY_SANDBOX + ") ";
 
@@ -83,7 +86,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
     @Override
     @Query("select p from Person p where p.deletedOn is null and ("
             + "lower(p.emailPrivate) = :email or lower(p.emailBusiness) = :email) "
-            + REACHED_FROM_THE_READING_CLUB)
+            + REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP)
     List<Person> findActiveByEmailInSameDeploymentAs(@Param("email") String lowerCasedEmail,
                                                      @Param("readingClubId") UUID readingClubId);
 
@@ -92,7 +95,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
             + "and lower(p.firstname) = lower(:firstname) "
             + "and lower(p.lastname) = lower(:lastname) "
             + "and p.birthday = :birthday "
-            + REACHED_FROM_THE_READING_CLUB)
+            + REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP)
     List<Person> findActiveByIdentityTripleInSameDeploymentAs(
             @Param("firstname") String firstname,
             @Param("lastname") String lastname,
@@ -101,7 +104,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
 
     @Override
     @Query("select p from Person p where p.id = :id and p.deletedOn is null "
-            + REACHED_FROM_THE_READING_CLUB)
+            + REACHED_BY_ID_ALSO_WITHOUT_A_CLUB_MEMBERSHIP)
     Optional<Person> findActiveByIdInSameDeploymentAs(@Param("id") UUID id,
                                                       @Param("readingClubId") UUID readingClubId);
 

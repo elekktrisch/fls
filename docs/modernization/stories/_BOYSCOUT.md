@@ -45,6 +45,35 @@ Filing stays unrestricted.
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-20 T-15b, 2026-08-24)
+
+- **[ORPHAN-PERSON-ATTACHES-ACROSS-REAL-DEPLOYMENTS]** [S1] `RIDES: J-21` **Symptom (measured, not inferred).**
+  A club of one real Deployment attaches a membership-less Person of another real Deployment. T-15b sealed
+  the identity search only: `JpaPersonRepository.java:37-38` now reaches a Person through a club membership
+  of the reading club's Deployment, and `:89` and `:98` bind that predicate to the two lookup queries.
+  `PersonsDeploymentIsolationIT.java:233` scored the old code red — a club of a second real Deployment read
+  the name, the birthday and the email through `POST /api/v1/persons/lookup`, by email and by identity
+  triple. **The id read stays open.** `JpaPersonRepository.java:40-42` keeps the membership-less branch, and
+  `:107` binds it to `findActiveByIdInSameDeploymentAs`. A caller that holds a Person id therefore still
+  attaches that Person through `PersonsService.java:252`, from any Deployment that is not a sandbox. The
+  attach writes the membership, so the owning Deployment never finds the Person again. A second real
+  Deployment stays self-service reachable: `MigrationBundleController.java:28-34` needs only
+  `isAuthenticated() and email_verified`, and it provisions a trial Deployment through
+  `MigrationBundleIngestService.java:489`. **T-15b stopped there on purpose.**
+  `PersonsService.java:101` reads a new Person back through the same id query, so a full close refuses every
+  create that carries no `initialClubMembership`, and that re-breaks the create-then-attach flow T-15 kept
+  open. **Provenance is measured dead, not untried.** `t_person.created_by_user_id` cannot name a
+  Deployment: the producer drops the legacy system user (`MapperLegacyBindings.java:18-19,171`), and that
+  user stamps 6 of the 7 legacy Persons of the e2e seed
+  (`flsserver/database/FLSTest/3 insert/4 or 5 Insert Test Data.sql:9`), so the column dangles; `Person.java`
+  maps no such field, so every API-created Person holds NULL. **Cause (hypothesis).** `t_person` holds no
+  Deployment column, so no predicate can separate two real Deployments. **The fix J-21 owns:** add a
+  `t_person` Deployment column, backfill it, change the positional binding at
+  `EntityStreamIngestor.java:157-199`, then scope both the id read and the identity search to the owning
+  Deployment. An alternative that needs no schema change: synthesize a per-Deployment actor user for the
+  legacy system id at ingest, then repoint `created_by_user_id` onto it. That alternative crosses three
+  modules and it needs a backfill too, so T-15b did not take it.
+
 ## Pending (filed by /do-ship J-33 T-05, 2026-08-23)
 
 - **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] `RIDES: J-21` **Symptom (measured, not inferred).**

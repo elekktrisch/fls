@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.deployments.domain.Deployment;
+import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.persons.application.PersonDtos.PersonClubRequest;
 import ch.alpenflight.persons.application.PersonDtos.PersonCreateRequest;
 import ch.alpenflight.persons.application.PersonDtos.PersonLookupMatch;
@@ -18,6 +19,7 @@ import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,11 +42,14 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
     @Autowired private ClubRepository clubs;
     @Autowired private CountryRepository countries;
     @Autowired private ClubStateRepository clubStates;
+    @Autowired private DeploymentRepository deployments;
 
     private TwoClubFixture fixture;
     private UUID realClubA;
     private UUID realClubB;
     private UUID sandboxSeatClub;
+    private UUID clubOfASecondRealDeployment;
+    private UUID secondRealDeployment;
 
     private final List<UUID> personsThisTestWrote = new ArrayList<>();
 
@@ -56,13 +61,18 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
         realClubB = fixture.clubB();
         sandboxSeatClub =
                 fixture.seedAdditionalClubInDeployment(Deployment.SANDBOX_ID, "sandboxseat");
+        secondRealDeployment = deployments.save(Deployment.startTrial(
+                Clock.systemUTC(), NAME_PREFIX + "otherreal", UUID.randomUUID())).getId();
+        clubOfASecondRealDeployment =
+                fixture.seedAdditionalClubInDeployment(secondRealDeployment, "otherreal");
         TenantTestContext.clear();
     }
 
     @AfterEach
-    void deleteThePersonsAndTheSandboxDeploymentClubsThisTestSeeded() {
+    void deleteThePersonsTheAdditionalClubsAndTheDeploymentThisTestSeeded() {
         deleteEveryPersonThisTestWroteAndTheMembershipsCascadingFromIt();
         fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
+        jdbc.update("DELETE FROM t_deployment WHERE id = ?", secondRealDeployment);
     }
 
     @Test
@@ -216,21 +226,38 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void a_real_club_still_reads_and_attaches_a_person_that_holds_no_membership() {
-        String orphanEmail = uniqueEmail("orphan");
-        PersonId orphan = orphanOf(realClubA, "Orphan", "Person", orphanEmail);
+    void a_club_of_a_second_real_deployment_never_looks_up_a_person_that_holds_no_membership() {
+        String orphanEmail = uniqueEmail("crossrealorphan");
+        PersonId orphan = orphanOf(realClubA, "Crossreal", "Orphan", orphanEmail);
 
-        TenantTestContext.runAs(realClubB, () -> {
+        TenantTestContext.runAs(clubOfASecondRealDeployment, () -> {
             assertThat(personsService.lookup(new PersonLookupRequest(orphanEmail, null, null, null))
                             .matches())
-                    .as("positive baseline — a migrated person with no membership row stays "
-                            + "findable inside the operator deployment")
+                    .as("a second real deployment must not read the name, the birthday and the "
+                            + "email of a membership-less person of another real deployment")
                     .extracting(PersonLookupMatch::id)
-                    .contains(orphan);
+                    .doesNotContain(orphan);
+            assertThat(personsService.lookup(
+                            new PersonLookupRequest(null, "Crossreal", "Orphan", SHARED_BIRTHDAY))
+                            .matches())
+                    .as("the identity triple must not reach across the real deployment boundary "
+                            + "either")
+                    .extracting(PersonLookupMatch::id)
+                    .doesNotContain(orphan);
+            return null;
+        });
+    }
+
+    @Test
+    void a_real_club_still_attaches_a_person_that_holds_no_membership_through_its_id() {
+        PersonId orphan = orphanOf(realClubA, "Orphan", "Person", uniqueEmail("orphan"));
+
+        TenantTestContext.runAs(realClubB, () -> {
             PersonResponse attached = personsService.attachExistingPerson(orphan, membership());
             assertThat(attached.id())
                     .as("positive baseline — the create-then-attach flow keeps working, and a "
-                            + "real club still claims a migrated person that joined no club")
+                            + "real club that holds the id still claims a migrated person that "
+                            + "joined no club")
                     .isEqualTo(orphan);
             return null;
         });

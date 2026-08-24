@@ -207,13 +207,30 @@ The release valve is the deferrable tail below.
 - [ ] **T-13** — Rider R1 — `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`.
 - [ ] **T-14** — Thicken the real-IdP proof spec, including the two-visitor isolation assertion of AC-5, + the gallery captures.
 - [x] **T-15** — **S1. Seal the orphan Person.** A demo seat must not reach a Person that holds no club membership. See "Gate findings" below for the exploit chain and the missing test. Ship the negative test the current suite does not have: seed an orphan Person in the operator Deployment, then assert a seat can neither read it nor attach to it. *(**Measured red first:** a seat read a membership-less Person through `/persons/lookup`, by email and by identity triple. The same seat attached that Person through `/persons/{id}/clubs`, and the attach wrote a sandbox membership. The attach also destroys data: `SandboxClubPurge.java:56-62,78` deletes each Person that the seat club shares with no other club, so the next seat reset deletes the stolen Person row. `JpaPersonRepository.java:25-39` now admits a membership-less Person only to a reading club of a Deployment that is not a sandbox. The real direction stays open: a club of the operator Deployment still finds such a Person and still attaches it, so the create-then-attach flow and the migrated-person claim keep working. `PersonsService.java:95-106` refuses a create that the creating club cannot read back, so a seat writes no membership-less Person; such a row holds no club, so `SandboxClubPurge` cannot delete it and every real club reads it. `PersonsDeploymentIsolationIT` deletes every Person it writes, and the memberships cascade. **Open, and outside this task:** two real Deployments still read each other's membership-less Persons. `t_person` holds no Deployment column, so the predicate cannot tell the two apart. A seal for that needs a new column, a backfill and a `MapperLegacyBindings` change.)*
-- [ ] **T-15b** — **S1. Contain the real-to-real orphan leak.** Operator decision, 2026-08-24: ship the cheapest
+- [x] **T-15b** — **S1. Contain the real-to-real orphan leak.** Operator decision, 2026-08-24: ship the cheapest
   containment that needs NO schema change, and route the structural fix to J-21 as an S1 rider. A second real
   Deployment is self-service reachable — `MigrationBundleController.java:28-34` is not profile-gated and needs only
   `isAuthenticated() and email_verified`, and it provisions a trial Deployment through
   `MigrationBundleIngestService.java:489`. From it, a caller reads and steals every membership-less Person of every
   other real Deployment. **Do not break** the fan-out parity fixture, which POSTs a bundle every run
   (`fan-out-parity-fixture.ts:233`), nor the create-then-attach flow that T-15 kept open.
+  *(**Measured, then shipped:** three containment options were scored. **Provenance is dead:**
+  `t_person.created_by_user_id` names no Deployment — the producer drops the legacy system user
+  (`MapperLegacyBindings.java:18-19,171`) that stamps 6 of the 7 legacy Persons of the e2e seed, and
+  `Person.java` maps no such field, so every API-created Person holds NULL. **Gating the bundle endpoint is
+  rejected:** the parity fixture POSTs a bundle every run, and a gate there seals no legitimate second
+  Deployment. **Shipped — the endpoint narrowing:** `JpaPersonRepository.java:37-38` reaches a Person by
+  e-mail (`:89`) and by identity triple (`:98`) only through a club membership of the reading club's
+  Deployment. The id read keeps the membership-less branch (`:40-42`, `:107`), so
+  `PersonsService.java:101` still reads a new Person back and `:252` still attaches one. Red first:
+  `PersonsDeploymentIsolationIT.java:233` scored the old code red, because a club of a second real
+  Deployment read the orphan by e-mail. All 11 cases of that IT pass now, and the IT deletes the Persons,
+  the clubs and the Deployment it writes. **Open, and routed to J-21 as
+  `[ORPHAN-PERSON-ATTACHES-ACROSS-REAL-DEPLOYMENTS]`:** a caller that holds a Person id still attaches a
+  membership-less Person from any Deployment that is not a sandbox. The identity search also stops reaching
+  a membership-less Person inside the owning Deployment; the person-picker of the user screen
+  (`person-picker.component.ts`) is the only client of that search, and no client calls the attach
+  endpoint.)*
 - ~~**T-16**~~ *(split at the sizing gate — it held three seams: a production fail-open filter, two tautological test suites, and the entity catalog. F4 is a live correctness defect, not a test defect, so it gets its own worker.)*
 - [x] **T-16a** — **F4. `DemoSeatPrincipalBinding.pool()` failed open.** The cache now keeps only a read that found a seat, so an empty read re-arms the filter on the next request. `DemoSeatPrincipalBindingTest.java:26` scores the defect red on the old code.
 - [ ] **T-16b** — **F2 + F5. Two suites that score nothing.** `LeakageSweepIT.java:105-147`'s 36 sandbox cases pass on pre-J-20 code and exclude the three entities the seal is about. `DemoSeatPrincipalBindingIT.java:326-337` carries AC-7's headline name and passes on pre-J-20 code. Score a planted violation per input class, or withdraw the class.
