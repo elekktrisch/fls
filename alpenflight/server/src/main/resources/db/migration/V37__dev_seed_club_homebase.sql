@@ -1,5 +1,0 @@
-
-UPDATE t_club
-   SET homebase_id = '019e30c3-2c00-7001-8000-00000000c001'
- WHERE id = '019e30c3-2c00-7001-8000-000000000001'
-   AND homebase_id IS NULL;

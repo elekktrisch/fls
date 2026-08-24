@@ -1,5 +1,0 @@
-ALTER TABLE t_country
-    ALTER COLUMN name TYPE VARCHAR(100) COLLATE "de-CH-x-icu";
-
-ALTER TABLE t_club_state
-    ALTER COLUMN name TYPE VARCHAR(50) COLLATE "de-CH-x-icu";

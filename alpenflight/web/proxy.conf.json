@@ -1,8 +1,0 @@
-{
-  "//": "DEV-ONLY proxy. /api/v1/** targets the Spring backend on :8080. The `**` is required: @angular/build:dev-server (Vite) treats `*` as a single-segment glob that does NOT cross `/`, so `/api/v1/*` would only match `/api/v1/clubs` and silently let `/api/v1/admin/locations/clb-xxx` fall through to index.html. Keycloak is NOT proxied — the OIDC lib needs the absolute issuer URL (see auth.config.ts) and Keycloak's realm grants CORS to every origin in the alpenflight-web redirectUris allowlist (4200 mock-auth, 4201 real OIDC) via webOrigins=[\"+\"].",
-  "/api/v1/**": {
-    "target": "http://localhost:8080",
-    "secure": false,
-    "changeOrigin": true
-  }
-}

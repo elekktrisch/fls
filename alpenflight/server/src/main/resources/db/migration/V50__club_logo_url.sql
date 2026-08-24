@@ -1,2 +1,0 @@
-
-ALTER TABLE t_club ADD COLUMN logo_url VARCHAR(500);

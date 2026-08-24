@@ -1,2 +1,0 @@
-ALTER TABLE t_flight
-    ADD COLUMN locked_at TIMESTAMPTZ;
