@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,20 +48,25 @@ class ClubsDeploymentVisibilityIT extends PostgresIntegrationTest {
     @Autowired private CountryRepository countries;
     @Autowired private ClubStateRepository clubStates;
 
+    private TwoClubFixture fixture;
     private UUID realClubA;
     private UUID realClubB;
     private UUID sandboxSeatClub;
 
     @BeforeEach
     void seed() {
-        TwoClubFixture fixture =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture = new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         fixture.seed();
         realClubA = fixture.clubA();
         realClubB = fixture.clubB();
         sandboxSeatClub =
                 fixture.seedAdditionalClubInDeployment(Deployment.SANDBOX_ID, "sandboxseat");
         TenantTestContext.clear();
+    }
+
+    @AfterEach
+    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+        fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
     @Test

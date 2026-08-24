@@ -8,6 +8,7 @@ import ch.alpenflight.referencedata.domain.ClubState;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.Country;
 import ch.alpenflight.referencedata.domain.CountryRepository;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +29,8 @@ public final class TwoClubFixture {
 
     private @Nullable UUID clubA;
     private @Nullable UUID clubB;
+
+    private final List<UUID> additionalDeploymentClubsThisFixtureSeeded = new ArrayList<>();
 
     public TwoClubFixture(JdbcTemplate jdbc,
                           ClubRepository clubs,
@@ -94,7 +97,20 @@ public final class TwoClubFixture {
         Club club = Objects.requireNonNull(clubs).save(Club.create(
                 namePrefix + discriminator, slug, key,
                 false, firstCountryId(), firstClubStateId(), deploymentId));
-        return mintedId(club, discriminator);
+        UUID id = mintedId(club, discriminator);
+        additionalDeploymentClubsThisFixtureSeeded.add(id);
+        return id;
+    }
+
+    public void deleteEveryAdditionalDeploymentClubThisFixtureSeeded() {
+        if (additionalDeploymentClubsThisFixtureSeeded.isEmpty()) {
+            return;
+        }
+        List<UUID> clubIds = List.copyOf(additionalDeploymentClubsThisFixtureSeeded);
+        additionalDeploymentClubsThisFixtureSeeded.clear();
+        deleteTenantScopedRowsFor(clubIds);
+        Object[] ids = clubIds.stream().map(UUID::toString).toArray();
+        jdbc.update("DELETE FROM t_club WHERE id IN (" + inPlaceholders(clubIds.size()) + ")", ids);
     }
 
     private UUID firstCountryId() {

@@ -18,6 +18,7 @@ import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,11 @@ class PersonFlightTimeCreditRepositoryIT extends PostgresIntegrationTest {
                 + "JOIN t_person p ON p.id = c.person_id WHERE p.lastname = ?)", NAME_PREFIX);
         jdbc.update("DELETE FROM t_person_flight_time_credit "
                 + "WHERE person_id IN (SELECT id FROM t_person WHERE lastname = ?)", NAME_PREFIX);
+    }
+
+    @AfterEach
+    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+        fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
     @Test

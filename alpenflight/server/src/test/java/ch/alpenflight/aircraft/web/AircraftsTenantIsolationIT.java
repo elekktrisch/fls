@@ -19,6 +19,7 @@ import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,11 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();
+    }
+
+    @AfterEach
+    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+        fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
     @Test

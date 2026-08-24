@@ -210,7 +210,7 @@ The release valve is the deferrable tail below.
 - [ ] **T-16** — **Repair three guards that score nothing.** The leakage sweep's 36 sandbox cases are tautological, `TenantScopedEntityCatalog` cannot see a tenant-table entity that carries no `@TenantId`, and `DemoSeatPrincipalBinding.pool()` fails open on an empty first read. See "Gate findings" below.
 - [ ] **T-17** — **Seed the pool at startup.** T-10 measured that `sandbox-reset` is the only production caller of `SandboxSeeder`, so a fresh environment holds 10 empty seat clubs. AC-1 needs the tiles to read sandbox data, not zeros, on the first visit. Decide between a startup seeder and a seed-on-first-lease, and say why.
 
-- [ ] **T-18** — **The branch is RED. Start here.** Two T-09b test fixtures write rows and never delete them, so they contaminate later classes on the shared Postgres. Give `SystemDashboardControllerIT.java:223-237` (`seedAircraft`, a raw INSERT, and the class holds no `@AfterEach` or `@AfterAll`) and `TwoClubFixture.java:85-97` (`seedAdditionalClubInDeployment`) an `@AfterEach` that deletes what each one writes.
+- [x] **T-18** — **The branch is RED. Start here.** Two T-09b test fixtures write rows and never delete them, so they contaminate later classes on the shared Postgres. Give `SystemDashboardControllerIT.java:223-237` (`seedAircraft`, a raw INSERT, and the class holds no `@AfterEach` or `@AfterAll`) and `TwoClubFixture.java:85-97` (`seedAdditionalClubInDeployment`) an `@AfterEach` that deletes what each one writes.
 
 ### Resume order — severity first
 

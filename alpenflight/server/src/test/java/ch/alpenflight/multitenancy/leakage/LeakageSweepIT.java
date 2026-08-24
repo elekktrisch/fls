@@ -16,6 +16,7 @@ import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -58,6 +59,11 @@ class LeakageSweepIT extends PostgresIntegrationTest {
                 clubs.seedAdditionalClubInDeployment(Deployment.SANDBOX_ID, "sandboxseat");
         TenantTestContext.clear();
         this.ctx = new SweepFixtureContext(appContext);
+    }
+
+    @AfterEach
+    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+        clubs.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
     @ParameterizedTest(name = "{0}")

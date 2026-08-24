@@ -17,10 +17,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +60,8 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired ClubStateRepository clubStates;
     @Autowired DemoSeatRepository seats;
 
+    private final List<UUID> aircraftThisTestSeeded = new ArrayList<>();
+
     private UUID clubA;
     private UUID clubB;
     private String aircraftAExternal;
@@ -73,6 +78,21 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         cleanUserRows(clubA, clubB);
         aircraftAExternal = "ac-" + seedAircraft(clubA);
         aircraftBExternal = "ac-" + seedAircraft(clubB);
+    }
+
+    @AfterEach
+    void deleteTheAircraftAndFlightsThisTestWroteIncludingTheOnesInsideASeatClub() {
+        if (!aircraftThisTestSeeded.isEmpty()) {
+            String in = String.join(", ",
+                    Collections.nCopies(aircraftThisTestSeeded.size(), "?::uuid"));
+            Object[] ids = aircraftThisTestSeeded.stream().map(UUID::toString).toArray();
+            aircraftThisTestSeeded.clear();
+            jdbc.update("DELETE FROM t_flight WHERE aircraft_id IN (" + in + ")", ids);
+            jdbc.update("DELETE FROM t_aircraft WHERE id IN (" + in + ")", ids);
+        }
+        if (clubA != null && clubB != null) {
+            cleanUserRows(clubA, clubB);
+        }
     }
 
     @Test
@@ -232,6 +252,7 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
                 """,
                 id.toString(), managingClubId.toString(), managingClubId.toString(),
                 "HB-SD" + Integer.toHexString(id.hashCode() & 0xfff));
+        aircraftThisTestSeeded.add(id);
         return id;
     }
 
