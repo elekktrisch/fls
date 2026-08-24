@@ -82,6 +82,21 @@ public final class TwoClubFixture {
         this.clubB = mintedId(b, "clubB");
     }
 
+    public UUID seedAdditionalClubInDeployment(UUID deploymentId, String discriminator) {
+        String slug = slugFor(discriminator);
+        String key = clubKeyFor(discriminator.charAt(0));
+        List<UUID> prior = jdbc.queryForList(
+                "SELECT id FROM t_club WHERE slug = ? OR club_key = ?", UUID.class, slug, key);
+        if (!prior.isEmpty()) {
+            deleteTenantScopedRowsFor(prior);
+        }
+        jdbc.update("DELETE FROM t_club WHERE slug = ? OR club_key = ?", slug, key);
+        Club club = Objects.requireNonNull(clubs).save(Club.create(
+                namePrefix + discriminator, slug, key,
+                false, firstCountryId(), firstClubStateId(), deploymentId));
+        return mintedId(club, discriminator);
+    }
+
     private UUID firstCountryId() {
         List<Country> rows = Objects.requireNonNull(countries).findAllOrderedByNameUnderIcuCollation();
         return requireReferenceId(rows.isEmpty() || rows.getFirst().getId() == null

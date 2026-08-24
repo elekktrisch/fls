@@ -27,19 +27,22 @@ public interface AircraftRepository {
                      boolean towingAircraft,
                      @Nullable Integer nrOfSeats) {}
 
-    List<ListRow> findAllActiveListRows();
+    List<ListRow> findActiveListRowsInSameDeploymentAs(UUID readingClubId);
 
-    List<ListRow> findActiveListRowsByTypeCodeIn(java.util.Set<String> typeCodes);
+    List<ListRow> findActiveListRowsByTypeCodeInSameDeploymentAs(java.util.Set<String> typeCodes,
+                                                                 UUID readingClubId);
 
-    List<ListRow> findActiveTowingListRows();
+    List<ListRow> findActiveTowingListRowsInSameDeploymentAs(UUID readingClubId);
 
     List<UUID> findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation(UUID ownerClubId,
                                                     String typeCode,
                                                     int nrOfSeats);
 
-    List<PickerRow> findAllActivePickerRows();
+    List<PickerRow> findActivePickerRowsInSameDeploymentAs(UUID readingClubId);
 
     Optional<Aircraft> findActiveById(UUID id);
+
+    Optional<Aircraft> findActiveByIdInSameDeploymentAs(UUID id, UUID readingClubId);
 
     Optional<Aircraft> findActiveByImmatriculation(String normalizedImmatriculation);
 

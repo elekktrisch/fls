@@ -47,6 +47,9 @@
     "name" : "flights",
     "description" : "Flight CRUD"
   }, {
+    "name" : "Aircraft",
+    "description" : "Aircraft CRUD (cross-tenant masterdata inside one Deployment; mutations gated to managing_club_id)."
+  }, {
     "name" : "AircraftStates",
     "description" : "Aircraft-state reference catalog."
   }, {
@@ -109,9 +112,6 @@
   }, {
     "name" : "me",
     "description" : "Authenticated-principal view"
-  }, {
-    "name" : "Aircraft",
-    "description" : "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id)."
   }, {
     "name" : "LocationTypes",
     "description" : "Location-type reference catalog."
@@ -3412,7 +3412,7 @@
     "/api/v1/aircraft" : {
       "get" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "List all active aircraft, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).",
+        "summary" : "List the active aircraft of the caller's Deployment, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).",
         "operationId" : "listAircraft",
         "parameters" : [ {
           "name" : "type",
@@ -4982,7 +4982,7 @@
     "/api/v1/aircraft/picker" : {
       "get" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "Slim picker list (id + immatriculation + type + isTowingAircraft).",
+        "summary" : "Slim picker list of the caller's Deployment (id + immatriculation + type + isTowingAircraft).",
         "operationId" : "listAircraftForPicker",
         "responses" : {
           "200" : {

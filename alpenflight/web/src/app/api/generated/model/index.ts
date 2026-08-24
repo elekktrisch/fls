@@ -65,6 +65,7 @@ export * from './deliveryItemView';
 export * from './deliveryOverview';
 export * from './deliveryPage';
 export * from './deliveryRecipientView';
+export * from './demoSessionResponse';
 export * from './denyJoinRequest';
 export * from './deploymentResponse';
 export * from './deploymentResponseLifecycleState';
