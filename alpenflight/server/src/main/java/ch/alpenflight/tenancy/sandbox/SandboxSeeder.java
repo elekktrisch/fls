@@ -169,6 +169,15 @@ public class SandboxSeeder {
         return Tenants.runAs(seatClubId, seedInsideTheSeatTenant);
     }
 
+    public boolean holdsTheSeedOfTheRunDate(UUID seatClubId) {
+        if (seatClubId == null) {
+            throw new IllegalArgumentException("seatClubId must not be null");
+        }
+        Supplier<Boolean> readTheSeedFreshnessInsideTheSeatTenant =
+                operations::holdsTheSeedOfTheRunDate;
+        return Tenants.runAs(seatClubId, readTheSeedFreshnessInsideTheSeatTenant);
+    }
+
     private SandboxMasterdata inOneTransaction(UUID seatClubId, int seatNumber) {
         SandboxMasterdata seeded = oneTransactionPerSeatSeed.execute(status -> {
             referenceData.seedTheDefaultsEveryClubNeeds(seatClubId);

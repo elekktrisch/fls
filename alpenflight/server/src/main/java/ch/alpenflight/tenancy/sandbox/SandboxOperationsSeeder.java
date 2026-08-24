@@ -146,6 +146,13 @@ class SandboxOperationsSeeder {
         this.clock = clock;
     }
 
+    boolean holdsTheSeedOfTheRunDate() {
+        LocalDate planningDate = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+                .plusDays(PLANNING_DAY_DAYS_AFTER_THE_RUN_DATE);
+        return planningDays.overviewFuture().stream()
+                .anyMatch(existing -> planningDate.equals(existing.planningDate()));
+    }
+
     SandboxOperations seed(SandboxFleet fleet, SandboxRoster roster, LocationId homeAirfield) {
         LocalDate runDate = LocalDate.now(clock.withZone(ZoneOffset.UTC));
         Map<String, FlightTypeId> flightTypesByName = flightTypesByName();
