@@ -259,6 +259,12 @@ audit:
           - id
           - clubId
           - name
+      PersonClubMembershipOutsideTheTenantFilter:
+        allow:
+          - id
+          - personId
+          - clubId
+          - deletedOn
       PersonClub:
         snapshot-types:
           - 'ch.alpenflight.persons.domain.PersonClub'

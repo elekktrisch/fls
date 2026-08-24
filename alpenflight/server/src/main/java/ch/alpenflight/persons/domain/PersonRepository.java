@@ -39,7 +39,14 @@ public interface PersonRepository {
 
     List<Person> findActiveByEmail(String lowerCasedEmail);
 
+    List<Person> findActiveByEmailInSameDeploymentAs(String lowerCasedEmail, UUID readingClubId);
+
     List<Person> findActiveByIdentityTriple(String firstname, String lastname, LocalDate birthday);
+
+    List<Person> findActiveByIdentityTripleInSameDeploymentAs(
+            String firstname, String lastname, LocalDate birthday, UUID readingClubId);
+
+    Optional<Person> findActiveByIdInSameDeploymentAs(UUID id, UUID readingClubId);
 
     List<Person> findWithLicenceExpiringOnOrBefore(LocalDate cutoff);
 

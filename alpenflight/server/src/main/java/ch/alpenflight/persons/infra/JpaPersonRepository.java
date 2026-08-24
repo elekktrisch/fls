@@ -12,6 +12,19 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaPersonRepository extends JpaRepository<Person, UUID>, PersonRepository {
 
+    String REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT =
+            "and (exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter reaching "
+                    + "  join ch.alpenflight.clubs.domain.Club joined "
+                    + "    on joined.id = reaching.clubId "
+                    + "  join ch.alpenflight.clubs.domain.Club reading "
+                    + "    on reading.id = :readingClubId "
+                    + "    and reading.deploymentId = joined.deploymentId "
+                    + "  where reaching.personId = p.id) "
+                    + "or not exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter unjoined "
+                    + "  where unjoined.personId = p.id)) ";
+
     @Override
     @Query("select new ch.alpenflight.persons.domain.PersonRepository$ListRow("
             + "p.id, p.firstname, p.lastname, p.emailPrivate, p.mobilePhone, p.city, p.zip, "
@@ -53,6 +66,31 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
     @Query("select p from Person p where p.deletedOn is null and ("
             + "lower(p.emailPrivate) = :email or lower(p.emailBusiness) = :email)")
     List<Person> findActiveByEmail(@Param("email") String lowerCasedEmail);
+
+    @Override
+    @Query("select p from Person p where p.deletedOn is null and ("
+            + "lower(p.emailPrivate) = :email or lower(p.emailBusiness) = :email) "
+            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+    List<Person> findActiveByEmailInSameDeploymentAs(@Param("email") String lowerCasedEmail,
+                                                     @Param("readingClubId") UUID readingClubId);
+
+    @Override
+    @Query("select p from Person p where p.deletedOn is null "
+            + "and lower(p.firstname) = lower(:firstname) "
+            + "and lower(p.lastname) = lower(:lastname) "
+            + "and p.birthday = :birthday "
+            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+    List<Person> findActiveByIdentityTripleInSameDeploymentAs(
+            @Param("firstname") String firstname,
+            @Param("lastname") String lastname,
+            @Param("birthday") LocalDate birthday,
+            @Param("readingClubId") UUID readingClubId);
+
+    @Override
+    @Query("select p from Person p where p.id = :id and p.deletedOn is null "
+            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+    Optional<Person> findActiveByIdInSameDeploymentAs(@Param("id") UUID id,
+                                                      @Param("readingClubId") UUID readingClubId);
 
     @Override
     @Query("select p from Person p where p.deletedOn is null and ("
