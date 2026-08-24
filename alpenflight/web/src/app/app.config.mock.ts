@@ -18,6 +18,7 @@ import { NZ_DATE_LOCALE, de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { Subject, of } from 'rxjs';
 
 import { routes } from './app.routes';
+import { restoreTheDemoSeatSessionThatSurvivedAPageReload } from './core/auth/oidc-session-bridge';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
@@ -82,5 +83,6 @@ export const appConfig: ApplicationConfig = {
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     { provide: OidcSecurityService, useValue: MOCK_OIDC_SECURITY_SERVICE },
     provideAppInitializer(mockAuthBootstrap),
+    provideAppInitializer(restoreTheDemoSeatSessionThatSurvivedAPageReload),
   ],
 };

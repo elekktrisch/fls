@@ -124,13 +124,13 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
     expect(resolvedPostLoginRedirect).toBe('/migrate/start');
   });
 
-  test('demo CTA reaches /demo and the stub route resolves (no redirect)', async ({ page }) => {
+  test('demo CTA reaches /demo and the demo route resolves (no redirect)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('landing').waitFor({ state: 'visible' });
 
     await page.getByTestId(CTA_DEMO).click();
     await expect(page).toHaveURL(/\/demo(\?|$|\/)/);
-    await expect(page.getByTestId('demo-stub')).toBeVisible();
+    await expect(page.getByTestId('demo-page')).toBeVisible();
   });
 
   test('the topbar recovery link carries the member from the landing chrome to /lostpassword', async ({

@@ -8,6 +8,7 @@ import { Observable, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
+import { DemoSeatSession } from '../session/demo-seat.session';
 import { SessionStore, type User } from '../session/session.store';
 
 import { classifyOpen, reconnectDelayMs, toMeEvent } from './me-events.core';
@@ -143,6 +144,19 @@ describe('MeEventsService', () => {
     expect(transport.opens).toHaveLength(1);
     expect(transport.last().url).toBe('/api/v1/me/events');
     expect(transport.last().headers['Authorization']).toBe('Bearer tok-abc');
+  });
+
+  it('opens the stream with the seat bearer when a demo seat owns the session, which carries no OIDC token', async () => {
+    const { transport, store } = setup(() => of(''));
+    const seat = TestBed.inject(DemoSeatSession);
+    seat.hold('seat-token-of-demo1');
+    store.login(pilot, pilot.clubId);
+    TestBed.tick();
+    await flushMicrotasks();
+    const bearersTheStreamOpenedWith = transport.opens.map((o) => o.headers['Authorization']);
+    seat.release();
+
+    expect(bearersTheStreamOpenedWith).toEqual(['Bearer seat-token-of-demo1']);
   });
 
   it('delivers a flight.created frame to a subscriber of that kind only', async () => {

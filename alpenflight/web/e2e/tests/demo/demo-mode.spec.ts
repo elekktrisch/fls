@@ -31,9 +31,23 @@ const TESTIDS = {
   reservationsDayGrid: 'reservations-day-grid',
 };
 
+const SEAT_CLUB_ID_V62_BUILDS_FOR_SEAT_ONE = '019e30c3-2c00-7001-8000-0000000de001';
+
+const SEAT_TOKEN_CLAIMS_KEYCLOAK_MINTS_FOR_A_DIRECT_GRANT = {
+  sub: 'e2f3a0c0-a001-4a2e-9c6e-22f3a0c0a001',
+  preferred_username: 'demo1',
+  email: 'demo1@example.com',
+  given_name: 'Demo',
+  family_name: 'Seat 1',
+  clubId: SEAT_CLUB_ID_V62_BUILDS_FOR_SEAT_ONE,
+  realm_access: { roles: ['CLUB_ADMINISTRATOR'] },
+};
+
 const UNSIGNED_TOKEN_SHAPED_LIKE_THE_ONE_KEYCLOAK_RETURNS_FOR_A_DIRECT_GRANT = [
   'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9',
-  'eyJzdWIiOiJkZW1vMSIsInByZWZlcnJlZF91c2VybmFtZSI6ImRlbW8xIn0',
+  Buffer.from(JSON.stringify(SEAT_TOKEN_CLAIMS_KEYCLOAK_MINTS_FOR_A_DIRECT_GRANT)).toString(
+    'base64url',
+  ),
   'demo-seat-signature-placeholder',
 ].join('.');
 
@@ -78,7 +92,7 @@ async function openTheDemoPageFromTheLanding(page: Page): Promise<void> {
 }
 
 test.describe('demo mode — the /demo front door and the demo banner (mocked inner loop)', () => {
-  test.fixme('the landing demo action reaches /demo, and /demo offers a start action [T-12 unskips this]', async ({
+  test('the landing demo action reaches /demo, and /demo offers a start action', async ({
     page,
   }) => {
     await openTheDemoPageFromTheLanding(page);
@@ -88,7 +102,7 @@ test.describe('demo mode — the /demo front door and the demo banner (mocked in
     await page.screenshot({ path: 'screenshots/demo/01-entry.png', fullPage: true });
   });
 
-  test.fixme('the start action leases a seat and lands the visitor on /start with the demo banner [T-12 unskips this]', async ({
+  test.fixme('the start action leases a seat and lands the visitor on /start with the demo banner [T-12c unskips this, after it ships the demo banner]', async ({
     page,
   }) => {
     const leasedEndpointCalls: string[] = [];
@@ -104,7 +118,7 @@ test.describe('demo mode — the /demo front door and the demo banner (mocked in
     await page.screenshot({ path: 'screenshots/demo/02-start.png', fullPage: true });
   });
 
-  test.fixme('the demo banner rides every demo screen and its action opens the migrate signup [T-12 unskips this]', async ({
+  test.fixme('the demo banner rides every demo screen and its action opens the migrate signup [T-12c unskips this, after it ships the demo banner]', async ({
     page,
   }) => {
     await page.route(DEMO_SESSION_ENDPOINT_GLOB, grantsADemoSeat([]));
@@ -131,7 +145,7 @@ test.describe('demo mode — the /demo front door and the demo banner (mocked in
     await page.screenshot({ path: 'screenshots/demo/03-banner.png', fullPage: true });
   });
 
-  test.fixme('an exhausted pool keeps the visitor on /demo and shows a readable reason [T-12 unskips this]', async ({
+  test('an exhausted pool keeps the visitor on /demo and shows a readable reason', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(

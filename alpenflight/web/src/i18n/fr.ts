@@ -302,6 +302,22 @@ const fr: Translations = {
         'Lecture seule. Les tests de création de livraison de ton club sont gérés par ton administrateur de club.',
     },
   },
+  demo: {
+    actions: {
+      back: 'Retour à la page d’accueil',
+      start: 'Démarrer la démo',
+    },
+    body: 'Le club de démonstration appartient à cette session seulement. Modifiez les données librement. AlpenFlight réinitialise le club plus tard.',
+    eyebrow: 'Démo',
+    headline: 'Testez AlpenFlight avec des données réelles',
+    preparing: 'Le club de démonstration se remplit. Cela prend quelques secondes.',
+    seatBusy: {
+      reasonFallback: 'Toutes les places de démonstration sont occupées.',
+      retry: 'Démarrez la démo à nouveau dans quelques minutes.',
+      title: 'La démo est complète pour le moment',
+    },
+    unreachable: 'La démo n’est pas disponible. Réessayez plus tard.',
+  },
   flight: {
     conflict: {
       cancel: 'Continuer la modification',
@@ -826,12 +842,6 @@ const fr: Translations = {
       body: 'Ce club n’accepte pas les inscriptions en ligne.',
       title: 'Inscriptions fermées.',
     },
-  },
-  publicStub: {
-    back: 'Retour à la page d’accueil',
-    demo: 'Démo',
-    demoBody: 'La démo interactive est en préparation. Revenez bientôt.',
-    title: 'Bientôt disponible',
   },
   signup: {
     actions: {

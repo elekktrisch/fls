@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { EventTypes, OidcSecurityService, PublicEventsService } from 'angular-auth-oidc-client';
 import { filter } from 'rxjs';
 
+import { DemoSeatSession, claimsOfAccessToken } from '../session/demo-seat.session';
 import { SessionStore, type User } from '../session/session.store';
 
 import { mapClaimsToUser } from './oidc-claims';
@@ -36,6 +37,25 @@ export function applyClaimsToSession(claims: unknown, session: SessionPort): voi
   }
 }
 
+export function applyClaimsUnlessADemoSeatOwnsTheSession(
+  claims: unknown,
+  session: SessionPort,
+  aDemoSeatOwnsTheSession: boolean,
+): void {
+  if (aDemoSeatOwnsTheSession) {
+    return;
+  }
+  applyClaimsToSession(claims, session);
+}
+
+export function restoreTheDemoSeatSessionThatSurvivedAPageReload(): void {
+  const heldSeatToken = inject(DemoSeatSession).accessToken();
+  if (heldSeatToken === null) {
+    return;
+  }
+  applyClaimsToSession(claimsOfAccessToken(heldSeatToken), inject(SessionStore));
+}
+
 export function handleSilentRenewFailed(session: SessionPort, reauthorize: () => void): void {
   session.logout();
   reauthorize();
@@ -63,13 +83,18 @@ export class OidcSessionBridge {
   private readonly oidc = inject(OidcSecurityService);
   private readonly events = inject(PublicEventsService);
   private readonly session = inject(SessionStore);
+  private readonly demoSeat = inject(DemoSeatSession);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     effect(() => {
       const userDataResult = this.oidc.userData();
-      applyClaimsToSession(userDataResult?.userData ?? null, this.session);
+      applyClaimsUnlessADemoSeatOwnsTheSession(
+        userDataResult?.userData ?? null,
+        this.session,
+        this.demoSeat.isLive(),
+      );
     });
 
     this.events

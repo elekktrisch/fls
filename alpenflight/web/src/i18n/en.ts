@@ -300,6 +300,22 @@ const en: Translations = {
         'Read-only. Your club’s delivery creation tests are managed by your club administrator.',
     },
   },
+  demo: {
+    actions: {
+      back: 'Back to the landing page',
+      start: 'Start the demo',
+    },
+    body: 'The demo club belongs to this session only. Change the data freely. AlpenFlight resets the club later.',
+    eyebrow: 'Demo',
+    headline: 'Test AlpenFlight with real data',
+    preparing: 'The demo club fills with data. This takes some seconds.',
+    seatBusy: {
+      reasonFallback: 'All demo seats are in use.',
+      retry: 'Start the demo again in some minutes.',
+      title: 'The demo is full at the moment',
+    },
+    unreachable: 'The demo is not available. Try again later.',
+  },
   flight: {
     conflict: {
       cancel: 'Keep editing',
@@ -815,12 +831,6 @@ const en: Translations = {
       body: 'This club does not accept online registrations.',
       title: 'Registration closed.',
     },
-  },
-  publicStub: {
-    back: 'Back to the landing page',
-    demo: 'Demo',
-    demoBody: 'The interactive demo is on the way. Check back soon.',
-    title: 'Coming soon',
   },
   signup: {
     actions: {
