@@ -688,10 +688,11 @@ safety step. **Each rider rides the next touch of its form.**
 ## Pending (filed by /do-ship 2026-08-23, J-20 window)
 
 - **[FLIGHT-TYPES-AUTHZ-IT-REDS-WHEN-ITS-PACKAGE-RUNS-ALONE]** [S2] `RIDES: next` — the 7 cases of
-  `FlightTypesAuthorizationIT` red when the package runs alone. A flight row from
-  `V36__dev_aggregate_list_seed.sql` blocks the flight-type delete the cases need. **Measured
-  pre-existing:** J-20 T-05 saw the identical red on the stashed pre-change tree, so the seat clubs do
-  not cause it. The cases pass in a full run, which is why nobody sees it. A test that only passes in
+  `FlightTypesAuthorizationIT` red when the package runs alone. A `t_flight` row pins the flight type the
+  cases delete. **Measured pre-existing, twice:** J-20 T-05 and T-09a each saw the identical red on the
+  stashed pre-change tree, so the seat clubs do not cause it. The CAUSE is still a hypothesis and the two
+  workers named different ones — T-05 said the row comes from `V36__dev_aggregate_list_seed.sql`, T-09a
+  said it is residue on the shared LAN Postgres. Measure which before fixing. The cases pass in a full run, which is why nobody sees it. A test that only passes in
   one run order asserts less than it claims. *(seam: `FlightTypesAuthorizationIT` +
   `V36__dev_aggregate_list_seed.sql`)*
 - **[SANDBOX-PLANNING-DAY-CARRIES-NO-CREW]** [S3] `RIDES: next` — `SandboxOperationsSeeder` writes one
@@ -709,3 +710,10 @@ safety step. **Each rider rides the next touch of its form.**
   `V62__demo_seat_pool.sql` inserts. A larger pool needs a migration, and that migration must raise the
   budget too. Derive the budget from the pool size, so the coupling cannot rot.
   *(seam: `DemoSeatLeaseService` + `demo.pool-size`)*
+- **[IMMATRICULATION-UNIQUENESS-IS-GLOBAL-ACROSS-THE-DEPLOYMENT-BOUNDARY]** [S2] `RIDES: next` — J-20
+  T-09a sealed the aircraft READ at the Deployment boundary, but `ux_aircraft_immatriculation` stays
+  global. So a demo visitor who registers a real-world immatriculation gets 409 against a real club's
+  row. Two costs: the demo shows a fault the visitor cannot explain, and the 409 tells an anonymous
+  caller that some club already registered that immatriculation. Scope the unique index to the
+  Deployment, or answer the collision without disclosing the cause. *(seam:
+  `ux_aircraft_immatriculation` + the aircraft write path)*
