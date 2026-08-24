@@ -206,6 +206,75 @@ The release valve is the deferrable tail below.
 - [ ] **T-12** — Web: `/demo` replaces `DemoStubComponent`; start the session, land on `/start`; the seat-busy state, the demo banner, its call-to-action, and the funnel telemetry. Update the cross-journey consumers of the stub: `landing.spec.ts:133` (asserts `demo-stub` visible) and `demo.routes.ts:6`. **First fix the 503 contract, then build against it:** `DemoSessionController.java:37-39` declares no content for 503, so `openapi.json` types that body as `DemoSessionResponse`, but the real body is `ProblemDetail` (`DemoSessionExceptionHandler.java:33`). The seat-busy state is AC-8, so the screen must not read a wrong type. Regenerate the snapshot and the client after the fix.
 - [ ] **T-13** — Rider R1 — `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]`.
 - [ ] **T-14** — Thicken the real-IdP proof spec, including the two-visitor isolation assertion of AC-5, + the gallery captures.
+- [ ] **T-15** — **S1. Seal the orphan Person.** A demo seat must not reach a Person that holds no club membership. See "Gate findings" below for the exploit chain and the missing test. Ship the negative test the current suite does not have: seed an orphan Person in the operator Deployment, then assert a seat can neither read it nor attach to it.
+- [ ] **T-16** — **Repair three guards that score nothing.** The leakage sweep's 36 sandbox cases are tautological, `TenantScopedEntityCatalog` cannot see a tenant-table entity that carries no `@TenantId`, and `DemoSeatPrincipalBinding.pool()` fails open on an empty first read. See "Gate findings" below.
+- [ ] **T-17** — **Seed the pool at startup.** T-10 measured that `sandbox-reset` is the only production caller of `SandboxSeeder`, so a fresh environment holds 10 empty seat clubs. AC-1 needs the tiles to read sandbox data, not zeros, on the first visit. Decide between a startup seeder and a seed-on-first-lease, and say why.
+
+### Resume order — severity first
+
+`T-15` (S1) → `T-16` (the guards that score nothing) → `T-17` (the demo is empty without it) → `T-11` → `T-12` → `T-13` → `T-14` → §4 gate.
+
+**Budget.** This session ran 13 workers and stopped here, on the operator's instruction, with everything
+pushed. A `/do-task` worker costs about 12 agents, so the 7 remaining tasks need a fresh session. Nothing
+is in flight, the tree is clean, and every completed task carries its commit on `integration/J-20`.
+
+## Gate findings — recorded 2026-08-24, before the session boundary
+
+A `gap-hunter` round attacked the tenancy seal of T-09a and T-09b. It gave a clean bill to the aircraft
+seal, the clubs and dashboard reads, `PersonFlightTimeCredits`, and the reachability of the bypass view
+`PersonClubMembershipOutsideTheTenantFilter` — that view has no repository, no service, no projection and
+no controller path today. The findings below are what it broke. **Each cause is its own claim: confirm or
+refute it against the tree before you fix it.**
+
+### F1 — the orphan Person is readable, and stealable [S1 → T-15]
+
+`JpaPersonRepository.java:24-26` holds `or not exists (…)`, which returns every membership-less Person to
+**every** Deployment, unconditionally. The chain:
+
+1. A real club creates a person and omits `initialClubMembership` — it is `@Nullable` at
+   `PersonDtos.java:149` and the server requires nothing.
+2. A visitor leases a seat. That `CLUB_ADMINISTRATOR` token posts `/api/v1/persons/lookup` with the email,
+   or with firstname, lastname and birthday, and reads name, birthday and email (`PersonDtos.java:233-240`).
+3. The same token posts `/api/v1/persons/{id}/clubs`. `PersonsService.java:238` admits it through the same
+   predicate. The response carries address, phones, licences and medical expiry, **and the call writes a
+   sandbox membership**. The person is no longer an orphan, so the real club can never look it up or
+   attach it again.
+
+Orphans are not rare: `MapperLegacyBindings.java:97` migrates `SELECT … FROM Persons` with no membership
+filter, so every legacy person with zero `PersonClub` rows arrives orphaned.
+
+**The "pinned by a test" claim is false for the dangerous direction.**
+`PersonsDeploymentIsolationIT.java:169` runs `realClubA → realClubA` only. No test seeds an orphan and
+asserts that a seat cannot read it.
+
+### F2 — the leakage sweep's sandbox cases are tautological [S2 → T-16]
+
+`LeakageSweepIT.java:105-147` adds 36 sandbox cases by substituting `sandboxSeatClub` for `clubB` in the
+pre-existing `tenant_scoped_create_in_A_invisible_to_B` (`:65`). `@TenantId` keys on `club_id`, so a seat
+club is only another club. Every one of the 36 passes on pre-J-20 code and none can red for a
+Deployment-boundary defect. The cases also exclude the three entities the seal is about — Aircraft,
+Person and PersonFlightTimeCredit. Score a planted violation per input class, or withdraw the class.
+
+### F3 — the entity catalog cannot see the bypass [S2 → T-16]
+
+`TenantScopedEntityCatalog.java:43` collects only entities that already carry `@TenantId`, and nothing
+requires an `@Entity` on a tenant-owned table to carry one. So
+`PersonClubMembershipOutsideTheTenantFilter` — mapped to `t_person_club` with no discriminator — is
+invisible to `LeakageSweepIT`, to the floor test and to `tenant-rules.yaml`. The next repository or reused
+JPQL over it reads every club's roster with zero reds. `@Immutable` also stops UPDATE only; it does not
+stop `persist` or `remove`, so read-only is convention, not enforcement.
+
+### F4 — the AC-7 filter fails open [S2 → T-16]
+
+`DemoSeatPrincipalBinding.java:221-229` caches the first `pool()` load forever, including an empty map. An
+empty first read leaves `refusesPrincipalCarryingClub` returning `false` for every principal, which
+disables the AC-7 filter for the life of the JVM. There is no re-read and no test pins a non-empty pool.
+
+### F5 — one AC-7 case proves nothing [S3 → T-16]
+
+`DemoSeatPrincipalBindingIT.java:326-337` carries AC-7's headline name, but it passes on pre-J-20 code:
+`ClubsController.java:67-69` already gates `getClub` with `@tenant.isOwnClub(#id)`. Three refusals were
+measured red, not four. AC-7 stays covered by `:305`; this case is decoration.
 
 ### The deferrable tail
 

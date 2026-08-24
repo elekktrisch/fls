@@ -725,3 +725,9 @@ safety step. **Each rider rides the next touch of its form.**
   generated client then matches the stale snapshot exactly. The gate does not cover its own input.
   Measured at J-20 T-08, where the snapshot moved and the client did not. *(seam: `ci.yml` +
   `generateOpenApiSnapshot`)*
+- **[THE-TEST-ROLE-CAN-DELETE-AUDIT-ROWS-AND-THE-PRODUCTION-ROLE-CANNOT]** [S2] `RIDES: next` — J-20 T-10
+  measured that `V54__split_app_role_append_only_audit.sql:27` REVOKEs DELETE on the audit tables from
+  `alpenflight_app`, but the role the integration tests use keeps it. So a delete that reaches an audit
+  row passes every test and raises 42501 in production. The privilege asymmetry makes the test suite
+  weaker than production exactly where the append-only claim lives. Run the audit-touching tests under a
+  role with the production grants. *(seam: the test datasource role + `V54__split_app_role_append_only_audit.sql`)*
