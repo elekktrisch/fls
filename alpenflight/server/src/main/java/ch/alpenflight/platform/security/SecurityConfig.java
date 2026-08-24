@@ -3,6 +3,7 @@ package ch.alpenflight.platform.security;
 import static org.springframework.security.config.http.SessionCreationPolicy.STATELESS;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -42,21 +43,26 @@ public class SecurityConfig {
     private final JitUserMaterializer jitUserMaterializer;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final List<PrincipalClubBindingRule> principalClubBindingRules;
 
     public SecurityConfig(ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter,
             LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint,
             JitUserMaterializer jitUserMaterializer,
             ObjectMapper objectMapper,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            List<PrincipalClubBindingRule> principalClubBindingRules) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.jitUserMaterializer = jitUserMaterializer;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.principalClubBindingRules = List.copyOf(principalClubBindingRules);
     }
 
     @Bean
     SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
+        PrincipalClubBindingFilter principalClubBindingFilter =
+                new PrincipalClubBindingFilter(principalClubBindingRules, objectMapper);
         JitUserMaterializationFilter jitFilter =
                 new JitUserMaterializationFilter(jitUserMaterializer, objectMapper, meterRegistry);
         return http
@@ -77,7 +83,8 @@ public class SecurityConfig {
                 .oauth2ResourceServer(o -> o
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter)))
-                .addFilterAfter(jitFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(principalClubBindingFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(jitFilter, PrincipalClubBindingFilter.class)
                 .build();
     }
 }
