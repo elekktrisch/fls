@@ -85,10 +85,24 @@ public class PersonsService {
             applyJoin(p, tenant, req.initialClubMembership());
         }
         Person saved = persistPerson(p);
+        refuseAPersonThatTheCreatingClubCannotReadBack(req, saved, tenant);
         PersonResponse after = toResponse(saved);
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_PERSON, after.id().value(), saved));
         return after;
+    }
+
+    private void refuseAPersonThatTheCreatingClubCannotReadBack(PersonCreateRequest req,
+                                                                Person saved,
+                                                                UUID tenant) {
+        if (req.initialClubMembership() != null) {
+            return;
+        }
+        if (persons.findActiveByIdInSameDeploymentAs(idValueOrThrow(saved), tenant).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "This club cannot read back a Person that joins no club. "
+                            + "Send initialClubMembership.");
+        }
     }
 
     public PersonResponse updatePerson(PersonId id, PersonUpdateRequest req) {

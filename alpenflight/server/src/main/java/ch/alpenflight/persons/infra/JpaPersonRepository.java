@@ -12,18 +12,31 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaPersonRepository extends JpaRepository<Person, UUID>, PersonRepository {
 
-    String REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT =
-            "and (exists ("
+    String JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT =
+            "exists ("
                     + "  select 1 from PersonClubMembershipOutsideTheTenantFilter reaching "
                     + "  join ch.alpenflight.clubs.domain.Club joined "
                     + "    on joined.id = reaching.clubId "
                     + "  join ch.alpenflight.clubs.domain.Club reading "
                     + "    on reading.id = :readingClubId "
                     + "    and reading.deploymentId = joined.deploymentId "
-                    + "  where reaching.personId = p.id) "
-                    + "or not exists ("
+                    + "  where reaching.personId = p.id) ";
+
+    String JOINED_NO_CLUB_AND_THE_READING_CLUB_IS_OUTSIDE_EVERY_SANDBOX =
+            "(not exists ("
                     + "  select 1 from PersonClubMembershipOutsideTheTenantFilter unjoined "
-                    + "  where unjoined.personId = p.id)) ";
+                    + "  where unjoined.personId = p.id) "
+                    + "and exists ("
+                    + "  select 1 from ch.alpenflight.clubs.domain.Club readingOutsideSandbox "
+                    + "  join ch.alpenflight.deployments.domain.Deployment hostingDeployment "
+                    + "    on hostingDeployment.id = readingOutsideSandbox.deploymentId "
+                    + "  where readingOutsideSandbox.id = :readingClubId "
+                    + "    and hostingDeployment.lifecycleState <> "
+                    + "        ch.alpenflight.deployments.domain.LifecycleState.SANDBOX)) ";
+
+    String REACHED_FROM_THE_READING_CLUB =
+            "and (" + JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT
+                    + "or " + JOINED_NO_CLUB_AND_THE_READING_CLUB_IS_OUTSIDE_EVERY_SANDBOX + ") ";
 
     @Override
     @Query("select new ch.alpenflight.persons.domain.PersonRepository$ListRow("
@@ -70,7 +83,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
     @Override
     @Query("select p from Person p where p.deletedOn is null and ("
             + "lower(p.emailPrivate) = :email or lower(p.emailBusiness) = :email) "
-            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+            + REACHED_FROM_THE_READING_CLUB)
     List<Person> findActiveByEmailInSameDeploymentAs(@Param("email") String lowerCasedEmail,
                                                      @Param("readingClubId") UUID readingClubId);
 
@@ -79,7 +92,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
             + "and lower(p.firstname) = lower(:firstname) "
             + "and lower(p.lastname) = lower(:lastname) "
             + "and p.birthday = :birthday "
-            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+            + REACHED_FROM_THE_READING_CLUB)
     List<Person> findActiveByIdentityTripleInSameDeploymentAs(
             @Param("firstname") String firstname,
             @Param("lastname") String lastname,
@@ -88,7 +101,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
 
     @Override
     @Query("select p from Person p where p.id = :id and p.deletedOn is null "
-            + REACHED_INSIDE_THE_READING_CLUBS_DEPLOYMENT)
+            + REACHED_FROM_THE_READING_CLUB)
     Optional<Person> findActiveByIdInSameDeploymentAs(@Param("id") UUID id,
                                                       @Param("readingClubId") UUID readingClubId);
 

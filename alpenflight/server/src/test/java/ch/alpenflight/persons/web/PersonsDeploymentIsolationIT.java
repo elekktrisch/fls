@@ -19,6 +19,9 @@ import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +46,8 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
     private UUID realClubB;
     private UUID sandboxSeatClub;
 
+    private final List<UUID> personsThisTestWrote = new ArrayList<>();
+
     @BeforeEach
     void seed() {
         fixture = new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
@@ -55,7 +60,8 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
     }
 
     @AfterEach
-    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+    void deleteThePersonsAndTheSandboxDeploymentClubsThisTestSeeded() {
+        deleteEveryPersonThisTestWroteAndTheMembershipsCascadingFromIt();
         fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
@@ -154,25 +160,121 @@ class PersonsDeploymentIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void a_person_without_any_membership_belongs_to_no_deployment_and_stays_attachable() {
-        PersonId orphan = TenantTestContext.runAs(realClubA,
-                () -> personsService.createPerson(personPayload(
-                        "Orphan", "Person", uniqueEmail("orphan"), null)).id());
+    void a_sandbox_seat_never_looks_up_a_person_that_holds_no_membership() {
+        String orphanEmail = uniqueEmail("orphanlookup");
+        PersonId orphan = orphanOf(realClubA, "Orphan", "Lookup", orphanEmail);
 
-        TenantTestContext.runAs(realClubA, () -> {
+        TenantTestContext.runAs(sandboxSeatClub, () -> {
+            assertThat(personsService.lookup(new PersonLookupRequest(orphanEmail, null, null, null))
+                            .matches())
+                    .as("a demo visitor must not read a person that holds no club membership")
+                    .extracting(PersonLookupMatch::id)
+                    .doesNotContain(orphan);
+            assertThat(personsService.lookup(
+                            new PersonLookupRequest(null, "Orphan", "Lookup", SHARED_BIRTHDAY))
+                            .matches())
+                    .as("the identity triple must not reach the membership-less person either")
+                    .extracting(PersonLookupMatch::id)
+                    .doesNotContain(orphan);
+            return null;
+        });
+    }
+
+    @Test
+    void a_sandbox_seat_never_attaches_a_person_that_holds_no_membership() {
+        PersonId orphan = orphanOf(realClubA, "Orphan", "Attach", uniqueEmail("orphanattach"));
+
+        TenantTestContext.runAs(sandboxSeatClub, () -> {
+            assertThatThrownBy(() -> personsService.attachExistingPerson(orphan, membership()))
+                    .as("a demo visitor must not attach a person that holds no club membership")
+                    .isInstanceOf(PersonNotFoundException.class);
+            return null;
+        });
+
+        assertThat(aliveMembershipCountOf(orphan))
+                .as("the refused attach writes no membership, so the person stays attachable "
+                        + "for the real club that created it")
+                .isZero();
+    }
+
+    @Test
+    void a_sandbox_seat_creates_no_person_that_its_own_club_cannot_reach() {
+        String refusedEmail = uniqueEmail("sandboxorphan");
+
+        TenantTestContext.runAs(sandboxSeatClub, () -> {
+            assertThatThrownBy(() -> personsService.createPerson(
+                    personPayload("Sandbox", "Orphan", refusedEmail, null)))
+                    .as("a membership-less person of a seat club survives the sandbox purge and "
+                            + "reaches every real club, so the seat must not create one")
+                    .isInstanceOf(IllegalArgumentException.class);
+            return null;
+        });
+
+        assertThat(personRowCountOfEmail(refusedEmail))
+                .as("the refused create writes no person row")
+                .isZero();
+    }
+
+    @Test
+    void a_real_club_still_reads_and_attaches_a_person_that_holds_no_membership() {
+        String orphanEmail = uniqueEmail("orphan");
+        PersonId orphan = orphanOf(realClubA, "Orphan", "Person", orphanEmail);
+
+        TenantTestContext.runAs(realClubB, () -> {
+            assertThat(personsService.lookup(new PersonLookupRequest(orphanEmail, null, null, null))
+                            .matches())
+                    .as("positive baseline — a migrated person with no membership row stays "
+                            + "findable inside the operator deployment")
+                    .extracting(PersonLookupMatch::id)
+                    .contains(orphan);
             PersonResponse attached = personsService.attachExistingPerson(orphan, membership());
             assertThat(attached.id())
-                    .as("a person with no membership row crosses no deployment boundary, "
-                            + "so the create-then-attach flow keeps working")
+                    .as("positive baseline — the create-then-attach flow keeps working, and a "
+                            + "real club still claims a migrated person that joined no club")
                     .isEqualTo(orphan);
             return null;
         });
     }
 
     private PersonResponse memberOf(UUID clubId, String firstname, String lastname, String email) {
-        return TenantTestContext.runAs(clubId,
+        return recorded(TenantTestContext.runAs(clubId,
                 () -> personsService.createPerson(
-                        personPayload(firstname, lastname, email, membership())));
+                        personPayload(firstname, lastname, email, membership()))));
+    }
+
+    private PersonId orphanOf(UUID clubId, String firstname, String lastname, String email) {
+        return recorded(TenantTestContext.runAs(clubId,
+                () -> personsService.createPerson(
+                        personPayload(firstname, lastname, email, null)))).id();
+    }
+
+    private PersonResponse recorded(PersonResponse created) {
+        personsThisTestWrote.add(created.id().value());
+        return created;
+    }
+
+    private long aliveMembershipCountOf(PersonId personId) {
+        Long count = jdbc.queryForObject(
+                "SELECT count(*) FROM t_person_club WHERE person_id = ? AND deleted_on IS NULL",
+                Long.class, personId.value());
+        return count == null ? 0L : count;
+    }
+
+    private long personRowCountOfEmail(String email) {
+        Long count = jdbc.queryForObject(
+                "SELECT count(*) FROM t_person WHERE email_private = ?", Long.class, email);
+        return count == null ? 0L : count;
+    }
+
+    private void deleteEveryPersonThisTestWroteAndTheMembershipsCascadingFromIt() {
+        if (personsThisTestWrote.isEmpty()) {
+            return;
+        }
+        Object[] ids = personsThisTestWrote.stream().map(UUID::toString).toArray();
+        String placeholders =
+                String.join(", ", Collections.nCopies(personsThisTestWrote.size(), "?::uuid"));
+        personsThisTestWrote.clear();
+        jdbc.update("DELETE FROM t_person WHERE id IN (" + placeholders + ")", ids);
     }
 
     private static PersonCreateRequest personPayload(String firstname,
