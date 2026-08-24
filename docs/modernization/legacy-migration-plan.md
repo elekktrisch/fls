@@ -2,7 +2,7 @@
 
 Single source of truth for **every legacy SQL Server table and EF entity** and what happens to it in the new stack. One row per legacy artifact (entity ↔ table pair, or framework-managed table with no entity). Exhaustive over the final-state legacy schema (initial EF migration + all `DBUpdate_v*.sql` deltas applied in order — 59 tables, 56 entity classes).
 
-This file is maintained by `/modernize-refine` (Step 4.5). Each story that touches DB schema updates the rows it owns; the diff lands in the same PR as the story's refinement. The story body itself stays silent on per-table migration — readers come here.
+The **Legacy entity**, **Legacy table**, and column-detail rows are facts about the legacy schema, and they stay true. The **Destination** and **Semantics** columns record rebuild-1 decisions; treat those two columns as archive, and let the rebuild-2 architecture re-decide them.
 
 ## How to read
 
@@ -82,7 +82,7 @@ The diagram covers the end-to-end migration as designed across stories S-016 (sc
 
 ## Final-state legacy artifacts
 
-> **Bootstrapped 2026-05-26.** Tables queried from the FLSTest fixture in the local `fls-e2e-mssql-1` container (`mcr.microsoft.com/mssql/server:2022-latest`) — the e2e/integration-test seed mirrors the post-DBUpdate prod schema. Entities enumerated from [`flsserver/src/FLS.Server.Data/DbEntities/`](../../flsserver/src/FLS.Server.Data/DbEntities/), with the `DbSet<E> N` map from [`flsserver/src/FLS.Server.Data/FLSDataEntities.cs`](../../flsserver/src/FLS.Server.Data/FLSDataEntities.cs) used to bind each table to its entity class. Per-table column detail under [`legacy-tables/`](./legacy-tables/) was emitted in the same pass. Row list is exhaustive — refine's Step 4.5 updates rows in place, never adds new ones. If a prod-DB extract via [`alpenflight/database/extract/`](../../alpenflight/database/extract/) later reveals a table absent here, treat it as a bootstrap defect and re-sync rather than appending ad-hoc.
+> **Bootstrapped 2026-05-26.** Tables queried from the FLSTest fixture in the local `fls-e2e-mssql-1` container (`mcr.microsoft.com/mssql/server:2022-latest`) — the e2e/integration-test seed mirrors the post-DBUpdate prod schema. Entities enumerated from [`flsserver/src/FLS.Server.Data/DbEntities/`](../../flsserver/src/FLS.Server.Data/DbEntities/), with the `DbSet<E> N` map from [`flsserver/src/FLS.Server.Data/FLSDataEntities.cs`](../../flsserver/src/FLS.Server.Data/FLSDataEntities.cs) used to bind each table to its entity class. Per-table column detail under [`legacy-tables/`](./legacy-tables/) was emitted in the same pass. Row list is exhaustive over the legacy schema. If a production-database extract later reveals a table absent here, treat it as a bootstrap defect and re-sync rather than appending ad-hoc.
 
 | Legacy entity | Legacy table | Destination | Semantics | Owned by | Notes | Detail |
 |---|---|---|---|---|---|---|

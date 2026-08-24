@@ -1,8 +1,16 @@
-
+# Legacy end-to-end test infrastructure.
+#
+# Serves the Playwright suite under e2e/, which drives the legacy AngularJS SPA
+# (flsweb) against the legacy Web API (flsserver). Start it with:
+#   bash e2e/scripts/dev-up.sh
+#
+# The rewrite's own stack is not defined here. Attempt 1's services (postgres,
+# pgadmin, keycloak) are archived in docs/attempt-1/. The new architecture
+# decides its own stack.
 
 networks:
-  alpenflight_shared:
-    external: true
+  fls_e2e:
+    driver: bridge
 
 services:
   mssql:
@@ -13,7 +21,7 @@ services:
       MSSQL_PID: Developer
     ports:
       - "127.0.0.1:1433:1433"
-    networks: [alpenflight_shared]
+    networks: [fls_e2e]
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -23,7 +31,6 @@ services:
       retries: 30
 
   mailpit:
-    profiles: ["infra"]
     image: axllent/mailpit:v1.21
     ports:
       - "127.0.0.1:1025:1025"
@@ -32,7 +39,7 @@ services:
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
-    networks: [alpenflight_shared]
+    networks: [fls_e2e]
     healthcheck:
       test:
         - "CMD"
@@ -43,80 +50,3 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-
-
-  postgres:
-    profiles: ["next"]
-    image: postgres:17.4-alpine
-    environment:
-      POSTGRES_DB: alpenflight
-      POSTGRES_USER: alpenflight
-      POSTGRES_PASSWORD: alpenflight
-    ports:
-      - "127.0.0.1:5432:5432"
-    networks: [alpenflight_shared]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alpenflight -d alpenflight"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-
-  pgadmin:
-    profiles: ["next"]
-    build:
-      context: ./alpenflight/ops/pgadmin
-      dockerfile: Dockerfile
-    image: alpenflight-pgadmin:local
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGADMIN_DEFAULT_EMAIL: dev@example.com
-      PGADMIN_DEFAULT_PASSWORD: dev
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
-    ports:
-      - "127.0.0.1:5050:80"
-    networks: [alpenflight_shared]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/misc/ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 30s
-
-  keycloak:
-    profiles: ["next"]
-    build:
-      context: ./alpenflight/auth
-      dockerfile: Dockerfile
-      args:
-        ALPENFLIGHT_WEB_BASE_URL: "${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4201/}"
-    image: alpenflight-keycloak:local
-    command: ["start-dev", "--http-port=8080", "--import-realm"]
-    env_file:
-      - path: alpenflight/auth/.env.example
-        required: true
-      - path: alpenflight/auth/.env
-        required: false
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_URL: http://localhost:8090
-      KC_HTTP_ENABLED: "true"
-      KC_HEALTH_ENABLED: "true"
-      KC_LOG_LEVEL: INFO
-    ports:
-      - "127.0.0.1:8090:8080"
-      - "127.0.0.1:9090:9000"
-    networks: [alpenflight_shared]
-    healthcheck:
-      test:
-        - "CMD-SHELL"
-        - "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"
-      interval: 5s
-      timeout: 5s
-      retries: 24
-      start_period: 30s

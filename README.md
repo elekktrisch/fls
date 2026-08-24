@@ -1,40 +1,52 @@
-# Flight Logging System (FLS)
+# Flight Logging System (FLS) → AlpenFlight
 
-[![ci](https://github.com/elekktrisch/fls/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elekktrisch/fls/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](flsserver/LICENSE)
-[![modernization](https://img.shields.io/badge/modernization-planning%20complete-blue)](docs/modernization/)
+[![rebuild](https://img.shields.io/badge/rebuild%202-planning-orange)](docs/modernization/)
 
-A multi-tenant system for managing glider and motor flight operations — reservations, flight logging, planning, accounting/invoicing exports, and email workflows.
+A multi-tenant system for Swiss glider clubs. It manages flight operations: aircraft reservations,
+flight logging, planning days, accounting, and invoice export to external systems.
 
-This repository bundles the two independently-versioned components plus an end-to-end test harness that boots both via docker-compose.
+## Status
 
-The codebase is split into three layers — legacy, bridge, and rewrite — listed in the order you'd typically encounter them:
+The legacy system runs in production. A first rewrite attempt (`alpenflight/`) shipped 33 journeys,
+and the operator then stopped it. **Rebuild 2 starts from the legacy reverse-engineering, and the
+BMad Method drives it.** The product name stays AlpenFlight.
+
+Rebuild 1 is archived under [`docs/attempt-1/`](docs/attempt-1/). Read it for history. It is not
+a set of decisions for rebuild 2.
+
+## Layout
 
 | Folder | Layer | What it is |
 |---|---|---|
-| [`flsserver/`](flsserver/) | legacy | ASP.NET Web API on .NET Framework 4.5, C#, EF6, OWIN. |
-| [`flsweb/`](flsweb/) | legacy | AngularJS 1.4 SPA, Webpack 1, ES2015. |
-| [`e2e/`](e2e/) | legacy | Playwright end-to-end tests covering the legacy stack. |
-| [`docs/`](docs/) | bridge | Modernization workflow — current-state, vision, ADRs, epics, stories that describe how to get from legacy to `alpenflight/`. |
-| `alpenflight/` | rewrite | Greenfield rewrite, produced story-by-story via the modernization workflow. |
+| [`flsserver/`](flsserver/) | legacy | ASP.NET Web API on .NET Framework 4.5, C#, EF6, OWIN. Reference only. |
+| [`flsweb/`](flsweb/) | legacy | AngularJS 1.4 SPA, Webpack 1, ES2015. Reference only. |
+| [`e2e/`](e2e/) | legacy | Playwright suite — 43 specs over 12 categories. It drives the legacy stack, and it is the broadest behavior oracle we have. |
+| [`docs/legacy/`](docs/legacy/) | reference | Mental models of the two legacy stacks. |
+| [`docs/modernization/`](docs/modernization/) | reference | The legacy reverse-engineering: feature inventory, risk hotspots, schema, validation rules. |
+| [`docs/attempt-1/`](docs/attempt-1/) | archive | Everything rebuild 1 produced. |
+| `_bmad/` · `_bmad-output/` | rebuild 2 | The BMad installation, and the planning artifacts it writes. |
+| `alpenflight/` | rebuild 2 | The rewrite. Empty today. |
 
-## Live e2e dashboard
+## Run the legacy stack
 
-Each push to `main` publishes the latest Playwright run to GitHub Pages:
+```bash
+bash e2e/scripts/dev-up.sh   # SQL Server 2022 + Mailpit
+bash e2e/scripts/seed.sh     # schema + seed data into FLSTest
+```
 
-**https://elekktrisch.github.io/fls/**
-
-The dashboard links to the Playwright HTML reports (read and mutate projects), the FLS server and webpack dev-server logs, and the full-page screenshots captured during the run.
+Then start the FLS Web API and the webpack dev server. See [TESTING.md](TESTING.md).
 
 ## Documentation
 
-**The root-level `*.md` files describe only the legacy stack** (`flsserver` + `flsweb`). The rewrite is planned and documented under [`docs/`](docs/) and lands as code under `alpenflight/`.
-
-Legacy:
-- [CLAUDE.md](CLAUDE.md) — surface map: project layout, build commands, conventions
+- [CLAUDE.md](CLAUDE.md) — the routing document: which lane you are in, and which skill to invoke
 - [docs/legacy/server.md](docs/legacy/server.md) — backend mental model: state machines, rules engine, jobs, multi-tenancy
 - [docs/legacy/web.md](docs/legacy/web.md) — AngularJS client mental model
-- [TESTING.md](TESTING.md) — running the e2e suite locally and writing new tests
+- [docs/modernization/01-current-state.md](docs/modernization/01-current-state.md) — the feature inventory every epic derives from
+- [TESTING.md](TESTING.md) — run the e2e suite locally, and write new tests
 
-Bridge → rewrite:
-- [docs/modernization/README.md](docs/modernization/README.md) — modernization workflow (current-state, vision, ADRs, epics, stories) that drives what gets built in `alpenflight/`
+## Note on CI
+
+Rebuild 1's 11 GitHub Actions workflows targeted the deleted tree. They are archived under
+[`docs/attempt-1/retired-suite/workflows/`](docs/attempt-1/retired-suite/workflows/). This branch
+has no CI. Rebuild 2 brings its own.

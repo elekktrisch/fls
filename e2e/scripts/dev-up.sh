@@ -12,18 +12,8 @@ if [[ ! -f "${COMPOSE_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck source=../../alpenflight/ops/lib/shared-network.sh
-source "${REPO_ROOT}/alpenflight/ops/lib/shared-network.sh"
-
-require_shared_network
-if ! curl -fsS --max-time 5 http://localhost:8025/api/v1/info >/dev/null 2>&1; then
-  echo "error: Mailpit unreachable at http://localhost:8025/api/v1/info" >&2
-  echo "       run: bash alpenflight/ops/dev-up-infra.sh" >&2
-  exit 1
-fi
-
 echo "==> Starting fls-e2e stack (project=${PROJECT})"
-docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d mssql
+docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d mssql mailpit
 
 wait_for_health() {
   local service="$1"
@@ -63,13 +53,14 @@ wait_for_health() {
 }
 
 wait_for_health mssql 240
+wait_for_health mailpit 60
 
 cat <<'INFO'
 
 ==> fls-e2e stack is up
 
   SQL Server (sa / Demo#FLS#2026)   localhost:1433
-  Mailpit (alpenflight-infra)        http://localhost:8025
+  Mailpit (SMTP 1025)               http://localhost:8025
 
 Next steps:
   1. Apply schema + seed to the FLSTest DB:
