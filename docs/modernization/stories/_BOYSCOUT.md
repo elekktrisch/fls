@@ -717,3 +717,11 @@ safety step. **Each rider rides the next touch of its form.**
   caller that some club already registered that immatriculation. Scope the unique index to the
   Deployment, or answer the collision without disclosing the cause. *(seam:
   `ux_aircraft_immatriculation` + the aircraft write path)*
+- **[NO-WORKFLOW-RUNS-generateOpenApiSnapshot-SO-THE-SNAPSHOT-CAN-DRIFT-FROM-THE-CONTROLLERS]** [S2]
+  `RIDES: J-34` — `ci.yml:353-362` regenerates the orval CLIENT from `alpenflight/web/openapi/openapi.json`
+  and reds on a diff, so a stale client cannot pass. Nothing regenerates the SNAPSHOT from the Java
+  controllers: `generateOpenApiSnapshot` (`alpenflight/server/build.gradle.kts:350`) runs in no workflow.
+  So a controller change that nobody snapshots keeps a green gate over a wrong contract, and the
+  generated client then matches the stale snapshot exactly. The gate does not cover its own input.
+  Measured at J-20 T-08, where the snapshot moved and the client did not. *(seam: `ci.yml` +
+  `generateOpenApiSnapshot`)*
