@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-24T00:14:36.131">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-24T01:07:26.168">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
 <violation beginline="70" endline="79" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
@@ -242,7 +242,7 @@ The method 'isExactMatchShape()' has an NPath complexity of 600, current thresho
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java">
-<violation beginline="316" endline="316" begincolumn="25" endcolumn="68" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.persons.application" class="PersonsService" method="correlatableMissTargetIdFromHashedLookupKey" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="318" endline="318" begincolumn="25" endcolumn="68" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.persons.application" class="PersonsService" method="correlatableMissTargetIdFromHashedLookupKey" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'correlatableMissTargetIdFromHashedLookupKey(PersonLookupRequest)' has a cyclomatic complexity of 10.
 </violation>
 </file>
@@ -274,8 +274,8 @@ The method 'expandRuleDates(LocalDate, LocalDate, Set&lt;DayOfWeek&gt;)' has a c
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/platform/security/JitUserMaterializationFilter.java">
-<violation beginline="58" endline="58" begincolumn="20" endcolumn="36" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.platform.security" class="JitUserMaterializationFilter" method="doFilterInternal" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The method 'doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain)' has a cyclomatic complexity of 11.
+<violation beginline="52" endline="52" begincolumn="20" endcolumn="36" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.platform.security" class="JitUserMaterializationFilter" method="doFilterInternal" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The method 'doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain)' has a cyclomatic complexity of 10.
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/application/ReferenceDataService.java">
@@ -324,7 +324,7 @@ The method 'materialize(Jwt)' has a cyclomatic complexity of 15.
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java">
 <violation beginline="46" endline="46" begincolumn="14" endcolumn="26" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'UsersService' has a total cyclomatic complexity of 111 (highest 17).
+The class 'UsersService' has a total cyclomatic complexity of 112 (highest 17).
 </violation>
 <violation beginline="46" endline="46" begincolumn="14" endcolumn="26" rule="TooManyMethods" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanymethods" priority="3">
 This class has too many methods, consider refactoring it.
@@ -332,10 +332,10 @@ This class has too many methods, consider refactoring it.
 <violation beginline="70" endline="77" begincolumn="24" endcolumn="37" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" method="UsersService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
 </violation>
-<violation beginline="330" endline="330" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" method="softDelete" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="335" endline="335" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" method="softDelete" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'softDelete(UserId, UUID)' has a cyclomatic complexity of 11.
 </violation>
-<violation beginline="373" endline="373" begincolumn="17" endcolumn="35" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" method="materializeFromJwt" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="378" endline="378" begincolumn="17" endcolumn="35" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.application" class="UsersService" method="materializeFromJwt" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'materializeFromJwt(Jwt, UUID)' has a cyclomatic complexity of 17.
 </violation>
 </file>
