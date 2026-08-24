@@ -108,6 +108,17 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
     Optional<Person> findActiveByIdInSameDeploymentAs(@Param("id") UUID id,
                                                       @Param("readingClubId") UUID readingClubId);
 
+    String HOLDS_NO_MEMBERSHIP_IN_A_CLUB_OF_A_SANDBOX_DEPLOYMENT =
+            "not exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter seatMembership "
+                    + "  join ch.alpenflight.clubs.domain.Club seatClub "
+                    + "    on seatClub.id = seatMembership.clubId "
+                    + "  join ch.alpenflight.deployments.domain.Deployment hostingDeployment "
+                    + "    on hostingDeployment.id = seatClub.deploymentId "
+                    + "  where seatMembership.personId = p.id "
+                    + "    and hostingDeployment.lifecycleState = "
+                    + "        ch.alpenflight.deployments.domain.LifecycleState.SANDBOX) ";
+
     @Override
     @Query("select p from Person p where p.deletedOn is null and ("
             + "p.medicalLaplExpireDate <= :cutoff "
@@ -115,8 +126,10 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
             + "or p.medicalClass2ExpireDate <= :cutoff "
             + "or p.gliderInstructorLicenceExpireDate <= :cutoff "
             + "or p.motorInstructorLicenceExpireDate <= :cutoff "
-            + "or p.partMLicenceExpireDate <= :cutoff)")
-    List<Person> findWithLicenceExpiringOnOrBefore(@Param("cutoff") LocalDate cutoff);
+            + "or p.partMLicenceExpireDate <= :cutoff) "
+            + "and " + HOLDS_NO_MEMBERSHIP_IN_A_CLUB_OF_A_SANDBOX_DEPLOYMENT)
+    List<Person> findWithLicenceExpiringOnOrBeforeOutsideEverySandboxDeployment(
+            @Param("cutoff") LocalDate cutoff);
 
     @Override
     @Query("select p from Person p where p.deletedOn is null "

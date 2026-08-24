@@ -36,6 +36,12 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
 
     private static final String REJECTED_COMPETITION_SIGN_MESSAGE = "competitionSign must match";
 
+    private static final UUID DEMO_SEAT_TEN_CLUB =
+            UUID.fromString("019e30c3-2c00-7001-8000-0000000de010");
+
+    private static final UUID SANDBOX_DEPLOYMENT =
+            UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     private static HttpServer ddbServer;
 
     @Autowired JdbcTemplate jdbc;
@@ -101,6 +107,22 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void runOnce_leavesAnAircraftOfAClubInTheSandboxDeployment() {
+        UUID managedByADemoSeat = seedAircraftManagedBy(DEMO_SEAT_TEN_CLUB,
+                IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS);
+
+        AircraftDatabaseSyncJob.RunSummary summary = job.runOnce();
+
+        assertThat(registryValuesOf(managedByADemoSeat))
+                .as("the OGN registry knows this immatriculation, so an unsealed sweep would "
+                        + "write the device values onto the demo seat aircraft")
+                .containsOnlyNulls();
+        assertThat(summary.updatedCount())
+                .as("no aircraft of the sandbox Deployment counts as updated")
+                .isZero();
+    }
+
+    @Test
     void runOnce_leavesAnAircraftTheRegistryDoesNotKnow() {
         UUID unknown = seedAircraft("HB-" + UUID.randomUUID().toString().substring(0, 4));
 
@@ -149,9 +171,15 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     }
 
     private UUID seedAircraft(String immatriculation) {
+        UUID club = jdbc.queryForObject(
+                "SELECT id FROM t_club WHERE deployment_id <> ? LIMIT 1",
+                UUID.class, SANDBOX_DEPLOYMENT);
+        return seedAircraftManagedBy(club, immatriculation);
+    }
+
+    private UUID seedAircraftManagedBy(UUID club, String immatriculation) {
         seeded.add(immatriculation);
         UUID acType = jdbc.queryForObject("SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
-        UUID club = jdbc.queryForObject("SELECT id FROM t_club LIMIT 1", UUID.class);
         Aircraft craft = Aircraft.register(club, club, acType,
                 immatriculation, null, null, null, null, null, null, null, null, null, 2,
                 null, null, null, null, null, false, false, false, false, null, null);

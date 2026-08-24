@@ -90,9 +90,19 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
     List<AircraftRepository.PickerRow> findActivePickerRowsInSameDeploymentAs(
             @Param("readingClubId") UUID readingClubId);
 
+    String MANAGED_BY_A_CLUB_OF_A_DEPLOYMENT_THAT_IS_NOT_A_SANDBOX =
+            "join ch.alpenflight.clubs.domain.Club managingOutsideSandbox "
+                    + "  on managingOutsideSandbox.id = a.managingClubId "
+                    + "join ch.alpenflight.deployments.domain.Deployment hostingDeployment "
+                    + "  on hostingDeployment.id = managingOutsideSandbox.deploymentId "
+                    + "  and hostingDeployment.lifecycleState <> "
+                    + "      ch.alpenflight.deployments.domain.LifecycleState.SANDBOX ";
+
     @Override
-    @Query("select a from Aircraft a where a.deletedOn is null order by a.immatriculation")
-    List<Aircraft> findAllActive();
+    @Query("select a from Aircraft a "
+            + MANAGED_BY_A_CLUB_OF_A_DEPLOYMENT_THAT_IS_NOT_A_SANDBOX
+            + "where a.deletedOn is null order by a.immatriculation")
+    List<Aircraft> findAllActiveOutsideEverySandboxDeployment();
 
     @Override
     @Query("select a from Aircraft a where a.id = :id and a.deletedOn is null")

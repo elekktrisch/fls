@@ -58,7 +58,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
         }
         int updated = 0;
         int unmatched = 0;
-        for (Aircraft craft : aircraft.findAllActive()) {
+        for (Aircraft craft : aircraft.findAllActiveOutsideEverySandboxDeployment()) {
             OgnDevice device = byRegistration.get(normalise(craft.getImmatriculation()));
             if (device == null) {
                 LOG.debug("aircraft {} not found in the OGN device database",

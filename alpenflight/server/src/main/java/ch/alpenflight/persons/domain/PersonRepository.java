@@ -48,7 +48,8 @@ public interface PersonRepository {
 
     Optional<Person> findActiveByIdInSameDeploymentAs(UUID id, UUID readingClubId);
 
-    List<Person> findWithLicenceExpiringOnOrBefore(LocalDate cutoff);
+    List<Person> findWithLicenceExpiringOnOrBeforeOutsideEverySandboxDeployment(
+            LocalDate cutoff);
 
     Person save(Person person);
 

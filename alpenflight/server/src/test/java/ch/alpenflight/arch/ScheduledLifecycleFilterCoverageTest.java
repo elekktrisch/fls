@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
 
-class ScheduledLifecycleFilterCoverageTest {
+public class ScheduledLifecycleFilterCoverageTest {
 
     private final JavaClasses classes = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests())
@@ -23,17 +23,23 @@ class ScheduledLifecycleFilterCoverageTest {
 
     @Test
     void every_scheduled_method_carries_a_non_empty_lifecycle_filter() {
-        List<String> violations = new ArrayList<>();
-        classes.stream()
-                .flatMap(c -> c.getMethods().stream())
-                .filter(m -> m.isAnnotatedWith(Scheduled.class))
-                .forEach(m -> checkFilter(m, violations));
+        List<String> violations = scheduledMethodsWithoutALifecycleDeclaration(classes);
 
         assertThat(violations)
                 .as("Every @Scheduled method must carry @LifecycleStateFilter (with at "
                         + "least one LifecycleState) OR @UnscopedScheduledJob. Missing or "
                         + "empty: %s", violations)
                 .isEmpty();
+    }
+
+    public static List<String> scheduledMethodsWithoutALifecycleDeclaration(
+            JavaClasses classes) {
+        List<String> violations = new ArrayList<>();
+        classes.stream()
+                .flatMap(c -> c.getMethods().stream())
+                .filter(m -> m.isAnnotatedWith(Scheduled.class))
+                .forEach(m -> checkFilter(m, violations));
+        return violations;
     }
 
     private static void checkFilter(JavaMethod method, List<String> violations) {

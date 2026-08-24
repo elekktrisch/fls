@@ -46,7 +46,7 @@ public interface AircraftRepository {
 
     Optional<Aircraft> findActiveByImmatriculation(String normalizedImmatriculation);
 
-    List<Aircraft> findAllActive();
+    List<Aircraft> findAllActiveOutsideEverySandboxDeployment();
 
     Aircraft save(Aircraft aircraft);
 
