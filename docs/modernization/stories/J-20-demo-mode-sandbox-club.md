@@ -212,6 +212,8 @@ The release valve is the deferrable tail below.
 
 - [x] **T-18** — **The branch is RED. Start here.** Two T-09b test fixtures write rows and never delete them, so they contaminate later classes on the shared Postgres. Give `SystemDashboardControllerIT.java:223-237` (`seedAircraft`, a raw INSERT, and the class holds no `@AfterEach` or `@AfterAll`) and `TwoClubFixture.java:85-97` (`seedAdditionalClubInDeployment`) an `@AfterEach` that deletes what each one writes.
 
+- [x] **T-19** — **The fourth instance of the leak class.** `DemoSessionControllerIT.java:182,184` wrote two locations into seat clubs and deleted neither. The class now records each location it writes and deletes it after each test. `SandboxSeederIT.java:93` deleted every location of the seat club before each case, so the seeded airfield count could not score a stray. The reclaim now deletes only the four ICAO codes the seeder writes, on the same pattern as the immatriculation loop above it. `SandboxResetJobIT.java:141` strands nothing: the reset job under test removes the visitor airfield, and `SandboxResetJobIT.java:156-160` asserts it.
+
 ### Resume order — severity first
 
 `T-18` (the branch is red) → `T-15` (S1) → `T-16` (the guards that score nothing) → `T-17` (the demo is

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import ch.alpenflight.locations.application.LocationDtos.LocationCreateRequest;
 import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.CountryId;
+import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.LocationTypeId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.referencedata.application.ReferenceDataService;
@@ -48,6 +49,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -135,7 +137,12 @@ class DemoSessionControllerIT {
     @Autowired
     private Clock clock;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private final ObjectMapper json = new ObjectMapper();
+
+    private final List<UUID> locationsThisTestWroteInsideASeatClub = new ArrayList<>();
 
     @BeforeEach
     void everySeatStartsFreeAndTheRealmMintsForTheServerHeldCredential() {
@@ -146,6 +153,14 @@ class DemoSessionControllerIT {
     @AfterEach
     void everySeatGoesBackSoTheNextTestClassReadsThePoolAsFlywayCreatedIt() {
         returnEverySeatToThePool(seats, transactionManager, clock);
+        deleteTheLocationsThisTestWroteInsideASeatClub();
+    }
+
+    private void deleteTheLocationsThisTestWroteInsideASeatClub() {
+        for (UUID locationId : locationsThisTestWroteInsideASeatClub) {
+            jdbc.update("DELETE FROM t_location WHERE id = ?::uuid", locationId.toString());
+        }
+        locationsThisTestWroteInsideASeatClub.clear();
     }
 
     @AfterAll
@@ -274,12 +289,12 @@ class DemoSessionControllerIT {
         LocationTypeId gliderAirfield = referenceData.listLocationTypes().stream()
                 .filter(type -> LOCATION_TYPE_GLIDER_AIRFIELD.equals(type.code()))
                 .findFirst().orElseThrow().id();
-        TenantTestContext.runAs(clubId, () -> {
-            locations.createLocation(new LocationCreateRequest(
-                    uniqueName, null, switzerland, gliderAirfield, null,
-                    null, null, null, null, null, null, null, null, null, null,
-                    false, false, false, null));
-        });
+        LocationId created = TenantTestContext.runAs(clubId, () ->
+                locations.createLocation(new LocationCreateRequest(
+                        uniqueName, null, switzerland, gliderAirfield, null,
+                        null, null, null, null, null, null, null, null, null, null,
+                        false, false, false, null)).id());
+        locationsThisTestWroteInsideASeatClub.add(created.value());
         return uniqueName;
     }
 

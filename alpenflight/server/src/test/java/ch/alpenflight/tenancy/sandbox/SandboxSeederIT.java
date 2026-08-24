@@ -48,6 +48,9 @@ class SandboxSeederIT extends PostgresIntegrationTest {
     private static final int FLIGHT_HISTORY_WINDOW_DAYS = 30;
     private static final int RESERVATION_HORIZON_DAYS = 14;
 
+    private static final List<String> SEEDED_AIRFIELD_ICAO_CODES =
+            List.of("LSZX", "LSZB", "LSGK", "LSPD");
+
     private static final List<String> SEAT_1_IMMATRICULATIONS =
             List.of("HB-3101", "HB-3201", "HB-2301", "HB-KDA");
     private static final List<String> SEAT_2_IMMATRICULATIONS =
@@ -91,7 +94,10 @@ class SandboxSeederIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_person WHERE id IN "
                         + "(SELECT person_id FROM t_person_club WHERE club_id = ?::uuid)",
                 seatClubId.toString());
-        jdbc.update("DELETE FROM t_location WHERE club_id = ?::uuid", seatClubId.toString());
+        for (String seededIcaoCode : SEEDED_AIRFIELD_ICAO_CODES) {
+            jdbc.update("DELETE FROM t_location WHERE club_id = ?::uuid AND icao_code = ?",
+                    seatClubId.toString(), seededIcaoCode);
+        }
     }
 
     @Test
