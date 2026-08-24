@@ -210,9 +210,32 @@ The release valve is the deferrable tail below.
 - [ ] **T-16** — **Repair three guards that score nothing.** The leakage sweep's 36 sandbox cases are tautological, `TenantScopedEntityCatalog` cannot see a tenant-table entity that carries no `@TenantId`, and `DemoSeatPrincipalBinding.pool()` fails open on an empty first read. See "Gate findings" below.
 - [ ] **T-17** — **Seed the pool at startup.** T-10 measured that `sandbox-reset` is the only production caller of `SandboxSeeder`, so a fresh environment holds 10 empty seat clubs. AC-1 needs the tiles to read sandbox data, not zeros, on the first visit. Decide between a startup seeder and a seed-on-first-lease, and say why.
 
+- [ ] **T-18** — **The branch is RED. Start here.** Two T-09b test fixtures write rows and never delete them, so they contaminate later classes on the shared Postgres. Give `SystemDashboardControllerIT.java:223-237` (`seedAircraft`, a raw INSERT, and the class holds no `@AfterEach` or `@AfterAll`) and `TwoClubFixture.java:85-97` (`seedAdditionalClubInDeployment`) an `@AfterEach` that deletes what each one writes.
+
 ### Resume order — severity first
 
-`T-15` (S1) → `T-16` (the guards that score nothing) → `T-17` (the demo is empty without it) → `T-11` → `T-12` → `T-13` → `T-14` → §4 gate.
+`T-18` (the branch is red) → `T-15` (S1) → `T-16` (the guards that score nothing) → `T-17` (the demo is
+empty without it) → `T-11` → `T-12` → `T-13` → `T-14` → §4 gate.
+
+### The live red, measured 2026-08-24
+
+`alpenflight build (server + migration-tool)` fails, so `required` fails. Three tests:
+
+| Test | Asserts | Reads |
+| --- | --- | --- |
+| `SandboxSeederIT.java:109` | seat-1 club manages 4 aircraft | 5 |
+| `SandboxSeederIT.java:220` | the same count after a second seed | 5 |
+| `DemoSeatPoolMigrationIT.java:154` | the sandbox Deployment holds seat clubs only | `IT_PC_s`, `IT_ACs`, `IT_PDs` |
+
+`ch.alpenflight.me.*` sorts before `ch.alpenflight.tenancy.*`, so the contamination is deterministic, not
+order-luck. The job is **green on `main`** (run 32634779006) and the pre-T-09b branch run 32675625506 was
+green, so this is journey-caused. It is still live on `cf08f748b` (run 32703247626); T-10 did not touch
+it and `3b305b198` is docs-only.
+
+This is the third time this journey met the same class of defect — T-05 fixed `ShowcaseSeederIT` deleting
+locations across every club, and T-07's finisher fixed the lease ITs leaving every seat `LEASED`. The
+seat clubs make previously-invisible test contamination visible, because a stray row now lands inside an
+exactly-counted pool.
 
 **Budget.** This session ran 13 workers and stopped here, on the operator's instruction, with everything
 pushed. A `/do-task` worker costs about 12 agents, so the 7 remaining tasks need a fresh session. Nothing

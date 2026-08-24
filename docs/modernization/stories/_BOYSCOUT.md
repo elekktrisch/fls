@@ -731,3 +731,9 @@ safety step. **Each rider rides the next touch of its form.**
   row passes every test and raises 42501 in production. The privilege asymmetry makes the test suite
   weaker than production exactly where the append-only claim lives. Run the audit-touching tests under a
   role with the production grants. *(seam: the test datasource role + `V54__split_app_role_append_only_audit.sql`)*
+- **[AIRCRAFT-SYNC-IT-PICKS-ITS-CLUB-WITH-A-LIMIT-1-AND-NO-ORDER-BY]** [S3] `RIDES: next` — J-20 T-09b
+  triage measured that `AircraftDatabaseSyncJobIT.java:154` picks its managing club with
+  `SELECT id FROM t_club LIMIT 1`, which carries no `ORDER BY`. Postgres may return any row, and since
+  J-20 the row can be a demo seat club. The test is harmless today only because its `@AfterEach`
+  (`:74-77`) deletes every immatriculation it seeds. A test that depends on an unordered `LIMIT 1` asserts
+  against a row it did not choose. Pin the club. *(seam: `AircraftDatabaseSyncJobIT`)*
