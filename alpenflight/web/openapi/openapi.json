@@ -1834,9 +1834,9 @@
           "503" : {
             "description" : "No seat is free, the address already holds a live seat, or the identity provider issued no token. The problem detail carries a readable reason.",
             "content" : {
-              "application/json" : {
+              "application/problem+json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/DemoSessionResponse"
+                  "$ref" : "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -7757,6 +7757,33 @@
           }
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "ProblemDetail" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "properties" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          }
+        }
       },
       "DemoSessionResponse" : {
         "type" : "object",

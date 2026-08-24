@@ -172,6 +172,8 @@ export * from './planningDaySearchFilter';
 export * from './planningDayUpdateRequest';
 export * from './planningDayValidateRequest';
 export * from './planningDayValidationResult';
+export * from './problemDetail';
+export * from './problemDetailProperties';
 export * from './publicClubResponse';
 export * from './publicRegistrantDetails';
 export * from './recipient';
