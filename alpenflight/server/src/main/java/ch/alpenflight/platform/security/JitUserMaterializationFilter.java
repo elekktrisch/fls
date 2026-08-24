@@ -13,13 +13,7 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
@@ -41,14 +35,14 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     private static final Logger LOG = LoggerFactory.getLogger(JitUserMaterializationFilter.class);
 
     private final JitUserMaterializer materializer;
-    private final ObjectMapper objectMapper;
+    private final ForbiddenProblemDetailResponse forbidden;
     private final Timer lookupTimer;
 
     public JitUserMaterializationFilter(JitUserMaterializer materializer,
                                         ObjectMapper objectMapper,
                                         MeterRegistry meters) {
         this.materializer = materializer;
-        this.objectMapper = objectMapper;
+        this.forbidden = new ForbiddenProblemDetailResponse(objectMapper);
         this.lookupTimer = Timer.builder("users.jit.lookup")
                 .description("End-to-end materialise pass — claim check + lookup + optional insert")
                 .register(meters);
@@ -58,12 +52,11 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {
+        Jwt jwt = AuthenticatedJwtInTheSecurityContext.current();
+        if (jwt == null) {
             chain.doFilter(request, response);
             return;
         }
-        Jwt jwt = jwtAuth.getToken();
         if (!shouldMaterialise(jwt)) {
             request.setAttribute(USER_ID_ATTRIBUTE, ABSENT);
             chain.doFilter(request, response);
@@ -73,7 +66,7 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         try {
             userId = lookupTimer.recordCallable(() -> materializer.materialize(jwt));
         } catch (UserDeactivatedException e) {
-            writeDeactivated(response);
+            forbidden.write(response, PROBLEM_TYPE_DEACTIVATED, PII_FREE_DEACTIVATED_MESSAGE);
             return;
         } catch (RuntimeException e) {
             throw e;
@@ -107,14 +100,4 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         }
     }
 
-    private void writeDeactivated(HttpServletResponse response) throws IOException {
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
-        pd.setType(PROBLEM_TYPE_DEACTIVATED);
-        pd.setTitle(PII_FREE_DEACTIVATED_MESSAGE);
-        pd.setDetail(PII_FREE_DEACTIVATED_MESSAGE);
-        response.setStatus(HttpStatus.FORBIDDEN.value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.setHeader("Cache-Control", "no-store");
-        objectMapper.writeValue(response.getOutputStream(), pd);
-    }
 }

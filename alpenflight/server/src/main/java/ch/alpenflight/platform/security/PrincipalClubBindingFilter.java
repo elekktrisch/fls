@@ -9,13 +9,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
@@ -28,24 +22,23 @@ public class PrincipalClubBindingFilter extends OncePerRequestFilter {
             "The principal is not bound to the club it carries";
 
     private final List<PrincipalClubBindingRule> rules;
-    private final ObjectMapper objectMapper;
+    private final ForbiddenProblemDetailResponse forbidden;
 
     public PrincipalClubBindingFilter(List<PrincipalClubBindingRule> rules,
                                       ObjectMapper objectMapper) {
         this.rules = List.copyOf(rules);
-        this.objectMapper = objectMapper;
+        this.forbidden = new ForbiddenProblemDetailResponse(objectMapper);
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {
+        Jwt jwt = AuthenticatedJwtInTheSecurityContext.current();
+        if (jwt == null) {
             chain.doFilter(request, response);
             return;
         }
-        Jwt jwt = jwtAuth.getToken();
         UUID carriedClubId = parsedClubIdClaim(jwt);
         if (carriedClubId == null) {
             chain.doFilter(request, response);
@@ -55,7 +48,8 @@ public class PrincipalClubBindingFilter extends OncePerRequestFilter {
         String username = preferredUsername == null ? "" : preferredUsername;
         for (PrincipalClubBindingRule rule : rules) {
             if (rule.refusesPrincipalCarryingClub(username, carriedClubId)) {
-                writeRefusal(response);
+                forbidden.write(response, PROBLEM_TYPE_PRINCIPAL_NOT_BOUND_TO_CLUB,
+                        PII_FREE_REFUSAL_MESSAGE);
                 return;
             }
         }
@@ -74,14 +68,4 @@ public class PrincipalClubBindingFilter extends OncePerRequestFilter {
         }
     }
 
-    private void writeRefusal(HttpServletResponse response) throws IOException {
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
-        pd.setType(PROBLEM_TYPE_PRINCIPAL_NOT_BOUND_TO_CLUB);
-        pd.setTitle(PII_FREE_REFUSAL_MESSAGE);
-        pd.setDetail(PII_FREE_REFUSAL_MESSAGE);
-        response.setStatus(HttpStatus.FORBIDDEN.value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.setHeader("Cache-Control", "no-store");
-        objectMapper.writeValue(response.getOutputStream(), pd);
-    }
 }
