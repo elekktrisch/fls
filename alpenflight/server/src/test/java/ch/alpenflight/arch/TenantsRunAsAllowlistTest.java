@@ -27,6 +27,7 @@ class TenantsRunAsAllowlistTest {
             "ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService",
             "ch.alpenflight.tenancy.showcase.ShowcaseSeeder",
             "ch.alpenflight.tenancy.sandbox.SandboxSeeder",
+            "ch.alpenflight.tenancy.sandbox.application.SandboxClubPurge",
             "ch.alpenflight.me.application.SystemDashboardService",
             "ch.alpenflight.flights.application.FlightReportRebuildService",
             "ch.alpenflight.joinrequests.application.JoinRequestsService",
