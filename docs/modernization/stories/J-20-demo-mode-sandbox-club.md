@@ -208,7 +208,7 @@ The release valve is the deferrable tail below.
 - [ ] **T-14** — Thicken the real-IdP proof spec, including the two-visitor isolation assertion of AC-5, + the gallery captures.
 - [x] **T-15** — **S1. Seal the orphan Person.** A demo seat must not reach a Person that holds no club membership. See "Gate findings" below for the exploit chain and the missing test. Ship the negative test the current suite does not have: seed an orphan Person in the operator Deployment, then assert a seat can neither read it nor attach to it. *(**Measured red first:** a seat read a membership-less Person through `/persons/lookup`, by email and by identity triple. The same seat attached that Person through `/persons/{id}/clubs`, and the attach wrote a sandbox membership. The attach also destroys data: `SandboxClubPurge.java:56-62,78` deletes each Person that the seat club shares with no other club, so the next seat reset deletes the stolen Person row. `JpaPersonRepository.java:25-39` now admits a membership-less Person only to a reading club of a Deployment that is not a sandbox. The real direction stays open: a club of the operator Deployment still finds such a Person and still attaches it, so the create-then-attach flow and the migrated-person claim keep working. `PersonsService.java:95-106` refuses a create that the creating club cannot read back, so a seat writes no membership-less Person; such a row holds no club, so `SandboxClubPurge` cannot delete it and every real club reads it. `PersonsDeploymentIsolationIT` deletes every Person it writes, and the memberships cascade. **Open, and outside this task:** two real Deployments still read each other's membership-less Persons. `t_person` holds no Deployment column, so the predicate cannot tell the two apart. A seal for that needs a new column, a backfill and a `MapperLegacyBindings` change.)*
 - ~~**T-16**~~ *(split at the sizing gate — it held three seams: a production fail-open filter, two tautological test suites, and the entity catalog. F4 is a live correctness defect, not a test defect, so it gets its own worker.)*
-- [ ] **T-16a** — **F4. `DemoSeatPrincipalBinding.pool()` fails open.** `:221-229` caches the first load forever, an empty map included, so an empty first read disables the AC-7 filter for the life of the JVM. Pin a non-empty pool and make the empty read fail closed, not open.
+- [x] **T-16a** — **F4. `DemoSeatPrincipalBinding.pool()` failed open.** The cache now keeps only a read that found a seat, so an empty read re-arms the filter on the next request. `DemoSeatPrincipalBindingTest.java:26` scores the defect red on the old code.
 - [ ] **T-16b** — **F2 + F5. Two suites that score nothing.** `LeakageSweepIT.java:105-147`'s 36 sandbox cases pass on pre-J-20 code and exclude the three entities the seal is about. `DemoSeatPrincipalBindingIT.java:326-337` carries AC-7's headline name and passes on pre-J-20 code. Score a planted violation per input class, or withdraw the class.
 - [ ] **T-16c** — **F3. The entity catalog cannot see the bypass.** `TenantScopedEntityCatalog.java:43` collects only entities that already carry `@TenantId`, so `PersonClubMembershipOutsideTheTenantFilter` is invisible to the sweep, to the floor test and to `tenant-rules.yaml`.
 - [ ] **T-17** — **Seed the pool at startup.** T-10 measured that `sandbox-reset` is the only production caller of `SandboxSeeder`, so a fresh environment holds 10 empty seat clubs. AC-1 needs the tiles to read sandbox data, not zeros, on the first visit. Decide between a startup seeder and a seed-on-first-lease, and say why.
@@ -294,11 +294,23 @@ invisible to `LeakageSweepIT`, to the floor test and to `tenant-rules.yaml`. The
 JPQL over it reads every club's roster with zero reds. `@Immutable` also stops UPDATE only; it does not
 stop `persist` or `remove`, so read-only is convention, not enforcement.
 
-### F4 — the AC-7 filter fails open [S2 → T-16]
+### F4 — the AC-7 filter failed open [S2 → T-16a] — CONFIRMED, cause corrected
 
-`DemoSeatPrincipalBinding.java:221-229` caches the first `pool()` load forever, including an empty map. An
-empty first read leaves `refusesPrincipalCarryingClub` returning `false` for every principal, which
-disables the AC-7 filter for the life of the JVM. There is no re-read and no test pins a non-empty pool.
+The mechanism is real. `DemoSeatPrincipalBinding.java:43-51` (not `:221-229`) cached the first `pool()`
+load forever, an empty map included. An empty first read left `refusesPrincipalCarryingClub` returning
+`false` for every principal, for the life of the JVM.
+
+Two parts of the claim are wrong. The trigger was latent, not live: `V62__demo_seat_pool.sql:66` seeds
+ten seats, every profile sets `spring.flyway.enabled: true`, and no code deletes a `t_demo_seat` row.
+`SandboxSeatResetService.java:91` deletes the rows *of* a seat club and keeps the seat. A test also
+pinned a non-empty pool already — `DemoSeatPoolTestFixture.java:27` fails when seat 1 or seat 2 is absent.
+
+T-17 makes the trigger live. Spring Boot 4.0.6 starts the web server inside `refreshContext` and calls
+each `ApplicationRunner` after it. A startup seeder on the shape of `ShowcaseSeedRunner.java:15` runs
+while Tomcat already serves requests. A request in that window reads an empty pool.
+
+The fix caches only a read that found a seat. An empty pool holds no seat club and no seat principal, so
+the filter refuses nobody while it is empty, and it re-arms at the first read that finds a seat.
 
 ### F5 — one AC-7 case proves nothing [S3 → T-16]
 

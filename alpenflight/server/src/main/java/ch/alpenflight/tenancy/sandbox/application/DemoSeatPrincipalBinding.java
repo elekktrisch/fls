@@ -14,7 +14,8 @@ public class DemoSeatPrincipalBinding implements PrincipalClubBindingRule {
 
     private final DemoSeatRepository seats;
 
-    private volatile @Nullable Map<UUID, String> seatUsernameByClubIdReadOnceBecauseFlywayOwnsThePool;
+    private volatile @Nullable Map<UUID, String>
+            seatUsernameByClubIdCachedOnlyAfterAReadThatFoundASeat;
 
     public DemoSeatPrincipalBinding(DemoSeatRepository seats) {
         this.seats = seats;
@@ -41,12 +42,16 @@ public class DemoSeatPrincipalBinding implements PrincipalClubBindingRule {
     }
 
     private Map<UUID, String> pool() {
-        Map<UUID, String> known = this.seatUsernameByClubIdReadOnceBecauseFlywayOwnsThePool;
+        Map<UUID, String> known = this.seatUsernameByClubIdCachedOnlyAfterAReadThatFoundASeat;
         if (known != null) {
             return known;
         }
         Map<UUID, String> loaded = loadPool();
-        this.seatUsernameByClubIdReadOnceBecauseFlywayOwnsThePool = loaded;
+        boolean theReadFoundNoSeatSoTheNextRequestMustReadThePoolAgain = loaded.isEmpty();
+        if (theReadFoundNoSeatSoTheNextRequestMustReadThePoolAgain) {
+            return loaded;
+        }
+        this.seatUsernameByClubIdCachedOnlyAfterAReadThatFoundASeat = loaded;
         return loaded;
     }
 }
