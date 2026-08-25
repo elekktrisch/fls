@@ -246,44 +246,41 @@ The release valve is the deferrable tail below.
 
 - [ ] **T-20** — *Deferrable.* **A structural guard for the contamination class.** A `LauncherSessionListener` at fork shutdown asserts that no seat club holds a row the seeder did not write, and that no non-seat club sits in the sandbox Deployment. It is order-independent, which `@AfterEach` is not, and it covers classes that share no base class. Four instances in this journey (T-05, T-07, T-18, T-19) argue for it. It blocks no gate, so it rides behind T-14.
 
-### Resume order — severity first
+- [ ] **T-21** — **S1 for this journey's own promise. A seat reads every other seat's fleet, roster and credits.**
+  See F7 below. The operator chose **stop and hand over** on 2026-08-25, so a fresh session starts here with a
+  full budget and a correctly-scoped fix. Do not take the narrow read-seal without re-reading F7's option list.
+- [ ] **T-22** — **AC-1 is half met. The today-flights tile reads 0.** `SandboxOperationsSeeder.java:107` seeds 6
+  flying days, and none of them is the run date. AC-1 says the tiles show sandbox data, not zeros. Seed at least
+  one flight on the run date. **Caution:** `SandboxSeederRunDateRelativeIT` pins a `Clock` years ahead and asserts
+  the exact offsets, so it reds on a careless change. Keep every date relative to `LocalDate.now(clock)`.
+- [ ] **T-23** — **The `alpenflight proof (real-idp, clean-seed)` job is RED on `870dfe851`.** It is green twice
+  locally and red in CI. See "The live red" below for the diagnosis. Fix it before anything else — a red proof
+  job reds `required`, and this journey never merges red.
 
-**Reordered 2026-08-24 — done-bar path first.** The severity-first order put three guard-repair tasks ahead of
-the screen this journey exists to ship. Severity ranks the S1s, and both are done; among what remains, the done
-bar outranks test-quality repair.
+### Resume order — handover, 2026-08-25
 
-`T-18` ✔ → `T-19` ✔ → `T-15` ✔ → `T-16a` ✔ → `T-15b` ✔ → `T-17` → `T-12a` → `T-12b` → `T-12c` → `T-11` →
-`T-14` → §4 gate. Then, if budget remains: `T-16b` → `T-16c` → `T-13` → `T-20`.
+**The operator stopped this session deliberately.** Two blockers surfaced at the proof spec, and the manager's
+agent budget held about one task-slot. The operator chose a fresh session over a rushed fix. Nothing is in
+flight, the tree is clean, every completed task carries its commit, and PR #258 stays a draft.
 
-**Budget tension, stated rather than hidden.** About 10 task-slots remain and the done-bar path plus the gate
-spends about 9 of them. So `T-16b`, `T-16c`, `T-13` and `T-20` are unlikely to fit. `T-16b` and `T-16c` repair
-the very guards that should have caught F1 — the leakage sweep scores nothing for a Deployment defect, and the
-entity catalog cannot see a tenant table that carries no `@TenantId`. If they do not fit, they re-ride rather
-than get dropped, and the operator decides.
+`T-23` (the branch is red) → `T-21` (the isolation promise) → `T-22` (AC-1) → `T-16b` → `T-16c` → `T-13` →
+§4 gate → `T-20` if budget remains.
 
-### The live red, measured 2026-08-24
+**Done in the 2026-08-24/25 session:** `T-18`, `T-19`, `T-15`, `T-16a`, `T-15b`, `T-17`, `T-12a`, `T-12b`,
+`T-12c`, `T-11`, `T-14`. Eleven tasks, about 14 workers. **Not done:** `T-16b`, `T-16c`, `T-13`, `T-20`, and
+the three new tasks above.
 
-`alpenflight build (server + migration-tool)` fails, so `required` fails. Three tests:
+**ACs covered:** AC-1 (half — see T-22), AC-3, AC-4, AC-5, AC-6, AC-7 (hardened), AC-8, AC-10.
+**AC-2 is covered but its aircraft count is contaminated by F7** — a seat reads 8 aircraft, not the 4 it seeds,
+so the assertion passes for the wrong reason. Re-check it after T-21.
 
-| Test | Asserts | Reads |
-| --- | --- | --- |
-| `SandboxSeederIT.java:109` | seat-1 club manages 4 aircraft | 5 |
-| `SandboxSeederIT.java:220` | the same count after a second seed | 5 |
-| `DemoSeatPoolMigrationIT.java:154` | the sandbox Deployment holds seat clubs only | `IT_PC_s`, `IT_ACs`, `IT_PDs` |
+**A coverage reduction to carry forward.** T-14 removed the real-IdP seat-busy case and gives **AC-8** to an
+integration test plus the mocked spec, per the journey's own AC-5/AC-8 table. The PR checklist must qualify
+AC-8 on the line, not tick it plain.
 
-`ch.alpenflight.me.*` sorts before `ch.alpenflight.tenancy.*`, so the contamination is deterministic, not
-order-luck. The job is **green on `main`** (run 32634779006) and the pre-T-09b branch run 32675625506 was
-green, so this is journey-caused. It is still live on `cf08f748b` (run 32703247626); T-10 did not touch
-it and `3b305b198` is docs-only.
-
-This is the third time this journey met the same class of defect — T-05 fixed `ShowcaseSeederIT` deleting
-locations across every club, and T-07's finisher fixed the lease ITs leaving every seat `LEASED`. The
-seat clubs make previously-invisible test contamination visible, because a stray row now lands inside an
-exactly-counted pool.
-
-**Budget.** This session ran 13 workers and stopped here, on the operator's instruction, with everything
-pushed. A `/do-task` worker costs about 12 agents, so the 7 remaining tasks need a fresh session. Nothing
-is in flight, the tree is clean, and every completed task carries its commit on `integration/J-20`.
+**A dev-profile change to review.** T-14 set `application-dev.yml:21` `lease-idle-period: PT30S`, because AC-6
+needs an expired lease. The real-idp lane runs that profile. A 30-second idle lease is short for a human who
+demonstrates the product by hand, and it is a candidate cause of the CI red — see T-23.
 
 ## Gate findings — recorded 2026-08-24, before the session boundary
 
@@ -355,6 +352,44 @@ the filter refuses nobody while it is empty, and it re-arms at the first read th
 `DemoSeatPrincipalBindingIT.java:326-337` carries AC-7's headline name, but it passes on pre-J-20 code:
 `ClubsController.java:67-69` already gates `getClub` with `@tenant.isOwnClub(#id)`. Three refusals were
 measured red, not four. AC-7 stays covered by `:305`; this case is decoration.
+
+### F6 — the today-flights tile reads 0 [AC-1 half → T-22]
+
+`SandboxOperationsSeeder.java:107` seeds 24 flights across 6 flying days over the last 30 days. None of the six
+is the run date, so the dashboard's today tile reads 0. AC-1 says the tiles show sandbox data, not zeros.
+Measured by T-14 against the real chain.
+
+### F7 — a seat reads every other seat's fleet, roster and credits [S1 for the promise → T-21]
+
+**Symptom (measured).** A demo seat reads **8 aircraft** where `SandboxSeeder` writes 4 per seat. T-14 measured
+it against the real chain with two seeded seats.
+
+**Cause (confirmed structurally, not a guess).** `alpenflight/database/tenant-rules.yaml:216` declares
+`Aircrafts: kind: cross-tenant`. The 10 seat clubs share ONE sandbox Deployment. T-09a sealed only the
+cross-**Deployment** direction and deliberately kept cross-club reads open inside a Deployment, with a test
+asserting exactly that. So every seat reads every other seat's fleet, by design and not by defect.
+
+**It is wider than the fleet, and this half is UNMEASURED.** The same file declares `Persons: kind: cross-tenant`
+(`:10`) and `PersonFlightTimeCredits: kind: cross-tenant` (`:174`). T-09b sealed those cross-Deployment too, not
+cross-club. So the member roster and the credits are very probably shared between seats on the same rule.
+**Measure both before you fix either** — this journey refuted about half of its stated causes.
+
+**Why it matters.** The journey's headline promise is that each visitor gets a PRIVATE club, because two
+visitors in one shared club cannot tell the demo from a fault. Flights ARE isolated — AC-5 proves it
+non-vacuously at `demo-sandbox.spec.ts:620-644` (24 rows; a broken filter reds at 48). Fleet and roster are not.
+No AC fails today, which is itself the problem: AC-2 asserts *at least* 3 aircraft and passes on 8.
+
+**The options the operator saw on 2026-08-25, kept for the next session:**
+1. **Narrow the sandbox reads** — where the reading club is a sandbox seat, require the same club as well as the
+   same Deployment, on the reads T-09a and T-09b already touch. Real clubs keep cross-club reads. Narrow and
+   testable, red-first per entity.
+2. **Narrow the promise** — ship it and state that seats share fleet, roster and credits, and that only flights
+   are private. Qualify AC-2 and AC-5 on the PR.
+3. **One Deployment per seat** — make the Deployment the isolation boundary consistently. Structurally correct,
+   and every existing seal then works unchanged. It rewrites T-03's schema, the seat pool, the purge and the
+   reset job.
+
+The operator picked none of them: they chose to hand over and decide with a full budget.
 
 ### The deferrable tail
 
