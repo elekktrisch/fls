@@ -1069,22 +1069,19 @@ jobs:
           if [ "${PROOF_JOURNEY:-}" = "J-20" ]; then
             add_af_only "J-20" "demo" "dashboard" \
               "alpenflight-demo-dashboard.png" \
-              "AlpenFlight (greenfield, no legacy peer): the /start dashboard of a visitor with no account, one action after the landing page. The tiles read above zero, because the sandbox seat carries seeded flights, and the demo banner sits on the screen."
+              "AlpenFlight (greenfield, no legacy peer): the /start dashboard of a visitor with no account, one action after the landing page. The validation tile reads the 24 seeded flights of the seat, and the demo banner sits on the screen. The today tile reads zero, because the seeder writes its newest flying day two days before the run date."
             add_af_only "J-20" "demo" "flights" \
               "alpenflight-demo-flights.png" \
-              "AlpenFlight (greenfield, no legacy peer): the /flights logbook of the demo seat. It holds the seeded flights of the last 30 days, and the demo banner rides the screen."
+              "AlpenFlight (greenfield, no legacy peer): the /flights logbook of the demo seat, over the last 30 days. It holds at least 20 seeded flights, and the demo banner rides the screen."
             add_af_only "J-20" "demo" "changed" \
               "alpenflight-demo-flight-changed.png" \
-              "AlpenFlight: the flight of the first demo visitor, re-opened after the save. The comment holds the value that visitor wrote, so a demo visitor can change the sandbox."
+              "AlpenFlight: the seeded cross-country flight of the demo visitor, re-opened after the save. The comment holds the value that visitor wrote, so a demo visitor can change the sandbox."
             add_af_only "J-20" "demo" "isolation" \
               "alpenflight-demo-isolation.png" \
-              "AlpenFlight: the same flight in the seat of the second demo visitor. The comment holds the seeded value, and the value the first visitor wrote is absent from the screen."
+              "AlpenFlight: the copy of the same seeded flight in the seat of the second demo visitor. The comment holds the seeded value. The row the first visitor changed is absent from this logbook, and this logbook holds the 24 rows of one seat."
             add_af_only "J-20" "demo" "restored" \
               "alpenflight-demo-flight-restored.png" \
               "AlpenFlight: the flight after a system administrator ran sandbox-reset from /system/jobs. The job reclaimed the expired seat, and the seeded value is back."
-            add_af_only "J-20" "demo" "seat-busy" \
-              "alpenflight-demo-seat-busy.png" \
-              "AlpenFlight: the /demo page when every seat is leased. The page keeps the visitor on /demo and names a readable reason, instead of a half-started session."
           fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

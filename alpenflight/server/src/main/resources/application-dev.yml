@@ -18,6 +18,7 @@ spring:
 
 demo:
   max-live-seats-per-address: ${ALPENFLIGHT_DEMO_MAX_LIVE_SEATS_PER_ADDRESS:4}
+  lease-idle-period: ${ALPENFLIGHT_DEMO_LEASE_IDLE_PERIOD:PT30S}
 
 keycloak:
   admin:
