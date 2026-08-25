@@ -12,6 +12,35 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaPersonRepository extends JpaRepository<Person, UUID>, PersonRepository {
 
+    String JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT =
+            "exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter reaching "
+                    + "  join ch.alpenflight.clubs.domain.Club joined "
+                    + "    on joined.id = reaching.clubId "
+                    + "  join ch.alpenflight.clubs.domain.Club reading "
+                    + "    on reading.id = :readingClubId "
+                    + "    and reading.deploymentId = joined.deploymentId "
+                    + "  where reaching.personId = p.id) ";
+
+    String JOINED_NO_CLUB_AND_THE_READING_CLUB_IS_OUTSIDE_EVERY_SANDBOX =
+            "(not exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter unjoined "
+                    + "  where unjoined.personId = p.id) "
+                    + "and exists ("
+                    + "  select 1 from ch.alpenflight.clubs.domain.Club readingOutsideSandbox "
+                    + "  join ch.alpenflight.deployments.domain.Deployment hostingDeployment "
+                    + "    on hostingDeployment.id = readingOutsideSandbox.deploymentId "
+                    + "  where readingOutsideSandbox.id = :readingClubId "
+                    + "    and hostingDeployment.lifecycleState <> "
+                    + "        ch.alpenflight.deployments.domain.LifecycleState.SANDBOX)) ";
+
+    String REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP =
+            "and (" + JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT + ") ";
+
+    String REACHED_BY_ID_ALSO_WITHOUT_A_CLUB_MEMBERSHIP =
+            "and (" + JOINED_A_CLUB_OF_THE_READING_CLUBS_DEPLOYMENT
+                    + "or " + JOINED_NO_CLUB_AND_THE_READING_CLUB_IS_OUTSIDE_EVERY_SANDBOX + ") ";
+
     @Override
     @Query("select new ch.alpenflight.persons.domain.PersonRepository$ListRow("
             + "p.id, p.firstname, p.lastname, p.emailPrivate, p.mobilePhone, p.city, p.zip, "
@@ -56,13 +85,51 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
 
     @Override
     @Query("select p from Person p where p.deletedOn is null and ("
+            + "lower(p.emailPrivate) = :email or lower(p.emailBusiness) = :email) "
+            + REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP)
+    List<Person> findActiveByEmailInSameDeploymentAs(@Param("email") String lowerCasedEmail,
+                                                     @Param("readingClubId") UUID readingClubId);
+
+    @Override
+    @Query("select p from Person p where p.deletedOn is null "
+            + "and lower(p.firstname) = lower(:firstname) "
+            + "and lower(p.lastname) = lower(:lastname) "
+            + "and p.birthday = :birthday "
+            + REACHED_BY_IDENTITY_SEARCH_ONLY_THROUGH_A_CLUB_MEMBERSHIP)
+    List<Person> findActiveByIdentityTripleInSameDeploymentAs(
+            @Param("firstname") String firstname,
+            @Param("lastname") String lastname,
+            @Param("birthday") LocalDate birthday,
+            @Param("readingClubId") UUID readingClubId);
+
+    @Override
+    @Query("select p from Person p where p.id = :id and p.deletedOn is null "
+            + REACHED_BY_ID_ALSO_WITHOUT_A_CLUB_MEMBERSHIP)
+    Optional<Person> findActiveByIdInSameDeploymentAs(@Param("id") UUID id,
+                                                      @Param("readingClubId") UUID readingClubId);
+
+    String HOLDS_NO_MEMBERSHIP_IN_A_CLUB_OF_A_SANDBOX_DEPLOYMENT =
+            "not exists ("
+                    + "  select 1 from PersonClubMembershipOutsideTheTenantFilter seatMembership "
+                    + "  join ch.alpenflight.clubs.domain.Club seatClub "
+                    + "    on seatClub.id = seatMembership.clubId "
+                    + "  join ch.alpenflight.deployments.domain.Deployment hostingDeployment "
+                    + "    on hostingDeployment.id = seatClub.deploymentId "
+                    + "  where seatMembership.personId = p.id "
+                    + "    and hostingDeployment.lifecycleState = "
+                    + "        ch.alpenflight.deployments.domain.LifecycleState.SANDBOX) ";
+
+    @Override
+    @Query("select p from Person p where p.deletedOn is null and ("
             + "p.medicalLaplExpireDate <= :cutoff "
             + "or p.medicalClass1ExpireDate <= :cutoff "
             + "or p.medicalClass2ExpireDate <= :cutoff "
             + "or p.gliderInstructorLicenceExpireDate <= :cutoff "
             + "or p.motorInstructorLicenceExpireDate <= :cutoff "
-            + "or p.partMLicenceExpireDate <= :cutoff)")
-    List<Person> findWithLicenceExpiringOnOrBefore(@Param("cutoff") LocalDate cutoff);
+            + "or p.partMLicenceExpireDate <= :cutoff) "
+            + "and " + HOLDS_NO_MEMBERSHIP_IN_A_CLUB_OF_A_SANDBOX_DEPLOYMENT)
+    List<Person> findWithLicenceExpiringOnOrBeforeOutsideEverySandboxDeployment(
+            @Param("cutoff") LocalDate cutoff);
 
     @Override
     @Query("select p from Person p where p.deletedOn is null "

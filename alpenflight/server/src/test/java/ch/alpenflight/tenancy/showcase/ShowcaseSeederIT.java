@@ -76,7 +76,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     }
 
     private void deleteShowcaseLocationsNowThatNoFlightReferencesThem() {
-        jdbc.update("DELETE FROM t_location WHERE icao_code IN ('LSZX','LSGB','LSPD','LSZW','LSGT','LSPM')");
+        jdbc.update("DELETE FROM t_location WHERE id::text LIKE " + SHOWCASE_OWNED_LOCATION_IDS_SQL);
     }
 
     private void deleteShowcaseUsers() {

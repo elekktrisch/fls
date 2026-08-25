@@ -2,6 +2,8 @@ package ch.alpenflight.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.deployments.application.LifecycleStateFilter;
+import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
@@ -23,6 +25,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -119,6 +122,12 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
 
     @MeasuredJob(name = TEST_JOB, cronShownInConsole = "0 0 0 1 1 ?", description = "Admin-console IT job")
     static class ConsoleTestJob implements ch.alpenflight.platform.scheduling.BusinessJob {
+
+        @Scheduled(cron = "0 0 0 1 1 *")
+        @LifecycleStateFilter({LifecycleState.ACTIVE})
+        public void runScheduled() {
+        }
+
         @Override
         public String runOnce() {
             return "it-processed=7";

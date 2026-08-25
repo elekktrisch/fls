@@ -74,7 +74,8 @@ public class LicenceNotificationJob implements BusinessJob {
         LocalDate cutoff = LocalDate.now(clock.withZone(ZoneOffset.UTC)).plusDays(EXPIRY_NOTICE_WINDOW_DAYS);
         int sent = 0;
         int skipped = 0;
-        for (Person person : persons.findWithLicenceExpiringOnOrBefore(cutoff)) {
+        for (Person person : persons
+                .findWithLicenceExpiringOnOrBeforeOutsideEverySandboxDeployment(cutoff)) {
             String email = person.emailForCommunication();
             if (email == null || email.isBlank()) {
                 skipped++;

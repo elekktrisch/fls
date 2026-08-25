@@ -300,6 +300,27 @@ const de = {
         'Schreibgeschützt. Die Lieferungserstellungstests deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     },
   },
+  demo: {
+    actions: {
+      back: 'Zurück zur Startseite',
+      start: 'Demo starten',
+    },
+    banner: {
+      cta: 'Registriere dich, um deine Daten zu behalten',
+      expiry: 'Die Sitzung läuft ab. AlpenFlight setzt den Demoklub dann zurück.',
+      privacy: 'Der Demoklub gehört nur dieser Sitzung.',
+    },
+    body: 'Der Demoklub gehört nur dieser Sitzung. Ändere die Daten frei. AlpenFlight setzt den Klub später zurück.',
+    eyebrow: 'Demo',
+    headline: 'AlpenFlight mit echten Daten testen',
+    preparing: 'Der Demoklub wird gefüllt. Das dauert einige Sekunden.',
+    seatBusy: {
+      reasonFallback: 'Alle Demoplätze sind belegt.',
+      retry: 'Starte die Demo in einigen Minuten erneut.',
+      title: 'Die Demo ist im Moment voll',
+    },
+    unreachable: 'Die Demo ist nicht erreichbar. Versuche es später erneut.',
+  },
   flight: {
     conflict: {
       cancel: 'Weiter bearbeiten',
@@ -820,12 +841,6 @@ const de = {
       body: 'Dieser Verein nimmt keine Online-Anmeldungen entgegen.',
       title: 'Anmeldung geschlossen.',
     },
-  },
-  publicStub: {
-    back: 'Zurück zur Startseite',
-    demo: 'Demo',
-    demoBody: 'Die interaktive Demo ist in Vorbereitung. Schau bald wieder vorbei.',
-    title: 'Demnächst verfügbar',
   },
   signup: {
     actions: {

@@ -3,6 +3,7 @@ id: S-135
 title: Sandbox demo Deployment — seed data + nightly reset
 epic: E-15
 status: todo
+rolled_up_into: J-20
 depends_on: [S-047, S-048, S-049, S-050, S-051, S-058, S-068, S-081, S-137]
 acceptance:
   - A single Deployment row with `lifecycle_state = sandbox` and a fixed UUID exists in seed data.

@@ -3,6 +3,7 @@ import { type EventSourceMessage, fetchEventSource } from '@microsoft/fetch-even
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { Observable, Subject, firstValueFrom, map } from 'rxjs';
 
+import { DemoSeatSession } from '../session/demo-seat.session';
 import { SessionStore } from '../session/session.store';
 
 import {
@@ -54,6 +55,7 @@ export const SSE_TRANSPORT = new InjectionToken<SseTransport>('SSE_TRANSPORT', {
 @Injectable({ providedIn: 'root' })
 export class MeEventsService {
   private readonly oidc = inject(OidcSecurityService);
+  private readonly demoSeat = inject(DemoSeatSession);
   private readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transport = inject(SSE_TRANSPORT);
@@ -110,7 +112,7 @@ export class MeEventsService {
 
     let token: string;
     try {
-      token = await firstValueFrom(this.oidc.getAccessToken());
+      token = await this.accessTokenOfWhoeverOwnsTheSession();
     } catch {
       if (this.controller === controller) {
         this.controller = null;
@@ -151,6 +153,14 @@ export class MeEventsService {
         this.controller = null;
       }
     }
+  }
+
+  private async accessTokenOfWhoeverOwnsTheSession(): Promise<string> {
+    const heldSeatToken = this.demoSeat.accessToken();
+    if (heldSeatToken !== null) {
+      return heldSeatToken;
+    }
+    return firstValueFrom(this.oidc.getAccessToken());
   }
 
   private closeStream(): void {

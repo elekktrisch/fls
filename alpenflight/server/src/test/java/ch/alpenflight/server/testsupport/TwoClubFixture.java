@@ -8,6 +8,7 @@ import ch.alpenflight.referencedata.domain.ClubState;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.Country;
 import ch.alpenflight.referencedata.domain.CountryRepository;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +29,8 @@ public final class TwoClubFixture {
 
     private @Nullable UUID clubA;
     private @Nullable UUID clubB;
+
+    private final List<UUID> additionalDeploymentClubsThisFixtureSeeded = new ArrayList<>();
 
     public TwoClubFixture(JdbcTemplate jdbc,
                           ClubRepository clubs,
@@ -80,6 +83,34 @@ public final class TwoClubFixture {
 
         this.clubA = mintedId(a, "clubA");
         this.clubB = mintedId(b, "clubB");
+    }
+
+    public UUID seedAdditionalClubInDeployment(UUID deploymentId, String discriminator) {
+        String slug = slugFor(discriminator);
+        String key = clubKeyFor(discriminator.charAt(0));
+        List<UUID> prior = jdbc.queryForList(
+                "SELECT id FROM t_club WHERE slug = ? OR club_key = ?", UUID.class, slug, key);
+        if (!prior.isEmpty()) {
+            deleteTenantScopedRowsFor(prior);
+        }
+        jdbc.update("DELETE FROM t_club WHERE slug = ? OR club_key = ?", slug, key);
+        Club club = Objects.requireNonNull(clubs).save(Club.create(
+                namePrefix + discriminator, slug, key,
+                false, firstCountryId(), firstClubStateId(), deploymentId));
+        UUID id = mintedId(club, discriminator);
+        additionalDeploymentClubsThisFixtureSeeded.add(id);
+        return id;
+    }
+
+    public void deleteEveryAdditionalDeploymentClubThisFixtureSeeded() {
+        if (additionalDeploymentClubsThisFixtureSeeded.isEmpty()) {
+            return;
+        }
+        List<UUID> clubIds = List.copyOf(additionalDeploymentClubsThisFixtureSeeded);
+        additionalDeploymentClubsThisFixtureSeeded.clear();
+        deleteTenantScopedRowsFor(clubIds);
+        Object[] ids = clubIds.stream().map(UUID::toString).toArray();
+        jdbc.update("DELETE FROM t_club WHERE id IN (" + inPlaceholders(clubIds.size()) + ")", ids);
     }
 
     private UUID firstCountryId() {

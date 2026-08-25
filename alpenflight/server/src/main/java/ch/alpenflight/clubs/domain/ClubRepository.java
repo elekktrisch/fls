@@ -8,9 +8,15 @@ public interface ClubRepository {
 
     List<Club> findAllActive();
 
+    List<Club> findAllActiveInSameDeploymentAs(UUID readingClubId);
+
     long countActive();
 
+    long countActiveExcludingDeployment(UUID excludedDeploymentId);
+
     List<UUID> activeIds();
+
+    List<UUID> activeIdsExcludingDeployment(UUID excludedDeploymentId);
 
     Optional<Club> findActiveById(UUID id);
 

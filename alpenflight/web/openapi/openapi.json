@@ -29,6 +29,9 @@
     "name" : "public-registration",
     "description" : "Anonymous discovery- and scenic-flight registration."
   }, {
+    "name" : "demo-session",
+    "description" : "Anonymous entry to the sandbox demo. Leases one seat of a fixed pool."
+  }, {
     "name" : "DeliveryCreationTests",
     "description" : "DeliveryCreationTest CRUD (per-club tenant-scoped rules-engine regression harness)."
   }, {
@@ -43,6 +46,9 @@
   }, {
     "name" : "flights",
     "description" : "Flight CRUD"
+  }, {
+    "name" : "Aircraft",
+    "description" : "Aircraft CRUD (cross-tenant masterdata inside one Deployment; mutations gated to managing_club_id)."
   }, {
     "name" : "AircraftStates",
     "description" : "Aircraft-state reference catalog."
@@ -106,9 +112,6 @@
   }, {
     "name" : "me",
     "description" : "Authenticated-principal view"
-  }, {
-    "name" : "Aircraft",
-    "description" : "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id)."
   }, {
     "name" : "LocationTypes",
     "description" : "Location-type reference catalog."
@@ -1811,6 +1814,36 @@
         }
       }
     },
+    "/api/v1/public/demo-session" : {
+      "post" : {
+        "tags" : [ "demo-session" ],
+        "summary" : "Lease one free demo seat and return that seat's access token.",
+        "description" : "The caller needs no account. The endpoint creates nothing: it leases a seat of the fixed sandbox pool. One address holds at most one live seat.",
+        "operationId" : "startDemoSession",
+        "responses" : {
+          "200" : {
+            "description" : "A seat is leased; the body carries that seat's access token.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DemoSessionResponse"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "No seat is free, the address already holds a live seat, or the identity provider issued no token. The problem detail carries a readable reason.",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/public/clubs/{clubSlug}/scenic-flight-registrations" : {
       "post" : {
         "tags" : [ "public-registration" ],
@@ -3203,7 +3236,7 @@
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
-        "summary" : "List all clubs (active, sorted by name).",
+        "summary" : "List active clubs sorted by name. A system administrator reads every club. Any other caller reads the clubs of its own Deployment.",
         "operationId" : "listClubs",
         "responses" : {
           "200" : {
@@ -3379,7 +3412,7 @@
     "/api/v1/aircraft" : {
       "get" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "List all active aircraft, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).",
+        "summary" : "List the active aircraft of the caller's Deployment, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).",
         "operationId" : "listAircraft",
         "parameters" : [ {
           "name" : "type",
@@ -4949,7 +4982,7 @@
     "/api/v1/aircraft/picker" : {
       "get" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "Slim picker list (id + immatriculation + type + isTowingAircraft).",
+        "summary" : "Slim picker list of the caller's Deployment (id + immatriculation + type + isTowingAircraft).",
         "operationId" : "listAircraftForPicker",
         "responses" : {
           "200" : {
@@ -7724,6 +7757,49 @@
           }
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "ProblemDetail" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "properties" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          }
+        }
+      },
+      "DemoSessionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "accessToken" : {
+            "type" : "string"
+          },
+          "expiresInSeconds" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "leaseExpiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
       },
       "InvoiceRecipient" : {
         "type" : "object",

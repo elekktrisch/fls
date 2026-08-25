@@ -1703,6 +1703,43 @@
       "authenticationFlowBindingOverrides": {},
       "bearerOnly": false,
       "clientAuthenticatorType": "client-secret",
+      "clientId": "alpenflight-demo-seat",
+      "consentRequired": false,
+      "defaultClientScopes": [
+        "acr",
+        "basic",
+        "clubId",
+        "email",
+        "profile",
+        "roles"
+      ],
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "id": "00000000-0000-0000-0000-000000000005",
+      "implicitFlowEnabled": false,
+      "name": "AlpenFlight demo seat direct grant (server-held credential, sandbox seats only)",
+      "nodeReRegistrationTimeout": -1,
+      "optionalClientScopes": [],
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "redirectUris": [],
+      "secret": "alpenflight-demo-seat-dev-secret",
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": false,
+      "surrogateAuthRequired": false,
+      "webOrigins": []
+    },
+    {
+      "alwaysDisplayInConsole": false,
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "realm_client": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
       "clientId": "alpenflight-proffix",
       "consentRequired": false,
       "defaultClientScopes": [
@@ -2812,6 +2849,12 @@
       "roles": [
         "offline_access"
       ]
+    },
+    {
+      "client": "alpenflight-demo-seat",
+      "roles": [
+        "CLUB_ADMINISTRATOR"
+      ]
     }
   ],
   "smtpServer": {
@@ -3835,6 +3878,306 @@
       "serviceAccountClientId": "alpenflight-backend-admin",
       "totp": false,
       "username": "service-account-alpenflight-backend-admin"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de001"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo1@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de001",
+      "lastName": "Seat 01",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo1"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de002"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo2@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de002",
+      "lastName": "Seat 02",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo2"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de003"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo3@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de003",
+      "lastName": "Seat 03",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo3"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de004"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo4@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de004",
+      "lastName": "Seat 04",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo4"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de005"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo5@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de005",
+      "lastName": "Seat 05",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo5"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de006"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo6@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de006",
+      "lastName": "Seat 06",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo6"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de007"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo7@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de007",
+      "lastName": "Seat 07",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo7"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de008"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo8@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de008",
+      "lastName": "Seat 08",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo8"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de009"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo9@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de009",
+      "lastName": "Seat 09",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo9"
+    },
+    {
+      "attributes": {
+        "clubId": [
+          "019e30c3-2c00-7001-8000-0000000de010"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "alpenflight-demo-seat-dev-2026!"
+        }
+      ],
+      "email": "demo10@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "id": "019e30c3-2c00-7a00-8000-0000000de010",
+      "lastName": "Seat 10",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "demo10"
     }
   ],
   "verifiableCredentialsEnabled": false,

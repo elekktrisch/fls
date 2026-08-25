@@ -59,6 +59,53 @@ EXPECTED_SA_ROLES="manage-groups,manage-realm,manage-users,query-users,view-real
   || fail "alpenflight-backend-admin must have fullScopeAllowed=true (else realm-management roles are stripped from the SA token → admin REST 403s)"
 ok "alpenflight-backend-admin: confidential, service-accounts only, full-scope, manage-groups/realm/users + query-users + view-realm/users"
 
+DEMO_SEAT_CLIENT_ID="alpenflight-demo-seat"
+DEMO_SEAT_CLIENT_SECRET="alpenflight-demo-seat-dev-secret"
+DEMO_SEAT=$(jq --arg c "$DEMO_SEAT_CLIENT_ID" '.clients[] | select(.clientId==$c)' "$EXPORT")
+[[ -n "$DEMO_SEAT" ]] || fail "${DEMO_SEAT_CLIENT_ID} client missing — the demo front door performs a direct grant, and it is the only client that may enable one"
+[[ $(jq -r '.publicClient' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must be confidential (publicClient=false). A public client lets any caller mint a demo seat token from a browser."
+[[ $(jq -r '.bearerOnly' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must NOT be bearerOnly (it needs the token endpoint)"
+[[ $(jq -r '.directAccessGrantsEnabled' <<<"$DEMO_SEAT") == "true" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have directAccessGrantsEnabled=true — it is the one client the demo front door grants through"
+[[ $(jq -r '.standardFlowEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have standardFlowEnabled=false — no browser redirects through this client"
+[[ $(jq -r '.implicitFlowEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have implicitFlowEnabled=false"
+[[ $(jq -r '.serviceAccountsEnabled' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have serviceAccountsEnabled=false — it needs no machine identity of its own"
+[[ $(jq -r '.fullScopeAllowed' <<<"$DEMO_SEAT") == "false" ]] || fail "${DEMO_SEAT_CLIENT_ID} must have fullScopeAllowed=false. With full scope, a leaked client secret mints a SYSTEM_ADMINISTRATOR token for any principal whose password it also holds."
+[[ $(jq -r '.redirectUris | length' <<<"$DEMO_SEAT") == "0" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry no redirect URI"
+[[ $(jq -r '.webOrigins | length' <<<"$DEMO_SEAT") == "0" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry no web origin"
+[[ $(jq -r '.secret' <<<"$DEMO_SEAT") == "$DEMO_SEAT_CLIENT_SECRET" ]] || fail "${DEMO_SEAT_CLIENT_ID} must carry the dev-placeholder secret in source (rotate at deploy)"
+jq -e '.defaultClientScopes | index("clubId")' <<<"$DEMO_SEAT" >/dev/null \
+  || fail "${DEMO_SEAT_CLIENT_ID} must carry the clubId client scope by default — without it the seat token names no tenant and the demo reads nothing"
+
+DEMO_SEAT_SCOPE_ROLES=$(jq -r --arg c "$DEMO_SEAT_CLIENT_ID" \
+  '[.scopeMappings[]? | select(.client==$c) | .roles[]] | sort | join(",")' "$EXPORT")
+[[ "$DEMO_SEAT_SCOPE_ROLES" == "CLUB_ADMINISTRATOR" ]] \
+  || fail "${DEMO_SEAT_CLIENT_ID} scope mapping drifted: have [$DEMO_SEAT_SCOPE_ROLES], want [CLUB_ADMINISTRATOR]. This mapping is what restricts the client to the demo seats: with fullScopeAllowed=false it is the ONLY realm role this client can put in a token."
+
+CLIENTS_THAT_ENABLE_DIRECT_GRANTS=$(jq -r \
+  '[.clients[] | select(.directAccessGrantsEnabled == true) | .clientId] | sort | join(",")' "$EXPORT")
+EXPECTED_DIRECT_GRANT_CLIENTS="admin-cli,${DEMO_SEAT_CLIENT_ID}"
+[[ "$CLIENTS_THAT_ENABLE_DIRECT_GRANTS" == "$EXPECTED_DIRECT_GRANT_CLIENTS" ]] \
+  || fail "direct-access-grant clients drifted: have [$CLIENTS_THAT_ENABLE_DIRECT_GRANTS], want [$EXPECTED_DIRECT_GRANT_CLIENTS].
+    A direct grant trades a username and a password for a token, and it needs no browser. Only the
+    dedicated demo seat client may enable it, plus the Keycloak built-in admin-cli."
+ok "${DEMO_SEAT_CLIENT_ID}: confidential, direct-grant only, no full scope, CLUB_ADMINISTRATOR scope only, and the only alpenflight client with a direct grant"
+
+SEAT_PASSWORD_IN_THE_EXPORT=$(jq -r \
+  '[.users[]? | select(.username | test("^demo[0-9]+$")) | .credentials[0].value] | unique | join(",")' \
+  "$EXPORT")
+[[ "$SEAT_PASSWORD_IN_THE_EXPORT" != *","* ]] \
+  || fail "the demo seat principals carry more than one password. The server holds ONE seat credential, so a second value locks every seat that carries it out of the demo."
+
+SERVER_CONFIG="${REPO_ROOT}/alpenflight/server/src/main/resources/application.yml"
+[[ -f "$SERVER_CONFIG" ]] || fail "$SERVER_CONFIG missing — the guard cannot cross-check the server-held demo seat credential"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_CLIENT_ID:${DEMO_SEAT_CLIENT_ID}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.client-id does not default to '${DEMO_SEAT_CLIENT_ID}' — the server would grant through a client this realm does not define"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_CLIENT_SECRET:${DEMO_SEAT_CLIENT_SECRET}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.client-secret does not default to the secret this realm publishes — the dev and CI demo front door would answer 503 on every request"
+grep -qF "ALPENFLIGHT_DEMO_SEAT_PASSWORD:${SEAT_PASSWORD_IN_THE_EXPORT}}" "$SERVER_CONFIG" \
+  || fail "application.yml demo.direct-grant.seat-password does not default to the password this realm publishes for demo1..demoN — the dev and CI demo front door would answer 503 on every request"
+ok "demo seat credential: one password for every seat, and the server defaults match the realm"
+
 EXPECTED_ROLES="CLUB_ADMINISTRATOR FLIGHT_OPERATOR GUEST OFFICE_USER PILOT SYSTEM_ADMINISTRATOR proffix-sync"
 ACTUAL=$(jq -r '[.roles.realm[].name] | map(select(. as $r | ["CLUB_ADMINISTRATOR","FLIGHT_OPERATOR","GUEST","OFFICE_USER","PILOT","SYSTEM_ADMINISTRATOR","proffix-sync"] | index($r))) | sort | join(" ")' "$EXPORT")
 [[ "$ACTUAL" == "$EXPECTED_ROLES" ]] || fail "realm roles drift: have [$ACTUAL], want [$EXPECTED_ROLES]"
@@ -78,6 +125,61 @@ ok "clubId attribute: club-1 on clubadmin1/pilot1, unset on sysadmin"
 MAPPER=$(jq '[.clientScopes[] | select(.name=="clubId") | .protocolMappers[]? | select(.protocolMapper=="oidc-usermodel-attribute-mapper")] | length' "$EXPORT")
 [[ "$MAPPER" -ge 1 ]] || fail "clubId protocol mapper missing"
 ok "clubId protocol mapper present"
+
+DEMO_SEAT_POOL_MIGRATION="${REPO_ROOT}/alpenflight/server/src/main/resources/db/migration/V62__demo_seat_pool.sql"
+[[ -f "$DEMO_SEAT_POOL_MIGRATION" ]] || fail "V62__demo_seat_pool.sql missing — the demo seat pool has no club rows to bind to"
+
+SEAT_COUNT=$(grep -oE 'generate_series\(1, [0-9]+\)' "$DEMO_SEAT_POOL_MIGRATION" \
+  | grep -oE '[0-9]+\)$' | tr -d ')' | sort -u)
+[[ "$SEAT_COUNT" =~ ^[0-9]+$ ]] \
+  || fail "V62__demo_seat_pool.sql declares more than one seat count ($(tr '\n' ' ' <<<"$SEAT_COUNT")) — the club rows and the t_demo_seat rows must use the same generate_series bound"
+
+SEAT_UUID_PREFIXES=$(grep -oE "'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]+' \|\| lpad\(seat\.number::text, 3, '0'\)" \
+  "$DEMO_SEAT_POOL_MIGRATION" | grep -oE "^'[^']+'" | tr -d "'")
+SEAT_CLUB_ID_PREFIX=$(sort <<<"$SEAT_UUID_PREFIXES" | uniq -c | sort -rn | head -1 | awk '{print $2}')
+SEAT_CLUB_ID_PREFIX_USES=$(grep -c -F "'${SEAT_CLUB_ID_PREFIX}' || lpad" "$DEMO_SEAT_POOL_MIGRATION")
+[[ "$SEAT_CLUB_ID_PREFIX_USES" == "2" ]] \
+  || fail "V62__demo_seat_pool.sql builds the seat club id '${SEAT_CLUB_ID_PREFIX}…' at ${SEAT_CLUB_ID_PREFIX_USES} places, expected 2 (the t_club insert and the t_demo_seat.club_id insert). The guard cannot tell the club-id prefix from the seat-id prefix any more — re-derive it."
+
+grep -qF "'demo' || seat.number" "$DEMO_SEAT_POOL_MIGRATION" \
+  || fail "V62__demo_seat_pool.sql no longer names the seat principals 'demo' || seat.number — t_demo_seat.keycloak_username and the realm export have drifted apart"
+
+SEAT_USERNAMES_IN_EXPORT=$(jq -r '[.users[]? | select(.username | test("^demo[0-9]+$")) | .username] | length' "$EXPORT")
+[[ "$SEAT_USERNAMES_IN_EXPORT" == "$SEAT_COUNT" ]] \
+  || fail "the realm export holds ${SEAT_USERNAMES_IN_EXPORT} demo seat principals, but V62__demo_seat_pool.sql provisions ${SEAT_COUNT} seat clubs. A seat without its principal leases to a visitor that cannot sign in."
+
+for ((seat = 1; seat <= SEAT_COUNT; seat++)); do
+  SEAT_USER="demo${seat}"
+  SEAT_JSON=$(jq --arg u "$SEAT_USER" '.users[] | select(.username==$u)' "$EXPORT")
+  [[ -n "$SEAT_JSON" ]] || fail "demo seat principal ${SEAT_USER} missing from the realm export"
+
+  EXPECTED_SEAT_CLUB=$(printf '%s%03d' "$SEAT_CLUB_ID_PREFIX" "$seat")
+  ACTUAL_SEAT_CLUB=$(jq -r '.attributes.clubId[0] // "<unset>"' <<<"$SEAT_JSON")
+  [[ "$ACTUAL_SEAT_CLUB" == "$EXPECTED_SEAT_CLUB" ]] \
+    || fail "${SEAT_USER}.clubId = '${ACTUAL_SEAT_CLUB}', but V62__demo_seat_pool.sql binds seat ${seat} to club '${EXPECTED_SEAT_CLUB}'. A seat principal on the wrong club reads another visitor's sandbox."
+
+  jq -e '.realmRoles | index("CLUB_ADMINISTRATOR")' <<<"$SEAT_JSON" >/dev/null \
+    || fail "${SEAT_USER} does not carry the realm role CLUB_ADMINISTRATOR — every read the demo screens make is role-gated"
+
+  for identity_field in email firstName lastName; do
+    IDENTITY_VALUE=$(jq -r --arg f "$identity_field" '.[$f] // ""' <<<"$SEAT_JSON")
+    [[ -n "$IDENTITY_VALUE" ]] \
+      || fail "${SEAT_USER}.${identity_field} is empty.
+    Warning: an attributes-only PUT /users/{id} to Keycloak is field-selective. It NULLs email,
+    firstName and lastName, and the principal then vanishes from every email lookup. It also
+    starves the just-in-time user materializer, which refuses a token without preferred_username,
+    given_name and email, so the seat gets no t_user row and reads nothing.
+    Read the full representation, merge the attributes, and write the full representation back."
+  done
+
+  [[ $(jq -r '.enabled' <<<"$SEAT_JSON") == "true" ]] || fail "${SEAT_USER} is disabled"
+  [[ $(jq -r '.emailVerified' <<<"$SEAT_JSON") == "true" ]] \
+    || fail "${SEAT_USER}.emailVerified is false — the realm sets verifyEmail, so the seat principal cannot complete a login"
+  [[ $(jq -r '.requiredActions | length' <<<"$SEAT_JSON") == "0" ]] \
+    || fail "${SEAT_USER} carries a required action — a demo visitor gets an account-update form instead of the sandbox"
+done
+
+ok "demo seat pool: ${SEAT_COUNT} principals, each CLUB_ADMINISTRATOR on its own V62 seat club, identity fields intact"
 
 PRIV=$(jq '[.components["org.keycloak.keys.KeyProvider"][]?.config | (.privateKey // .privateKeyPem) // empty] | length' "$EXPORT")
 [[ "$PRIV" == "0" ]] || fail "private signing key present in committed export ($PRIV occurrences)"
@@ -138,10 +240,12 @@ DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
   'pilot1-dev-2026!'
   'pilot-c2-dev-2026!'
   'pilot-empty1-dev-2026!'
+  'alpenflight-demo-seat-dev-2026!'
 )
 DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
   'alpenflight-backend-admin-dev-secret'
   'alpenflight-proffix-dev-secret'
+  'alpenflight-demo-seat-dev-secret'
 )
 
 ALLOWED_PASSWORDS_JSON=$(jq -n --args '$ARGS.positional' "${DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]}")

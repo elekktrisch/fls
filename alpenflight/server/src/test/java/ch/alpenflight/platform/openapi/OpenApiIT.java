@@ -92,6 +92,24 @@ class OpenApiIT {
     }
 
     @Test
+    void demoSessionDeclaresAProblemDetailBodyForTheSeatBusy503() throws Exception {
+        JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
+        JsonNode seatBusyBody = spec.path("paths")
+                .path("/api/v1/public/demo-session")
+                .path("post")
+                .path("responses")
+                .path("503")
+                .path("content");
+        assertThat(seatBusyBody.fieldNames()).toIterable()
+                .as("DemoSessionExceptionHandler answers 503 with application/problem+json")
+                .containsExactly("application/problem+json");
+        assertThat(seatBusyBody.path("application/problem+json").path("schema").path("$ref").asText())
+                .as("the 503 body is a ProblemDetail, so the generated client must not type it as "
+                        + "the success response")
+                .isEqualTo("#/components/schemas/ProblemDetail");
+    }
+
+    @Test
     void swaggerUiReturns200() {
         ResponseEntity<String> response = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

@@ -45,6 +45,13 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     long countAllActive();
 
     @Override
+    @Query("select count(u) from User u "
+            + "join ch.alpenflight.clubs.domain.Club c on c.id = u.clubId "
+            + "where u.deletedOn is null and c.deploymentId <> :excludedDeploymentId")
+    long countAllActiveExcludingDeployment(
+            @Param("excludedDeploymentId") UUID excludedDeploymentId);
+
+    @Override
     @Query("select case when count(l) > 0 then true else false end "
             + "from Language l where l.id = :languageId")
     boolean languageExists(@Param("languageId") UUID languageId);

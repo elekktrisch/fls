@@ -1,6 +1,7 @@
 package ch.alpenflight.publicregistration.web;
 
 import ch.alpenflight.platform.id.PersonId;
+import ch.alpenflight.platform.web.ClientIpResolver;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationRequest;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationResponse;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.PublicClubResponse;

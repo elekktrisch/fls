@@ -74,11 +74,14 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public List<AircraftListItem> listAircraft(@Nullable AircraftTypeSlice slice) {
+        UUID readingClubId = tenantResolver.resolveCurrentTenantIdentifier();
         List<AircraftRepository.ListRow> rows = switch (slice == null ? null : slice) {
-            case null -> aircrafts.findAllActiveListRows();
-            case GLIDER -> aircrafts.findActiveListRowsByTypeCodeIn(GLIDER_CODES);
-            case MOTOR -> aircrafts.findActiveListRowsByTypeCodeIn(MOTOR_CODES);
-            case TOWING -> aircrafts.findActiveTowingListRows();
+            case null -> aircrafts.findActiveListRowsInSameDeploymentAs(readingClubId);
+            case GLIDER -> aircrafts.findActiveListRowsByTypeCodeInSameDeploymentAs(
+                    GLIDER_CODES, readingClubId);
+            case MOTOR -> aircrafts.findActiveListRowsByTypeCodeInSameDeploymentAs(
+                    MOTOR_CODES, readingClubId);
+            case TOWING -> aircrafts.findActiveTowingListRowsInSameDeploymentAs(readingClubId);
         };
         return rows.stream().map(AircraftMapper::toListItem).toList();
     }
@@ -90,14 +93,15 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public List<AircraftPickerItem> listAircraftForPicker() {
-        return aircrafts.findAllActivePickerRows().stream()
+        return aircrafts.findActivePickerRowsInSameDeploymentAs(
+                        tenantResolver.resolveCurrentTenantIdentifier()).stream()
                 .map(AircraftMapper::toPickerItem)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public AircraftDetail getAircraft(AircraftId id) {
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadVisibleToTheReaderOrThrow(id);
         boolean includeLatestCounter =
                 aircraftAccess.canViewManagerOnlyData(a.getManagingClubId());
         return AircraftMapper.toDetail(a, includeLatestCounter);
@@ -157,7 +161,7 @@ public class AircraftsService {
         validateAircraftType(req.aircraftTypeId().value());
         validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
         validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadGatedByAircraftAccessOrThrow(id);
         AircraftDetail before = AircraftMapper.toDetail(a);
 
         String normalized = Immatriculation.of(req.immatriculation()).storedUppercaseKeepingHyphens();
@@ -198,7 +202,7 @@ public class AircraftsService {
     }
 
     public void softDeleteAircraft(AircraftId id, @Nullable UUID userId) {
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadGatedByAircraftAccessOrThrow(id);
         AircraftDetail before = AircraftMapper.toDetail(a);
         a.softDelete(userId, clock);
         aircrafts.save(a);
@@ -207,7 +211,7 @@ public class AircraftsService {
     }
 
     public AircraftDetail transferOwnership(AircraftId id, AircraftTransferOwnershipRequest req) {
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadGatedByAircraftAccessOrThrow(id);
         UUID newOwnerClubId = req.newOwnerClubId() == null ? null : req.newOwnerClubId().value();
         AircraftDetail before = AircraftMapper.toDetail(a);
         a.transferOwnership(newOwnerClubId, req.newOwnerPersonId());
@@ -231,7 +235,7 @@ public class AircraftsService {
 
     public AircraftStateHistoryEntryResponse changeAircraftState(AircraftId id,
                                                                  AircraftStateChangeRequest req) {
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadGatedByAircraftAccessOrThrow(id);
         validateAircraftState(req.aircraftStateId().value());
         AircraftStateHistoryEntry entry;
         try {
@@ -255,7 +259,7 @@ public class AircraftsService {
 
     public AircraftOperatingCounterResponse recordAircraftCounter(AircraftId id,
                                                                   AircraftCounterRecordRequest req) {
-        Aircraft a = loadOrThrow(id);
+        Aircraft a = loadGatedByAircraftAccessOrThrow(id);
         AircraftOperatingCounter counter;
         try {
             counter = a.recordCounter(
@@ -280,19 +284,25 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public AircraftStateHistory getStateHistory(AircraftId id) {
-        return AircraftMapper.toStateHistory(loadOrThrow(id));
+        return AircraftMapper.toStateHistory(loadVisibleToTheReaderOrThrow(id));
     }
 
     @Transactional(readOnly = true)
     public AircraftCounterHistory getCounterHistory(AircraftId id) {
-        return AircraftMapper.toCounterHistory(loadOrThrow(id));
+        return AircraftMapper.toCounterHistory(loadGatedByAircraftAccessOrThrow(id));
     }
 
     private void flushSoNoTwoStatePeriodsAreOpenAtOnce() {
         aircrafts.flush();
     }
 
-    private Aircraft loadOrThrow(AircraftId id) {
+    private Aircraft loadVisibleToTheReaderOrThrow(AircraftId id) {
+        return aircrafts.findActiveByIdInSameDeploymentAs(
+                        id.value(), tenantResolver.resolveCurrentTenantIdentifier())
+                .orElseThrow(() -> new AircraftNotFoundException(id));
+    }
+
+    private Aircraft loadGatedByAircraftAccessOrThrow(AircraftId id) {
         return aircrafts.findActiveById(id.value())
                 .orElseThrow(() -> new AircraftNotFoundException(id));
     }

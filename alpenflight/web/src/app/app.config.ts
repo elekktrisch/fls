@@ -21,11 +21,15 @@ import { Subject } from 'rxjs';
 
 import { routes } from './app.routes';
 import { alpenflightOidcConfig } from './core/auth/auth.config';
-import { OidcSessionBridge } from './core/auth/oidc-session-bridge';
+import {
+  OidcSessionBridge,
+  restoreTheDemoSeatSessionThatSurvivedAPageReload,
+} from './core/auth/oidc-session-bridge';
 import { MeEventsService } from './core/events';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
+import { demoSeatAuthInterceptor } from './core/session/demo-seat.session';
 
 const OIDC_STORAGE_OVERRIDE_THAT_MUST_BE_LISTED_AFTER_PROVIDE_AUTH: Provider = {
   provide: AbstractSecurityStorage,
@@ -40,7 +44,7 @@ function constructRootSingletonsWhoseConstructorsRegisterSessionEffects(): void 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
-    provideHttpClient(withFetch(), withInterceptors([authInterceptor()])),
+    provideHttpClient(withFetch(), withInterceptors([demoSeatAuthInterceptor, authInterceptor()])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
     { provide: NZ_DATE_LOCALE, useValue: de },
@@ -51,5 +55,6 @@ export const appConfig: ApplicationConfig = {
     provideAuth({ config: alpenflightOidcConfig }, withAppInitializerAuthCheck()),
     OIDC_STORAGE_OVERRIDE_THAT_MUST_BE_LISTED_AFTER_PROVIDE_AUTH,
     provideAppInitializer(constructRootSingletonsWhoseConstructorsRegisterSessionEffects),
+    provideAppInitializer(restoreTheDemoSeatSessionThatSurvivedAPageReload),
   ],
 };

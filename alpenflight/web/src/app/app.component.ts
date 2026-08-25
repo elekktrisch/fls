@@ -6,15 +6,18 @@ import { filter, map, startWith } from 'rxjs';
 import { JoinRequestsBadgeService } from './core/join-requests-badge/join-requests-badge.service';
 import { SessionStore } from './core/session/session.store';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
+import { DemoSeatBannerComponent } from './features/demo/demo-seat-banner.component';
 import { navSectionsFor } from './nav-sections';
 
 @Component({
   selector: 'af-root',
-  imports: [RouterOutlet, AfNavBarComponent],
+  host: { class: 'block' },
+  imports: [RouterOutlet, AfNavBarComponent, DemoSeatBannerComponent],
   template: `
     @if (showNavBar()) {
       <af-nav-bar [items]="sections()" [user]="userSummary()" brandHref="/start" />
     }
+    <af-demo-seat-banner />
     <router-outlet />
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

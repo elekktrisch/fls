@@ -68,7 +68,7 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void clubAdminOfOtherClub_reads_crossTenantAircraft_but_cannot_write() {
+    void clubAdminOfOtherClubInSameDeployment_reads_crossTenantAircraft_but_cannot_write() {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), adminA);
@@ -77,7 +77,9 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
 
         String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> read = get("/api/v1/aircraft/" + id, adminB);
-        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(read.getStatusCode())
+                .as("both clubs sit in the operator Deployment, so the read stays open")
+                .isEqualTo(HttpStatus.OK);
         ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
                 updatePayload(uniqueImmatriculation()), adminB);
         assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -109,7 +111,8 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> foreignRead = get("/api/v1/aircraft/" + id, adminB);
         assertThat(foreignRead.getStatusCode())
-                .as("reads stay cross-tenant: the foreign reader still gets the aircraft")
+                .as("reads stay cross-tenant inside one Deployment: the foreign reader still "
+                        + "gets the aircraft")
                 .isEqualTo(HttpStatus.OK);
         JsonNode foreignCounter = readJson(foreignRead).get("latestCounter");
         assertThat(foreignCounter == null || foreignCounter.isNull())

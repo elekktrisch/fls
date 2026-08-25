@@ -187,7 +187,7 @@ export class ClubsService {
     );
   }
 /**
- * @summary List all clubs (active, sorted by name).
+ * @summary List active clubs sorted by name. A system administrator reads every club. Any other caller reads the clubs of its own Deployment.
  */
  listClubs<TData = ClubResponse[]>( options?: HttpClientBodyOptions): Observable<TData>;
  listClubs<TData = ClubResponse[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;

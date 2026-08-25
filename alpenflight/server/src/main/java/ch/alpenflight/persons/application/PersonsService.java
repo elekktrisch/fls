@@ -85,10 +85,24 @@ public class PersonsService {
             applyJoin(p, tenant, req.initialClubMembership());
         }
         Person saved = persistPerson(p);
+        refuseAPersonThatTheCreatingClubCannotReadBack(req, saved, tenant);
         PersonResponse after = toResponse(saved);
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_PERSON, after.id().value(), saved));
         return after;
+    }
+
+    private void refuseAPersonThatTheCreatingClubCannotReadBack(PersonCreateRequest req,
+                                                                Person saved,
+                                                                UUID tenant) {
+        if (req.initialClubMembership() != null) {
+            return;
+        }
+        if (persons.findActiveByIdInSameDeploymentAs(idValueOrThrow(saved), tenant).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "This club cannot read back a Person that joins no club. "
+                            + "Send initialClubMembership.");
+        }
     }
 
     public PersonResponse updatePerson(PersonId id, PersonUpdateRequest req) {
@@ -234,9 +248,9 @@ public class PersonsService {
     }
 
     public PersonResponse attachExistingPerson(PersonId id, PersonClubRequest req) {
-        Person p = persons.findActiveById(id.value())
-                .orElseThrow(() -> new PersonNotFoundException(id));
         UUID tenant = currentTenantOrThrow();
+        Person p = persons.findActiveByIdInSameDeploymentAs(id.value(), tenant)
+                .orElseThrow(() -> new PersonNotFoundException(id));
         applyJoin(p, tenant, req);
         Person saved = persistPerson(p);
         PersonClub attached = aliveMembershipInOrThrow(saved, tenant);
@@ -284,12 +298,14 @@ public class PersonsService {
         UUID tenant = currentTenantOrThrow();
         List<Person> matches;
         if (req.email() != null && !req.email().isBlank()) {
-            matches = persons.findActiveByEmail(req.email().trim().toLowerCase(Locale.ROOT));
+            matches = persons.findActiveByEmailInSameDeploymentAs(
+                    req.email().trim().toLowerCase(Locale.ROOT), tenant);
         } else if (req.firstname() != null && req.lastname() != null && req.birthday() != null) {
-            matches = persons.findActiveByIdentityTriple(
+            matches = persons.findActiveByIdentityTripleInSameDeploymentAs(
                     req.firstname().strip(),
                     req.lastname().strip(),
-                    req.birthday());
+                    req.birthday(),
+                    tenant);
         } else {
             throw new IllegalArgumentException(
                     "Lookup requires email OR full identity triple (firstname + lastname + birthday)");

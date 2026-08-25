@@ -1,4 +1,4 @@
-package ch.alpenflight.publicregistration.web;
+package ch.alpenflight.platform.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
@@ -11,14 +11,14 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 @Component
-class ClientIpResolver {
+public class ClientIpResolver {
 
     private static final String FORWARDED_FOR = "X-Forwarded-For";
 
     private static final Pattern STRICT_IPV4_DOTTED_QUAD = Pattern.compile(
             "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}");
 
-    String resolve(HttpServletRequest request) {
+    public String resolve(HttpServletRequest request) {
         String peer = request.getRemoteAddr();
         String peerAddress = peer == null ? "" : peer;
         InetAddress peerIp = parseIpLiteralWithoutDnsLookup(peerAddress);

@@ -1066,6 +1066,23 @@ jobs:
               "alpenflight-audit-row-detail.png" \
               "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."
           fi
+          if [ "${PROOF_JOURNEY:-}" = "J-20" ]; then
+            add_af_only "J-20" "demo" "dashboard" \
+              "alpenflight-demo-dashboard.png" \
+              "AlpenFlight (greenfield, no legacy peer): the /start dashboard of a visitor with no account, one action after the landing page. The validation tile reads the 24 seeded flights of the seat, and the demo banner sits on the screen. The today tile reads zero, because the seeder writes its newest flying day two days before the run date."
+            add_af_only "J-20" "demo" "flights" \
+              "alpenflight-demo-flights.png" \
+              "AlpenFlight (greenfield, no legacy peer): the /flights logbook of the demo seat, over the last 30 days. It holds at least 20 seeded flights, and the demo banner rides the screen."
+            add_af_only "J-20" "demo" "changed" \
+              "alpenflight-demo-flight-changed.png" \
+              "AlpenFlight: the seeded cross-country flight of the demo visitor, re-opened after the save. The comment holds the value that visitor wrote, so a demo visitor can change the sandbox."
+            add_af_only "J-20" "demo" "isolation" \
+              "alpenflight-demo-isolation.png" \
+              "AlpenFlight: the copy of the same seeded flight in the seat of the second demo visitor. The comment holds the seeded value. The row the first visitor changed is absent from this logbook, and this logbook holds the 24 rows of one seat."
+            add_af_only "J-20" "demo" "restored" \
+              "alpenflight-demo-flight-restored.png" \
+              "AlpenFlight: the flight after a system administrator ran sandbox-reset from /system/jobs. The job reclaimed the expired seat, and the seeded value is back."
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"

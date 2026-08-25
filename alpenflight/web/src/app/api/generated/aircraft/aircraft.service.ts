@@ -243,7 +243,7 @@ export class AircraftService {
     );
   }
 /**
- * @summary List all active aircraft, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).
+ * @summary List the active aircraft of the caller's Deployment, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).
  */
  listAircraft<TData = AircraftListItem[]>(params?: ListAircraftParams, options?: HttpClientBodyOptions): Observable<TData>;
  listAircraft<TData = AircraftListItem[]>(params?: ListAircraftParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
@@ -500,7 +500,7 @@ export class AircraftService {
     );
   }
 /**
- * @summary Slim picker list (id + immatriculation + type + isTowingAircraft).
+ * @summary Slim picker list of the caller's Deployment (id + immatriculation + type + isTowingAircraft).
  */
  listAircraftForPicker<TData = AircraftPickerItem[]>( options?: HttpClientBodyOptions): Observable<TData>;
  listAircraftForPicker<TData = AircraftPickerItem[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;

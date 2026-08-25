@@ -57,6 +57,15 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
+demo:
+  pool-size: ${ALPENFLIGHT_DEMO_POOL_SIZE:10}
+  max-live-seats-per-address: ${ALPENFLIGHT_DEMO_MAX_LIVE_SEATS_PER_ADDRESS:1}
+  lease-idle-period: ${ALPENFLIGHT_DEMO_LEASE_IDLE_PERIOD:PT30M}
+  direct-grant:
+    client-id: ${ALPENFLIGHT_DEMO_SEAT_CLIENT_ID:alpenflight-demo-seat}
+    client-secret: ${ALPENFLIGHT_DEMO_SEAT_CLIENT_SECRET:alpenflight-demo-seat-dev-secret}
+    seat-password: ${ALPENFLIGHT_DEMO_SEAT_PASSWORD:alpenflight-demo-seat-dev-2026!}
+
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}
@@ -250,6 +259,12 @@ audit:
           - id
           - clubId
           - name
+      PersonClubMembershipOutsideTheTenantFilter:
+        allow:
+          - id
+          - personId
+          - clubId
+          - deletedOn
       PersonClub:
         snapshot-types:
           - 'ch.alpenflight.persons.domain.PersonClub'
@@ -567,6 +582,12 @@ audit:
           - createdOn
           - decidedOn
           - decidedByUserId
+      DemoSeatLease:
+        snapshot-types:
+          - 'ch.alpenflight.tenancy.sandbox.application.DemoSessionStarter$LeasedSeatAuditPayload'
+        allow:
+          - seatNumber
+          - clubId
 
 alpenflight:
   mail:

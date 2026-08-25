@@ -28,8 +28,11 @@ export interface AdminUser {
   id: string;
   username: string;
   email?: string;
+  firstName?: string;
+  lastName?: string;
   enabled?: boolean;
   emailVerified?: boolean;
+  requiredActions?: string[];
   attributes?: Record<string, string[]>;
 }
 
@@ -243,6 +246,14 @@ export async function findRealmRole(roleName: string): Promise<RealmRoleRepresen
     throw new Error(`findRealmRole(${roleName}) failed (${res.status}): ${await res.text()}`);
   }
   return (await res.json()) as RealmRoleRepresentation;
+}
+
+export async function listRealmRoleNamesOf(userId: string): Promise<string[]> {
+  const res = await adminRequest(`/users/${encodeURIComponent(userId)}/role-mappings/realm`);
+  if (!res.ok) {
+    throw new Error(`listRealmRoleNamesOf(${userId}) failed (${res.status}): ${await res.text()}`);
+  }
+  return ((await res.json()) as RealmRoleRepresentation[]).map((role) => role.name);
 }
 
 export async function assignRealmRole(userId: string, roleName: string): Promise<void> {

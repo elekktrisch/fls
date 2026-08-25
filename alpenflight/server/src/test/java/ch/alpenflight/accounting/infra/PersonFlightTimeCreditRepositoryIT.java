@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.accounting.domain.PersonFlightTimeCredit;
 import ch.alpenflight.accounting.domain.PersonFlightTimeCreditRepository;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonNotificationPrefs;
 import ch.alpenflight.persons.domain.PersonRepository;
@@ -17,6 +18,7 @@ import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,12 +36,13 @@ class PersonFlightTimeCreditRepositoryIT extends PostgresIntegrationTest {
     @Autowired private CountryRepository countries;
     @Autowired private ClubStateRepository clubStates;
 
+    private TwoClubFixture fixture;
     private UUID clubA;
     private UUID clubB;
 
     @BeforeEach
     void seed() {
-        TwoClubFixture fixture =
+        fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         fixture.seed();
         clubA = fixture.clubA();
@@ -49,6 +52,11 @@ class PersonFlightTimeCreditRepositoryIT extends PostgresIntegrationTest {
                 + "JOIN t_person p ON p.id = c.person_id WHERE p.lastname = ?)", NAME_PREFIX);
         jdbc.update("DELETE FROM t_person_flight_time_credit "
                 + "WHERE person_id IN (SELECT id FROM t_person WHERE lastname = ?)", NAME_PREFIX);
+    }
+
+    @AfterEach
+    void deleteTheSandboxDeploymentClubsThisTestSeeded() {
+        fixture.deleteEveryAdditionalDeploymentClubThisFixtureSeeded();
     }
 
     @Test
@@ -82,6 +90,50 @@ class PersonFlightTimeCreditRepositoryIT extends PostgresIntegrationTest {
                 assertThat(credits.findActiveForPersonInCurrentTenant(memberB))
                         .as("club B loads its own member's credit")
                         .hasSize(1));
+    }
+
+    @Test
+    void a_real_club_never_reads_the_credit_of_a_sandbox_deployment_member() {
+        UUID sandboxSeatClub =
+                fixture.seedAdditionalClubInDeployment(Deployment.SANDBOX_ID, "sandboxseat");
+        UUID sandboxMember = seedMember(sandboxSeatClub, "sandboxvisitor");
+        UUID sandboxCredit = seedCredit(sandboxMember, false, 900L);
+        UUID ownMember = seedMember(clubA, "ownmember");
+        UUID ownCredit = seedCredit(ownMember, false, 600L);
+
+        TenantTestContext.runAs(clubA, () -> {
+            assertThat(credits.findActiveForPersonInCurrentTenant(sandboxMember))
+                    .as("a sandbox member's credit must be absent from a real club's read")
+                    .extracting(PersonFlightTimeCredit::getId)
+                    .doesNotContain(sandboxCredit);
+            assertThat(credits.findActiveForPersonInCurrentTenant(ownMember))
+                    .as("positive baseline — the real club still reads its own member's credit")
+                    .extracting(PersonFlightTimeCredit::getId)
+                    .containsExactly(ownCredit);
+            return null;
+        });
+    }
+
+    @Test
+    void a_sandbox_deployment_club_never_reads_the_credit_of_a_real_member() {
+        UUID sandboxSeatClub =
+                fixture.seedAdditionalClubInDeployment(Deployment.SANDBOX_ID, "sandboxseat");
+        UUID realMember = seedMember(clubA, "realmember");
+        UUID realCredit = seedCredit(realMember, false, 1_200L);
+        UUID seatMember = seedMember(sandboxSeatClub, "seatmember");
+        UUID seatCredit = seedCredit(seatMember, false, 300L);
+
+        TenantTestContext.runAs(sandboxSeatClub, () -> {
+            assertThat(credits.findActiveForPersonInCurrentTenant(realMember))
+                    .as("a real member's credit must be absent from a demo visitor's read")
+                    .extracting(PersonFlightTimeCredit::getId)
+                    .doesNotContain(realCredit);
+            assertThat(credits.findActiveForPersonInCurrentTenant(seatMember))
+                    .as("positive baseline — the seat still reads its own member's credit")
+                    .extracting(PersonFlightTimeCredit::getId)
+                    .containsExactly(seatCredit);
+            return null;
+        });
     }
 
     @Test

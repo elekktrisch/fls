@@ -17,20 +17,70 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
-**Burndown moved to a dedicated journey (operator, 2026-08-19).** Neither oldest-first (J-17 retro) nor
-severity-first (J-31 retro) drained this file: it went ~17 → 45 riders, and J-19 alone burned 2 while filing 9.
-A per-journey slot cannot match the discovery rate, and throttling the filing would be worse — J-19's riders
-came from real `gap-hunter` and worker findings. J-32 (hardening) drained the S1 riders and re-filed the
-S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-08-22).
-`/do-ship` still folds on-surface riders opportunistically. Filing stays unrestricted.
+**Every rider carries `RIDES: J-NNN` (operator, 2026-08-23).** Name the journey that owns the rider's seam,
+or `RIDES: next` when no journey does. `/do-plan`'s carve MOVES the addressed riders into that journey's file
+and deletes them from here, so this file stops being a dumping ground and each rider has a route home.
+
+**Routing result, 2026-08-23: 9 → J-21, 2 → J-28, 39 → `next`.** Only four journeys remain on the forward
+roadmap (J-20, J-21, J-22, J-28), so most riders have no owning journey to route to. The `next` pool holds
+**no S1**, 23 S2 and 15 S3. About twenty of them are one coherent cluster — CI lanes, lint, typecheck and
+guard coverage — which `/do-plan` should carve as a **hardening journey** rather than leave unhomed.
+
+**Carve update, 2026-08-23 (`/do-plan next` → J-20, then revised at `/do-ship`).** The carve first moved
+five riders into `J-20-demo-mode-sandbox-club.md`. The operator then asked for per-visitor demo tenancy,
+which took the budget, so **only `[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]` still rides J-20**. The
+other four came back here with a carve note each:
+`[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]` + `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`,
+`[FORM-FIRST-PAINT-RED]` and `[PROD-DENSITY-ATTR-MISSING]`. The CI-lane cluster stays here and is filed
+as **J-34** on the forward roadmap.
+
+**Why the routing rule exists.** Dedicated burndown journeys did not work. Oldest-first (J-17 retro) and
+severity-first (J-31 retro) both failed, so the operator gave burndown its own journey on 2026-08-19. J-32
+drained the S1 riders and re-filed the S2 tail. J-33 was then to drain every S1 and S2 — it shipped 5 riders
+and filed about 10, because its gates found real defects, and the file grew ~45 → 51. **A growing file is a
+quality signal, not a backlog failure**, so the answer is to route riders, not to drain them in bulk.
+Filing stays unrestricted.
 
 **Severity markers** — `/do-retro` tags every rider, `/do-ship` burns them down highest-first:
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-20 T-15b, 2026-08-24)
+
+- **[ORPHAN-PERSON-ATTACHES-ACROSS-REAL-DEPLOYMENTS]** [S1] `RIDES: J-21` **Symptom (measured, not inferred).**
+  A club of one real Deployment attaches a membership-less Person of another real Deployment. T-15b sealed
+  the identity search only: `JpaPersonRepository.java:37-38` now reaches a Person through a club membership
+  of the reading club's Deployment, and `:89` and `:98` bind that predicate to the two lookup queries.
+  `PersonsDeploymentIsolationIT.java:233` scored the old code red — a club of a second real Deployment read
+  the name, the birthday and the email through `POST /api/v1/persons/lookup`, by email and by identity
+  triple. **The id read stays open.** `JpaPersonRepository.java:40-42` keeps the membership-less branch, and
+  `:107` binds it to `findActiveByIdInSameDeploymentAs`. A caller that holds a Person id therefore still
+  attaches that Person through `PersonsService.java:252`, from any Deployment that is not a sandbox. The
+  attach writes the membership, so the owning Deployment never finds the Person again. A second real
+  Deployment stays self-service reachable: `MigrationBundleController.java:28-34` needs only
+  `isAuthenticated() and email_verified`, and it provisions a trial Deployment through
+  `MigrationBundleIngestService.java:489`. **T-15b stopped there on purpose.**
+  `PersonsService.java:101` reads a new Person back through the same id query, so a full close refuses every
+  create that carries no `initialClubMembership`, and that re-breaks the create-then-attach flow T-15 kept
+  open. **Provenance is measured dead, not untried.** `t_person.created_by_user_id` cannot name a
+  Deployment: the producer drops the legacy system user (`MapperLegacyBindings.java:18-19,171`), and that
+  user stamps 6 of the 7 legacy Persons of the e2e seed
+  (`flsserver/database/FLSTest/3 insert/4 or 5 Insert Test Data.sql:9`), so the column dangles; `Person.java`
+  maps no such field, so every API-created Person holds NULL. **Cause (hypothesis).** `t_person` holds no
+  Deployment column, so no predicate can separate two real Deployments. **The fix J-21 owns:** add a
+  `t_person` Deployment column, backfill it, change the positional binding at
+  `EntityStreamIngestor.java:157-199`, then scope both the id read and the identity search to the owning
+  Deployment. An alternative that needs no schema change: synthesize a per-Deployment actor user for the
+  legacy system id at ingest, then repoint `created_by_user_id` onto it. That alternative crosses three
+  modules and it needs a backfill too, so T-15b did not take it.
+
+## Pending (filed by /do-ship J-20 T-12c, 2026-08-24)
+
+- **[NAV-BAR-DECLARES-STICKY-AND-SCROLLS-AWAY]** [S3] `RIDES: next` **Symptom (measured).** `af-nav-bar.component.ts:55` declares `sticky top-0`, and the nav bar still scrolls off the screen. J-20 T-12c measured the same fault on the shell: the banner sat at y = -529 at scroll 1200. **Cause (hypothesis, not measured for the nav bar).** The host box of the component is its own containing block, so the sticky range is zero. T-12c fixed the shell at `app.component.ts:14`, which makes the banner hold the top. It did not change `af-nav-bar`, so the nav bar is a second instance of the fault. **How to score it.** Assert the y position of the nav bar after a scroll, and red the current code first. A `toBeLessThan(1)` assertion passes on a negative y, so it is vacuous — T-12c wrote that assertion, measured it, and replaced it (`demo-mode.spec.ts:177`).
+
 ## Pending (filed by /do-ship J-33 T-05, 2026-08-23)
 
-- **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] **Symptom (measured, not inferred).**
+- **[THREE-MAPPERS-SEEK-A-FOREIGN-KEY-COLUMN-THEY-NEVER-EMIT]** [S1] `RIDES: J-21` **Symptom (measured, not inferred).**
   T-05 added `MapperForeignKeyColumnDeclarationTest`, which scores every `KnownMappers` entry against the
   column `ForeignKeyResolver` seeks. It reds on four mappers. T-05 fixed `AuditLogMapper`. Three remain, and
   the test pins them in `KNOWN_UNDECLARED_AWAITING_ITS_OWN_MIGRATION_PROOF`: `DeliveryMapper` seeks `club_id`
@@ -47,7 +97,7 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
 
 ## Pending (filed by /do-ship J-33 T-42, 2026-08-23)
 
-- **[PARITY-DIFF-ENGINE-TRUSTS-THE-PRODUCER-SELECT]** [S2] **Symptom (measured).** T-43 made
+- **[PARITY-DIFF-ENGINE-TRUSTS-THE-PRODUCER-SELECT]** [S2] `RIDES: J-21` **Symptom (measured).** T-43 made
   `ParityDiffEngine` count the legacy side through `MapperLegacyBindings.selectForProducer`, because the
   raw-table count scored the one `Users` row the USER producer SELECT excludes by id as a false red. The
   oracle now proves "every row the producer emitted landed in Postgres". It no longer proves "the producer
@@ -58,7 +108,7 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   classes. [[project_synth_bundle_doesnt_validate_producer_select]]
   *(seam: `ParityDiffEngine.java:23`, `MapperLegacyBindings`)*
 
-- **[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]** [S2] **Symptom (measured).** `parityRejectTest` and
+- **[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]** [S2] `RIDES: J-21` **Symptom (measured).** `parityRejectTest` and
   `parityMetaTest` both complete `BUILD SUCCESSFUL` in seconds and write an empty result directory. No test
   in `src/parity/java` carries `@Tag("parity-reject")` or `@Tag("parity-meta")` — `ParityOracleHarnessTest`
   carries `@Tag("parity")` only. S-187a shipped the two Gradle tasks and S-187d still owes their cases, so
@@ -68,7 +118,7 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   it: still zero tagged cases, and T-43 did not invent any.
   *(seam: `alpenflight/migration-bundle/build.gradle.kts:89`, S-187d)*
 
-- **[DOCKER-SKIP-TURNS-AN-MSSQL-GUARD-GREEN]** [S2] **Symptom (measured).**
+- **[DOCKER-SKIP-TURNS-AN-MSSQL-GUARD-GREEN]** [S2] `RIDES: J-21` **Symptom (measured).**
   `LegacyProducerSelectCompatibilityLevelTest:21` is `@EnabledIf("dockerAvailable")` and swallows the
   container start failure. A Docker blip on the runner turns the guard into a silent skip, and the lane
   reads green. T-42 confirmed it executes today (3 tests, 0 skipped, on this box). **Cause (hypothesis).**
@@ -78,7 +128,7 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
   owes the same treatment.
   *(seam: `alpenflight/database/extract/src/test`)*
 
-- **[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]** [S2] **Symptom (measured).** `extract.yml` runs
+- **[EXTRACT-LANE-REDS-NOTHING-A-MERGE-DEPENDS-ON]** [S2] `RIDES: J-21` **Symptom (measured).** `extract.yml` runs
   `LegacyProducerSelectCompatibilityLevelTest` and `MetadataExtractorIntegrationTest`, but the job is in no
   `required.needs` list, because `required` lives in `ci.yml` and a job cannot depend on another workflow.
   A red extract lane shows as a red check and blocks no merge. The same holds for `alpenflight-e2e.yml` and
@@ -87,7 +137,7 @@ S2 tail. **J-33 (hardening) now owns draining every S1 and S2** (operator, 2026-
 
 ## Pending (filed by /do-ship J-33 gate, 2026-08-23)
 
-- **[FIXTURE-TABLE-NAMING-GUARD-SCANS-PROSE]** S3 — `FixtureTableNamingConventionTest` applies its
+- **[FIXTURE-TABLE-NAMING-GUARD-SCANS-PROSE]** [S3] `RIDES: next` `FixtureTableNamingConventionTest` applies its
   `FROM <token>` bare-table-name regex to English prose inside assertion description strings, not only
   to SQL. **Symptom (evidence):** it failed the CI server build on
   `ForeignKeyResolverColumnDeclarationTest.java:158` for the phrase "not from this test", reporting the
@@ -102,7 +152,7 @@ The red itself is fixed in the carve commit and is **folded into J-33** (see
 `J-33-audit-attribution-and-migrate-dead-end.md` §"Main-branch red"). The gate hole it exposed
 outlives that fix and stays here.
 
-- **[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]** [S2] `nightly.yml` triggers on `schedule` and
+- **[NIGHTLY-RUNS-ON-NO-PULL-REQUEST]** [S2] `RIDES: next` `nightly.yml` triggers on `schedule` and
   `workflow_dispatch` only, so a spec added under `e2e/` **never runs before merge**. J-19 authored
   `lostpassword-parity-J19.spec.ts`, CI stayed green, and the spec's FIRST real run was the
   2026-08-20 nightly — which reds deterministically on a `#username` strict-mode violation and stayed
@@ -119,28 +169,19 @@ The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file th
 below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
 this file untouched.
 
-- **[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]** [S2] J-32 T-67 made a `git push` arm the fan-out and
-  made the gate wait for it, so no human triggers a run any more. The selftest scores 38 input classes,
-  but the **`push`-arm, wait and self-dispatch paths have never executed**: every fan-out in J-32 was a
-  `workflow_dispatch`, and no producer-tree change remained to arm the new trigger. The operator decided
-  on 2026-08-21 that the next journey touching a producer mapper is the real test. That journey must
-  **confirm the trigger fires** and the gate waits, and must not assume it did — authored infra can be
-  wired wrong in a way only an end-to-end run reveals
-  ([[feedback_verify_infra_is_run_not_just_authored]]). *(seam:
-  `.github/workflows/alpenflight-proof-fanout.yml` `on.push` + `fanout-parity-verdict.py` `resolve()`)*
-- **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
+- **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `RIDES: next` `ng lint` reads `src/**` plus the two real-idp lane
   directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
   **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
   `e2e/tests/public/signup.spec.ts:77,87,96,105,125,144`, all `sessionStorage` inside `page.evaluate`,
   which looks like a false positive of an app-side rule. T-63 refused to silence the rule to widen the
   gate, which was correct. Decide the rule first, then widen the lane. *(seam: `angular.json`
   `lintFilePatterns` + the app-side rule)*
-- **[GATING-LANE-SKIP-HAS-NO-GUARD]** [S2] T-65 deleted a `test.skip` that hid the migrated-copy rename
+- **[GATING-LANE-SKIP-HAS-NO-GUARD]** [S2] `RIDES: next` T-65 deleted a `test.skip` that hid the migrated-copy rename
   from the gating fan-out lane for months. Nothing stops the next author adding one. A
   `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
   would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
   its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
-- **[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]** [S2] J-33 T-04 gave the rejected anonymous write the
+- **[FAILED-ANONYMOUS-ROW-NAMES-NO-CLUB]** [S2] `RIDES: next` J-33 T-04 gave the rejected anonymous write the
   `ANONYMOUS_PUBLIC` kind. The row still names no club, and it keeps no client IP. Measured on
   `integration/J-33`: the 429 row reads `tenant_club_id = null` and `client_ip = null`. Two causes sit
   outside T-04's seam. First, `PublicRegistrationIntake.java:56` runs the abuse guard before
@@ -153,17 +194,20 @@ this file untouched.
   Decide this rider together with `[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]`: give the failed row its
   club first, then record the client IP through the path the successful submission uses. Do not relax the
   club-scoped rule on its own — the erasure endpoint reaches a row through its club.
+  **J-20 carve note (2026-08-23):** J-20's demo seats each write as a real, distinct Keycloak actor, so
+  demo writes attribute through the normal path. This rider's concern stays on the rejected anonymous
+  public-registration write, and it did not get more urgent.
   *(seam: `RequestAuditFilter` + `RequestTenantHint` + `PublicRegistrationIntake`)*
-- **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] The T-45 guard found **fifteen** more audit call sites that
+- **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] `RIDES: next` The T-45 guard found **fifteen** more audit call sites that
   pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
   EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,
   because an unmatched type gets an empty allow-set. The sites are pinned in
   `alpenflight/server/config/audit/undecided-audit-snapshot-fields.txt`. Decide each one, as T-45 did for
   its five. *(seam: the audit call sites + `application.yml` redaction config)*
-- **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
+- **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `RIDES: next` `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
   and reports the aircraft device sync as a success. The job writes nothing and says it worked. T-07d
   found this while it enumerated the `ObjectProvider` injection shape. *(seam: `HttpOgnDeviceDatabase`)*
-- **[SYSTEM-ADMINISTRATOR-CANNOT-REACH-THE-AUDIT-SCREEN]** [S2] T-06 opened the backend for a system
+- **[SYSTEM-ADMINISTRATOR-CANNOT-REACH-THE-AUDIT-SCREEN]** [S2] `RIDES: next` T-06 opened the backend for a system
   administrator: `UsersController.listUsers` and `AuditAdminController` now admit the same two roles. The
   SPA still refuses the screen. `audit-logs.routes.ts:7` applies `clubAdminGuard`, which demands
   `currentClubId() !== null` AND `isClubAdmin()`, and `nav-sections.ts:26` lists `/system/logs` under
@@ -172,12 +216,12 @@ this file untouched.
   the operator: does a system administrator get `/system/logs`, and which tenant do they read? Until then
   no real-idp spec can drive AC-1 with a SYSTEM_ADMINISTRATOR-only principal.
   *(seam: `clubAdminGuard` + `nav-sections` + the sysadmin tenant)*
-- **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
+- **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] `RIDES: J-21` The bundle ingest maps a cross-tenant foreign-key
   rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
   operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
-- **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
+- **[NAV-OVERLAY-EATS-CLICKS]** [S2] `RIDES: next` `nav.ts:21` — an overlay takes a click the test aimed at the element
   behind it. T-10 found it while it drove the proof spec. *(seam: the nav overlay)*
-- **[J-32-GATE-NITS]** [S2] Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
+- **[J-32-GATE-NITS]** [S2] `RIDES: next` Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
   impersonation guard exempts all of `ClubsController` when only `deleteClub` needs it, so `updateClub`
   could lose `@tenant.isOwnClub` and pass; `ClientIpRetentionIT` asserts 90 days plus a margin, so only the
   unit test hits the true boundary; and `ClientIpRedaction.java:38` re-checks a window the query already
@@ -185,7 +229,7 @@ this file untouched.
 
 ## Pending (filed by /do-ship J-32 T-03, 2026-08-20)
 
-- **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] T-03 deleted `AuditTargetTenantInterceptor`. That
+- **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] `RIDES: next` T-03 deleted `AuditTargetTenantInterceptor`. That
   interceptor was the only writer of a `RequestTenantHint` attribute that outlives the handler, because it
   never restored the attribute. `Tenants.runAs` writes the same attribute, but it restores the prior value in
   its `finally` block. `RequestAuditFilter` reads the attribute in the outermost `finally`, after every
@@ -195,7 +239,7 @@ this file untouched.
   `TenantsRunAsAllowlistTest` allow-list — or keep the hint and give it a producer. [ADR 0008](../adrs/0008-multi-tenancy-mechanism.md)
   §Amendment S-159 names `RequestAuditFilter` as an in-process `runAs` seam, so the deletion needs the
   operator. *(seam: `RequestTenantHint` + `RequestAuditFilter` + `TenantsRunAsAllowlistTest`)*
-- **[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]** [S2] `verifyArchUnitFailsOnViolation`
+- **[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]** [S2] `RIDES: next` `verifyArchUnitFailsOnViolation`
   (`alpenflight/server/build.gradle.kts:339`) and `verifyNullAwayFailsOnViolation` (`:146`) both prove that a
   guard reds on a planted violation. Neither task depends on `check`, and `ci.yml:583` runs only
   `./gradlew build`, so neither has ever run in CI. The `src/archDemo/java` and `src/nullawayDemo/java`
@@ -207,7 +251,7 @@ this file untouched.
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
 
-- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S3] The J-31 sweep deleted every comment in
+- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S3] `RIDES: next` The J-31 sweep deleted every comment in
   `alpenflight/` and `e2e/`, and the gate at `ci.yml:105` reads those two roots only. `.github/`
   was never swept, so it still holds 1850 comment lines in 5895 (31%), and `ci.yml` alone holds 883
   in 2501 (35%). The operator reads that narration as a policy breach, because the rule is one rule
@@ -217,7 +261,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   Same class as the extract.yml hole: a gate that does not read its own inputs.
   *(seam: `.claude/skills/comment-strip/scripts/strip.mjs` extension map + the gate's roots at
   `ci.yml:105`)* [[project_gate_must_cover_its_own_inputs]]
-- **[GH-PAGES-HISTORY-IS-UNBOUNDED]** [S2] Two guards bound the gh-pages TREE: the retention cron
+- **[GH-PAGES-HISTORY-IS-UNBOUNDED]** [S2] `RIDES: J-28` Two guards bound the gh-pages TREE: the retention cron
   deletes what no published page reaches, and `check-gh-pages-payload-size.py` reds over 400 MB.
   Nothing bounds the gh-pages HISTORY. Every deleted proof video, trace and screenshot stays in the
   branch's objects, and the cron's own delete commit adds one more. Measured: at least 0.87 GiB in
@@ -228,7 +272,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   That force-pushes a published branch, so it must take the existing `gh-pages-deploy` concurrency
   group and must run after the retention sweep, never beside it.
   *(seam: `gh-pages-retention.yml`, after the "Publish the pruned site" step)*
-- **[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]** [S2] `check-theme-resources-are-all-self-hosted.sh:10`
+- **[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]** [S2] `RIDES: next` `check-theme-resources-are-all-self-hosted.sh:10`
   catches an external host only inside `url(` or `@import`. Reproduced: an `.ftl` carrying
   `<link href="//fonts.googleapis.com/css2?family=Roboto">` and `<script src="//cdn…">` passes with
   rc=0. The exact regression J-19 T-23 fixed returns through that form; the selftest plants only the
@@ -239,7 +283,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 **MAIN-1 to MAIN-4 are folded into J-19** (see `J-19-password-recovery-email-confirmation.md`
 §"Main-branch reds"). The entries below are the parts that outlive that journey.
 
-- **[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]** [S1] A club-less registrant cannot complete the
+- **[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]** [S1] `RIDES: J-21` A club-less registrant cannot complete the
   migrate handshake, so the funnel J-16 shipped ends in an error state. The chain, proven by the
   real-idp run on the J-19 branch: the landing migrate CTA opens `/signup?intent=migrate`
   (`alpenflight/web/src/app/features/landing/landing.component.ts:76`). `postSignupLandingPath` sends
@@ -265,18 +309,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   (migrate-from-legacy upload wizard, `_ORDER.md:23`), so the fix rides J-21.
   *(seam: `PreTenantUserLookup.resolveUserId` + `JitUserMaterializerImpl` + `MigrationHandshakeService`
   + the verified-email signup path)*
-- **[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]** [S2] J-19 T-21 widened the quote styles, the verbs
-  and the call span of `absolute-flight-date-in-api-seed-guard.mjs`, but the guarded field list is still
-  the three flight fields T-03 chose. A T-21 scan over every file that holds a seeding call site found
-  absolute dates on **other** date fields that the same 90-day-window class of hazard can reach:
-  `reservations-migration-parity.spec.ts:305-381` seeds `start` / `end` at `2026-09-02`,
-  `deliveries-write-parity.spec.ts:519` seeds `deliveryDateTime` at `2026-06-01`,
-  `aircraft-migration-parity.spec.ts:312` seeds `atDateTime` at `2026-01-01`, and
-  `e2e/tests/email/notifications.spec.ts:48` seeds `SelectedDay` at `2026-06-15`. Each needs the same
-  question T-01 answered for `flightDate`: does a server-side default window reach this date on a future
-  run date? Answer it per field, then either derive the date or add the field to `GUARDED_DATE_FIELDS`.
-  *(seam: `GUARDED_DATE_FIELDS` + those four specs)*
-- **[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]** [S2] `alpenflight/web/tsconfig.json` sets `files: []`, and
+- **[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]** [S2] `RIDES: next` `alpenflight/web/tsconfig.json` sets `files: []`, and
   neither `tsconfig.app.json` nor `tsconfig.spec.json` includes `scripts/**`. So every file under
   `alpenflight/web/scripts/` — including the two CI guards J-19 added and their own specs — is
   typechecked by no CI job. J-19 T-17 typechecked the guard spec by hand to ship. This is the same
@@ -284,7 +317,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   guards that protect the suite are themselves unguarded. *(seam: a tsconfig that includes
   `alpenflight/web/scripts/**` + a CI step that runs it)*
   [[project_gate_must_cover_its_own_inputs]]
-- **[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]** [S2] `alpenflight/auth/scripts/check-theme-load.sh` cannot
+- **[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]** [S2] `RIDES: next` `alpenflight/auth/scripts/check-theme-load.sh` cannot
   pass: it built a raw authorize URL with no PKCE parameters (the same fault J-19 T-12 found in
   `login.spec.ts`, so Keycloak 302s away before any theme renders) and it matches a root-element
   pattern that the `keycloak.v2` track never emits. T-12 fixed both faults. The remaining defect is
@@ -292,7 +325,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   verification that runs nowhere is not a gate. Wire it, or delete it and say the theme is unguarded.
   *(seam: `check-theme-load.sh` + a CI job that runs it)*
   [[feedback_safety_claim_needs_negative_test]]
-- **[BARE-SIGNUP-JOIN-FUNNEL-UNCOVERED]** [S2] No spec registers through bare `/signup` and lands on
+- **[BARE-SIGNUP-JOIN-FUNNEL-UNCOVERED]** [S2] `RIDES: J-21` No spec registers through bare `/signup` and lands on
   `/join`, although `resolveSignupIntent(null)` makes `join` the DEFAULT intent
   (`signup-intent.ts:3,6`). Existing coverage misses it: the unit spec covers the resolver
   (`signup-intent.spec.ts:19,28`), the mock e2e reaches the `/join` stamp through `intent=demo`
@@ -304,7 +337,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 
-- **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** [S2] `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
+- **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** [S2] `RIDES: next` `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
   TypeScript 6 rejects as deprecated (TS5107), so `npx tsc -p e2e/tsconfig.json` cannot run at all on the
   top-level suite. Pre-existing and unrelated to the sweep, but it means that suite has **no typecheck gate**
   — alongside the finding that `angular.json`'s `lintFilePatterns` is `src/**` only, so `e2e/` has no lint gate
@@ -312,7 +345,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   *(seam: `e2e/tsconfig.json` + an `e2e` lint/typecheck lane)*
 ## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
 
-- **[SCHEMA-DECISIONS-NOTE]** [S3] T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
+- **[SCHEMA-DECISIONS-NOTE]** [S3] `RIDES: next` T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
   other batch this one had **no rescue move**: an applied index/constraint cannot be renamed to carry its reason
   (that needs `ALTER … RENAME TO` in a NEW migration — a schema change), and an applied migration's DDL must not
   be edited. So the rationale below now lives only in git. **111 `COMMENT ON` DDL statements survive** (string
@@ -396,7 +429,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-11, 2026-08-15)
 
-- **[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]** [S2] `forms/validation-hardening.spec.ts:150-154` registers a persons
+- **[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]** [S2] `RIDES: next` `forms/validation-hardening.spec.ts:150-154` registers a persons
   **detail** route first and a broad `**/api/v1/persons**` list glob after. Playwright is last-registered-wins
   and the broad glob also matches `/api/v1/persons/{id}`, so the list array may be serving the detail GET. The
   deleted comment asserted the opposite. Needs a human read — if it is shadowed, the spec is passing against the
@@ -404,22 +437,22 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
 
-- **[PACKAGE-INFO-DOMAIN-VOCABULARY-LOST]** [S3] The `package-info.java` files are now bare `@NullMarked` /
+- **[PACKAGE-INFO-DOMAIN-VOCABULARY-LOST]** [S3] `RIDES: next` The `package-info.java` files are now bare `@NullMarked` /
   `@ApplicationModule` declarations. Layering stays ArchUnit-enforced and tenancy stays structural, but the
   **domain vocabulary** went with them — notably the aircraft three-axis ownership model
   (`managing_club_id` vs `owner_club_id` vs `aircraft_owner_person_id`) and the S-058 reversion of S-159 for
   the charter case. That belongs in `docs/modernization/`, which is where this policy says rationale lives —
   it just never got written there. *(seam: a short domain-vocabulary note under `docs/modernization/`)*
-- **[DEAD-ACTOR-RESOLVER-EVICT]** [S3] `audit/application/ActorResolver.java:50` `evict(String sub)` has **zero
+- **[DEAD-ACTOR-RESOLVER-EVICT]** [S3] `RIDES: next` `audit/application/ActorResolver.java:50` `evict(String sub)` has **zero
   callers** in `src/main`, `src/test` or e2e; the deleted comment claimed "Called by the user-deactivation
   flow". Wire it into user deactivation or delete it. *(seam: `ActorResolver` + the deactivation flow)*
 
-- **[REQUEST-ID-NEVER-LOGGED]** [S2] `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
+- **[REQUEST-ID-NEVER-LOGGED]** [S2] `RIDES: next` `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
   **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
   **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
   matched, which is presumably why nobody checked. One-character-class fix, but it changes log output, so it
   did not ride a comment sweep. *(seam: `RequestIdFilter` MDC key ↔ `logback-spring.xml`)*
-- **[SERVER-MAIN-SWEEP-NITS]** [S3] Four pre-existing nits the strip exposed, none touched (all would change
+- **[SERVER-MAIN-SWEEP-NITS]** [S3] `RIDES: next` Four pre-existing nits the strip exposed, none touched (all would change
   behaviour or a CI-verified artifact): delivery eligibility (`LOCKED` + billable type + `created_on <= today-3d`)
   lives in `DeliveryCreationService.eligibleFlights` rather than on an aggregate, in tension with ADR 0022 §2;
   `DeliveriesController`'s `@Tag(description = "Read-only delivery … viewer")` is stale — it also owns
@@ -430,7 +463,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-09, 2026-08-15)
 
-- **[VACUOUS-NARROWING-ASSERTIONS]** [S2] Two tests were found asserting less than their names claimed, each held up
+- **[VACUOUS-NARROWING-ASSERTIONS]** [S2] `RIDES: next` Two tests were found asserting less than their names claimed, each held up
   only by a comment the sweep deleted. `FlightsControllerIT.list_default_window_returns_recent_flights_only`
   seeds **no old-dated row**, so "recent only" was never proven — renamed to
   `list_without_explicit_window_includes_a_flight_dated_today` rather than gerrymandering the seed mid-sweep.
@@ -438,14 +471,14 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   is **already lower-case**, so nothing proves it; an `.as(…)` was deliberately NOT added because it would
   assert a claim the test does not make. Both need an adversarial row / mixed-case payload to become real
   ([[feedback_adversarial_seed_for_narrowing_assertions]]). *(seam: those two ITs' seeds)*
-- **[TENANT-ISOLATION-IT-PREFIX-COLLISION]** [S2] `FlightsTenantIsolationIT` and `FlightTypesTenantIsolationIT` share
+- **[TENANT-ISOLATION-IT-PREFIX-COLLISION]** [S2] `RIDES: next` `FlightsTenantIsolationIT` and `FlightTypesTenantIsolationIT` share
   the same club-name/club-key prefixes (`IT_FTI_` / `IT_FT`) — the ADR 0021 rule-1 collision that a deleted
   `LocationsAuthorizationIT` comment existed to warn about. Pre-existing, not caused by the sweep; single-schema
   external-PG runs are where it bites. Give each class its own ids on next touch. *(seam: those two ITs' club ids)*
 
 ## Pending (filed by /do-ship J-31 T-08c, 2026-08-14)
 
-- **[TAILWIND-LAYER-VS-NGZORRO-ADR]** [S3] The sweep deleted the only written explanation of why `!text-white`
+- **[TAILWIND-LAYER-VS-NGZORRO-ADR]** [S3] `RIDES: next` The sweep deleted the only written explanation of why `!text-white`
   is needed at `reservations-calendar.page.ts:148-156` — Tailwind's layered utilities lose to ng-zorro's
   **unlayered** reset, a bug the operator reported and which was fixed **twice**. The rule now survives only
   as an undocumented idiom across **13 call sites**; ADR 0024 §11 does not state it. Rationale belongs in
@@ -455,16 +488,18 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-08, 2026-08-14)
 
-- **[PROD-DENSITY-ATTR-MISSING]** [S3] `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
+- **[PROD-DENSITY-ATTR-MISSING]** [S3] `RIDES: next` `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
   `body[data-density='comfortable']` rules in `styles.css` are **inert in production** while they apply in dev —
   the shipped app is denser than the one anyone reviews. Found because the comment describing the density
-  system outlived the attribute it described. *(seam: `index.prod.html` + the density rules in `styles.css`)*
-- **[DEAD-VIRTUAL-SCROLL-INPUT]** [S3] `af-data-table.component.ts:74` exposes a `virtualScroll` input with **zero
+  system outlived the attribute it described. **J-20 carve note (2026-08-23):** the demo is a production surface a
+  prospective customer judges on looks, so it must render the way the operator reviewed it.
+  *(seam: `index.prod.html` + the density rules in `styles.css`)*
+- **[DEAD-VIRTUAL-SCROLL-INPUT]** [S3] `RIDES: next` `af-data-table.component.ts:74` exposes a `virtualScroll` input with **zero
   consumers** — either wire it or delete it. *(seam: that component's public inputs)*
 
 ## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
 
-- **[MIGRATION-BUNDLE-DEAD-EDGES]** [S3] Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
+- **[MIGRATION-BUNDLE-DEAD-EDGES]** [S3] `RIDES: J-21` Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
   `LEGACY_SYSTEM_USER_ID` is `public` with **zero references** (duplicate of the bindings GUID);
   `migration-bundle/build.gradle.kts:51` carried an archunit-1.4.2-vs-Java-25 workaround whose rationale died
   with its comment — the guard belongs in `ArchitectureTest` where it can fail loudly; and
@@ -475,19 +510,21 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
-- **[FORM-FIRST-PAINT-RED]** [S3] `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+- **[FORM-FIRST-PAINT-RED]** [S3] `RIDES: next` `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
   blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
   gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
   **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
   the util (opt-in for the edit-form case if any screen genuinely wants eager reporting) rather than repeating the local
-  gate per form. Check the shipped create screens before assuming it's cosmetic. *(seam: `inline-validation.ts` + its 8 consumers)*
-- **[FIELDSET-LEGEND-SIZE]** [S3] `text-sm` loses against the UA stylesheet on `<legend>`, so fieldset legends render ~20px
+  gate per form. Check the shipped create screens before assuming it's cosmetic. **J-20 carve note (2026-08-23):** the demo
+  is the first thing a prospective customer sees, so a create form that opens fully red is the worst first impression —
+  pull this onto the next journey that touches the demo surface. *(seam: `inline-validation.ts` + its 8 consumers)*
+- **[FIELDSET-LEGEND-SIZE]** [S3] `RIDES: next` `text-sm` loses against the UA stylesheet on `<legend>`, so fieldset legends render ~20px
   instead of the intended size (both the T-16 "Contact" and T-17 "Pick a day" legends). Cosmetic and consistent.
   *(seam: legend styling in the public form components)*
 
 ## Pending (filed by /do-ship J-17 T-15c, 2026-08-02)
 
-- **[MOCK-CLUB-ID-SHAPE]** [S2] `MOCK_CLUB_ID` in the web mock fixtures is a raw UUID while real club ids are
+- **[MOCK-CLUB-ID-SHAPE]** [S2] `RIDES: next` `MOCK_CLUB_ID` in the web mock fixtures is a raw UUID while real club ids are
   `clb-<uuid>`. A dishonest inner-loop fixture in the sense of [[feedback_honest_inner_loop_fixtures]]: mocked
   specs pass against an id shape the backend never emits, so an id-shape bug goes green locally and reds at the
   gate. T-15c left it alone because the ripple is broad (many specs share the constant). This is the same class
@@ -496,48 +533,36 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-17 T-07b, 2026-08-02)
 
-- **[AUDIT-ACTOR-KIND]** [S3] `AuditActorKind.SYSTEM` has no writer anywhere in the repo: the listener leaves every
-  runtime row at `NORMAL` and the cutover importer is the only thing that writes `LEGACY_MIGRATED`, so
-  `actor_kind` is in practice a native-vs-imported marker while the `system_actor` boolean does the actual
-  actor classification. T-07b confirmed `/system/logs` renders `system_actor` (`AuditEventDtos.AuditEventRow`
-  carries no `actorKind`) and pinned that in `AnonymousActorProjectionIT`, so nothing is user-visibly broken —
-  but the enum keeps a dead constant. Decide one way: **delete `SYSTEM`** (needs a migration to refresh the
-  `COMMENT ON COLUMN t_mutation_audit_event.actor_kind` V18 planted, which still enumerates it — the V18 file
-  itself is applied and must not be edited), **or** promote `actor_kind` to the single classifier and retire
-  `system_actor`, carrying it through the projection + the viewer's actor cell in the same change.
-  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` goes red either way and is the
-  intended tripwire. *(seam: `AuditActorKind` + `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts`)*
-
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
-- **[LEGACY-J2-READINESS]** [S2] `e2e/tests/flights/flights-parity-J2.spec.ts` is `@quarantine-legacy`'d (grep-inverted
+- **[LEGACY-J2-READINESS]** [S2] `RIDES: next` `e2e/tests/flights/flights-parity-J2.spec.ts` is `@quarantine-legacy`'d (grep-inverted
   from the nightly) — the heaviest legacy parity spec (list → flight-edit → tow-form → motor) is irreducibly flaky
   on the Mono/AngularJS reference stack under CI load: the HB-3407 row render + `flightDetails.StartType` bind never
   arrive reliably, exhausting `retries:3` even after three rounds of step-wait hardening (T-15/T-16/T-18). All 12
   GENUINE legacy reds were fixed; this is the residual. Un-quarantine via a dedicated legacy render-readiness pass,
   or re-home that parity coverage on the AlpenFlight side. *(seam: flights-parity-J2 + the legacy flight-edit form load timing)*
-- **[LAN-PG-SEED-DRIFT — dev-box only]** [S3] On the shared LAN Postgres, V48's `UPDATE … SET join_code='SEEDCLUB'` hit
+- **[LAN-PG-SEED-DRIFT — dev-box only]** [S3] `RIDES: next` On the shared LAN Postgres, V48's `UPDATE … SET join_code='SEEDCLUB'` hit
   0 rows for the seed club (`019e30c3-…-001` carries `join_code=L8PDJDXF`) → the default join-code path is broken
   LOCALLY (T-11 verified via a throwaway env override, reverted). CI's fresh migrate is unaffected. Re-seed the dev
   DB or make V48 idempotent-by-id. *(seam: dev LAN-PG state / V48)*
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
-- **[PER-JOURNEY-DOC]** [S3] (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*
+- **[PER-JOURNEY-DOC]** [S3] `RIDES: J-28` (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*
 
 ## Pending (filed by /do-ship J-27 gate, 2026-06-20)
 
-- **[SUITE-ISOLATION — operator principle 2026-06-19].** [S2] Non-migration parity specs should set up their own data;
+- **[SUITE-ISOLATION — operator principle 2026-06-19].** [S2] `RIDES: next` Non-migration parity specs should set up their own data;
   migration specs run FIRST and rely ONLY on legacy seed data (assert what it genuinely produces, never gerrymander
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 
-- **[WORKFLOW-SLIM] Extract the repeated per-journey YAML blocks into composite actions (`.github/actions/`)** [S3]
+- **[WORKFLOW-SLIM] Extract the repeated per-journey YAML blocks into composite actions (`.github/actions/`)** [S3] `RIDES: next`
   to cut the workflow YAML (~4.5k→~2k) — the only still-pending half (the mock-suite sharding, real-idp shard,
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
-- **[QODANA-BUILD-FILE-BLIND-SPOT]** [S3] Filed by J-19 T-22's audit of every path-filtered workflow.
+- **[QODANA-BUILD-FILE-BLIND-SPOT]** [S3] `RIDES: next` Filed by J-19 T-22's audit of every path-filtered workflow.
   `qodana.yml:29-33` filters to `alpenflight/server/src/main/java/**` + the three qodana files, which
   matches `qodana.yaml`'s own `include.paths` exactly — so the inspected sources are covered. The gap is
   one level out: Qodana resolves the inspection classpath from `alpenflight/server/build.gradle.kts` and
@@ -547,7 +572,7 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 
-- **[MAINTAINABILITY-TOOLING — Qodana baseline backfill].** [S3] Qodana shipped report-only (J-8 T-15), but the
+- **[MAINTAINABILITY-TOOLING — Qodana baseline backfill].** [S3] `RIDES: next` Qodana shipped report-only (J-8 T-15), but the
   committed `qodana.sarif.json` is a PLACEHOLDER empty baseline (the local Docker run OOM-killed on the LXC box);
   the first CI `qodana-scan` run establishes the real baseline → download its `qodana-sarif-<run_id>` artifact +
   commit it over the placeholder. *(rides the next journey that touches CI / a maintainability slot)*
@@ -692,3 +717,56 @@ safety step. **Each rider rides the next touch of its form.**
   all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. *(seam: `server/src/test`, per-touch)*
 
+
+## Pending (filed by /do-ship 2026-08-23, J-20 window)
+
+- **[FLIGHT-TYPES-AUTHZ-IT-REDS-WHEN-ITS-PACKAGE-RUNS-ALONE]** [S2] `RIDES: next` — the 7 cases of
+  `FlightTypesAuthorizationIT` red when the package runs alone. A `t_flight` row pins the flight type the
+  cases delete. **Measured pre-existing, twice:** J-20 T-05 and T-09a each saw the identical red on the
+  stashed pre-change tree, so the seat clubs do not cause it. The CAUSE is still a hypothesis and the two
+  workers named different ones — T-05 said the row comes from `V36__dev_aggregate_list_seed.sql`, T-09a
+  said it is residue on the shared LAN Postgres. Measure which before fixing. The cases pass in a full run, which is why nobody sees it. A test that only passes in
+  one run order asserts less than it claims. *(seam: `FlightTypesAuthorizationIT` +
+  `V36__dev_aggregate_list_seed.sql`)*
+- **[SANDBOX-PLANNING-DAY-CARRIES-NO-CREW]** [S3] `RIDES: next` — `SandboxOperationsSeeder` writes one
+  planning day per seat, but the seat holds no `t_planning_day_assignment_type` and no service writes a
+  crew assignment. So the demo planning day reads empty. No J-20 acceptance criterion shows the planning
+  day, so this does not block the gate. It does weaken the demo as a sales surface. *(seam:
+  `SandboxOperationsSeeder` + the planning-day assignment types)*
+- **[SANDBOX-SEEDER-CONSTRUCTOR-IS-EIGHT-PARAMETERS]** [S3] `RIDES: next` — T-05 took `SandboxSeeder` to
+  8 constructor parameters, which adds one `ExcessiveParameterList` line to the PMD report. The report is
+  advisory, so `pmdMain` stays green. Group the collaborators when the class next takes a material edit.
+  *(seam: `SandboxSeeder`)*
+- **[DEMO-SEAT-RETRY-BUDGET-IS-A-LITERAL-WHILE-THE-POOL-SIZE-IS-A-PROPERTY]** [S3] `RIDES: next` — the
+  lease retry budget in `DemoSeatLeaseService` is the literal 24, but `demo.pool-size` is a configuration
+  property. The pair is safe today, because the property can only shrink below the 10 rows that
+  `V62__demo_seat_pool.sql` inserts. A larger pool needs a migration, and that migration must raise the
+  budget too. Derive the budget from the pool size, so the coupling cannot rot.
+  *(seam: `DemoSeatLeaseService` + `demo.pool-size`)*
+- **[IMMATRICULATION-UNIQUENESS-IS-GLOBAL-ACROSS-THE-DEPLOYMENT-BOUNDARY]** [S2] `RIDES: next` — J-20
+  T-09a sealed the aircraft READ at the Deployment boundary, but `ux_aircraft_immatriculation` stays
+  global. So a demo visitor who registers a real-world immatriculation gets 409 against a real club's
+  row. Two costs: the demo shows a fault the visitor cannot explain, and the 409 tells an anonymous
+  caller that some club already registered that immatriculation. Scope the unique index to the
+  Deployment, or answer the collision without disclosing the cause. *(seam:
+  `ux_aircraft_immatriculation` + the aircraft write path)*
+- **[NO-WORKFLOW-RUNS-generateOpenApiSnapshot-SO-THE-SNAPSHOT-CAN-DRIFT-FROM-THE-CONTROLLERS]** [S2]
+  `RIDES: J-34` — `ci.yml:353-362` regenerates the orval CLIENT from `alpenflight/web/openapi/openapi.json`
+  and reds on a diff, so a stale client cannot pass. Nothing regenerates the SNAPSHOT from the Java
+  controllers: `generateOpenApiSnapshot` (`alpenflight/server/build.gradle.kts:350`) runs in no workflow.
+  So a controller change that nobody snapshots keeps a green gate over a wrong contract, and the
+  generated client then matches the stale snapshot exactly. The gate does not cover its own input.
+  Measured at J-20 T-08, where the snapshot moved and the client did not. *(seam: `ci.yml` +
+  `generateOpenApiSnapshot`)*
+- **[THE-TEST-ROLE-CAN-DELETE-AUDIT-ROWS-AND-THE-PRODUCTION-ROLE-CANNOT]** [S2] `RIDES: next` — J-20 T-10
+  measured that `V54__split_app_role_append_only_audit.sql:27` REVOKEs DELETE on the audit tables from
+  `alpenflight_app`, but the role the integration tests use keeps it. So a delete that reaches an audit
+  row passes every test and raises 42501 in production. The privilege asymmetry makes the test suite
+  weaker than production exactly where the append-only claim lives. Run the audit-touching tests under a
+  role with the production grants. *(seam: the test datasource role + `V54__split_app_role_append_only_audit.sql`)*
+- **[AIRCRAFT-SYNC-IT-PICKS-ITS-CLUB-WITH-A-LIMIT-1-AND-NO-ORDER-BY]** [S3] `RIDES: next` — J-20 T-09b
+  triage measured that `AircraftDatabaseSyncJobIT.java:154` picks its managing club with
+  `SELECT id FROM t_club LIMIT 1`, which carries no `ORDER BY`. Postgres may return any row, and since
+  J-20 the row can be a demo seat club. The test is harmless today only because its `@AfterEach`
+  (`:74-77`) deletes every immatriculation it seeds. A test that depends on an unordered `LIMIT 1` asserts
+  against a row it did not choose. Pin the club. *(seam: `AircraftDatabaseSyncJobIT`)*

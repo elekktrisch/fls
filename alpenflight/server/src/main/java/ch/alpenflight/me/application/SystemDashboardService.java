@@ -1,6 +1,7 @@
 package ch.alpenflight.me.application;
 
 import ch.alpenflight.clubs.application.ClubsService;
+import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.flights.application.FlightsService;
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.users.application.UsersService;
@@ -21,11 +22,11 @@ public class SystemDashboardService {
     }
 
     public SystemDashboardTotals totals() {
-        long totalClubs = clubs.countActiveClubs();
-        long totalUsers = users.countAllActiveUsers();
+        long totalClubs = clubs.countActiveClubsExcludingDeployment(Deployment.SANDBOX_ID);
+        long totalUsers = users.countAllActiveUsersExcludingDeployment(Deployment.SANDBOX_ID);
 
         long totalFlights = 0L;
-        for (UUID clubId : clubs.activeClubIds()) {
+        for (UUID clubId : clubs.activeClubIdsExcludingDeployment(Deployment.SANDBOX_ID)) {
             totalFlights += Tenants.runAs(clubId, flights::countFlightsInCurrentTenant);
         }
 

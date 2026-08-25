@@ -41,7 +41,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping(path = "/api/v1/aircraft", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Aircraft", description = "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id).")
+@Tag(name = "Aircraft", description = "Aircraft CRUD (cross-tenant masterdata inside one Deployment; "
+        + "mutations gated to managing_club_id).")
 public class AircraftsController {
 
     private final AircraftsService service;
@@ -52,7 +53,7 @@ public class AircraftsController {
         this.userLookup = userLookup;
     }
 
-    @Operation(summary = "List all active aircraft, sorted by immatriculation. "
+    @Operation(summary = "List the active aircraft of the caller's Deployment, sorted by immatriculation. "
             + "Optional `type` query param slices the list per legacy semantics: "
             + "GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).")
     @ApiResponse(responseCode = "200", description = "Array of aircraft listitem projections.")
@@ -63,7 +64,8 @@ public class AircraftsController {
         return service.listAircraft(type);
     }
 
-    @Operation(summary = "Slim picker list (id + immatriculation + type + isTowingAircraft).")
+    @Operation(summary = "Slim picker list of the caller's Deployment "
+            + "(id + immatriculation + type + isTowingAircraft).")
     @ApiResponse(responseCode = "200", description = "Slim picker projections for FE pickers.")
     @GetMapping("/picker")
     @PreAuthorize("isAuthenticated()")

@@ -197,5 +197,15 @@
 # the partial-PUT rule once. The measurement landed below the prior baseline.
 # Lock the gain.
 #
+#
+# Re-measured 2026-08-23 (J-20 T-09a, the aircraft Deployment boundary): 5222
+# (-134). Adding the reading-club Deployment join to five aircraft read queries
+# would have grown the three near-identical ListRow JPQL blocks, so the shared
+# JPQL was extracted first into the compile-time constants
+# JpaAircraftRepository.LIST_ROW_PROJECTION / PICKER_ROW_PROJECTION /
+# FROM_AIRCRAFT_MANAGED_INSIDE_THE_READING_CLUBS_DEPLOYMENT /
+# JOINED_TO_TYPE_AND_CURRENT_STATE. The Deployment predicate now exists once,
+# and the measurement landed below the prior baseline. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5356
+5222
