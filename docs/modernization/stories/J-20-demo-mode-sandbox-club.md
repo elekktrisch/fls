@@ -253,9 +253,23 @@ The release valve is the deferrable tail below.
   flying days, and none of them is the run date. AC-1 says the tiles show sandbox data, not zeros. Seed at least
   one flight on the run date. **Caution:** `SandboxSeederRunDateRelativeIT` pins a `Clock` years ahead and asserts
   the exact offsets, so it reds on a careless change. Keep every date relative to `LocalDate.now(clock)`.
-- [ ] **T-23** — **The `alpenflight proof (real-idp, clean-seed)` job is RED on `870dfe851`.** It is green twice
-  locally and red in CI. See "The live red" below for the diagnosis. Fix it before anything else — a red proof
-  job reds `required`, and this journey never merges red.
+- [ ] **T-23** — **The `alpenflight proof (real-idp, clean-seed)` job is RED on `870dfe851`, and AC-6's assertion
+  is VACUOUS.** Diagnosed 2026-08-25 from run 32812863016. **Measured root cause:** the AC-6 case never waits for
+  the lease to expire. The lease reported `leaseExpiresAt` 30 s after the claim; the three reset runs fired at
+  11, 19 and 23 s, all inside the live window, and each one logged `3 seats left on their live lease`.
+  `SandboxSeatResetService.java:60` skips a seat that holds a live lease, so the reset never reached the
+  visitor's seat. The `>= 1` check at `demo-sandbox.spec.ts:730` then passed **on a leftover AC-5 seat** — the
+  local green was timing luck, not proof. Confirmed: the lease had NOT expired, and the CI reset runs cost 37 ms
+  so the loop closed early. Refuted: the per-address cap, seat exhaustion and the clean-seed data.
+  **The fix:** read `leaseExpiresAt` from the `POST /api/v1/public/demo-session` response, poll until it passes,
+  then assert the reset reclaims **this** seat — identified by the seat token's club — never `any` seat.
+  A count-based assertion cannot tell the two apart, which is why this one passed while proving nothing.
+- [ ] **T-24** — **The gallery deploy is gated on green, so a red proof publishes nothing.** `ci.yml:1145` skips
+  on a red proof job. On `870dfe851` the captures were built (3 videos, 4 screenshots) and then dropped:
+  `destination_dir` resolved EMPTY and the page went to the **gh-pages root**, so
+  `…/alpenflight/proof-preview/integration-J-20/` still serves the stale 2026-08-24 page and the link check was
+  skipped. Two defects: gate the deploy on `!cancelled()` per do-ship §4, and make an empty `destination_dir`
+  fail rather than write to the root. The empty-destination behaviour is the more dangerous of the two.
 
 ### Resume order — handover, 2026-08-25
 
@@ -263,16 +277,23 @@ The release valve is the deferrable tail below.
 agent budget held about one task-slot. The operator chose a fresh session over a rushed fix. Nothing is in
 flight, the tree is clean, every completed task carries its commit, and PR #258 stays a draft.
 
-`T-23` (the branch is red) → `T-21` (the isolation promise) → `T-22` (AC-1) → `T-16b` → `T-16c` → `T-13` →
-§4 gate → `T-20` if budget remains.
+`T-23` (the branch is red, AC-6 vacuous) → `T-21` (the isolation promise) → `T-22` (AC-1) → `T-24` (the gallery
+deploy) → `T-16b` → `T-16c` → `T-13` → §4 gate → `T-20` if budget remains.
 
 **Done in the 2026-08-24/25 session:** `T-18`, `T-19`, `T-15`, `T-16a`, `T-15b`, `T-17`, `T-12a`, `T-12b`,
 `T-12c`, `T-11`, `T-14`. Eleven tasks, about 14 workers. **Not done:** `T-16b`, `T-16c`, `T-13`, `T-20`, and
 the three new tasks above.
 
-**ACs covered:** AC-1 (half — see T-22), AC-3, AC-4, AC-5, AC-6, AC-7 (hardened), AC-8, AC-10.
+**ACs covered:** AC-1 (half — see T-22), AC-3, AC-4, AC-5, AC-7 (hardened), AC-8, AC-10.
+**AC-6 is NOT covered.** Its spec case is red in CI and its assertion is vacuous — see T-23. An earlier note in
+this file claimed AC-6; that claim was wrong and this line corrects it.
 **AC-2 is covered but its aircraft count is contaminated by F7** — a seat reads 8 aircraft, not the 4 it seeds,
 so the assertion passes for the wrong reason. Re-check it after T-21.
+
+**Three vacuous assertions in one journey — treat this as the journey's signature failure.** T-12c wrote a
+permanence check that passed on a negative y coordinate. T-14 wrote AC-6's `>= 1` seat check that passed on
+another case's leftover seat. F5 recorded a third, an AC-7 case that passes on pre-J-20 code. Each one was green
+and each one proved nothing. Score every new assertion against the code it is supposed to red.
 
 **A coverage reduction to carry forward.** T-14 removed the real-IdP seat-busy case and gives **AC-8** to an
 integration test plus the mocked spec, per the journey's own AC-5/AC-8 table. The PR checklist must qualify
