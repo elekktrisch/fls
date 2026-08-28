@@ -4,7 +4,7 @@ content is served from ./src
 webpack: wait until bundle finished: /
 Hash: [1m00b9d05dbb8fa99627d7[22m
 Version: webpack [1m1.12.13[22m
-Time: [1m7994[22mms
+Time: [1m8070[22mms
                                  [1mAsset[22m     [1mSize[22m  [1mChunks[22m  [1m[22m           [1mChunk Names[22m
  [1m[32mf137ee4862785a1518fb3056eccdc99b.woff[39m[22m  35.7 kB        [1m[22m  [1m[32m[emitted][39m[22m  
   [1m[32mc6187c672fdc003e668c5fafd6319bbe.png[39m[22m  65.2 kB        [1m[22m  [1m[32m[emitted][39m[22m  
