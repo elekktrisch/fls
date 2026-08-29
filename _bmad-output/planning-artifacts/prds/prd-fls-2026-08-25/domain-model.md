@@ -413,10 +413,16 @@ Only where the legacy name is wrong or ambiguous. Everything else keeps its name
 | `Licence` and `License` | Both spellings appear. Use `Licence`. |
 | `AccountingRuleFilterFactory.cs:27-30` | Four real club member numbers with real first names, hardcoded in a public repository. |
 | `flsweb/src/index.js:50` | A tautology makes the navigation bar show on the public pages. See FR-64. |
+| `AuditLogsController.cs` + `SystemService.GetAuditLogOverviews` | The controller carries `[Authorize]` and no role gate. The query applies no club filter, and the `AuditLogs` table carries no club column. Any authenticated user of any club reads every club's audit history. Cross-club exposure. See FR-8, RK-11, and question 26. |
+| `DashboardService.GetDashboardDetails` | The query filters flights by the signed-in person and never by the club. A person who is a member of two clubs sees both clubs' flights in one dashboard, with the crew names on them. The dashboard has no e2e spec. See FR-79 and RK-12. |
+| `FlightService.cs:1186` `GetFlights(Expression<Func<Flight, bool>>)` | The method applies no club filter. The caller must put the club term in the predicate. `ValidateFlights` and `LockFlights` do. `DashboardService` does not. See FR-1 and question 24. |
+| `FlightService.cs:483` | The query compares `Flight.OwnerId` to a club identifier and never reads `OwnershipType`. The discriminator exists and nothing reads it. See question 25. |
+| `PersonService.GetPerson(id, controlAccess)` | A boolean parameter switches the club filter off. The unfiltered branch also searches every club by member number. Tenancy is never a parameter in the target. See FR-1. |
+| 18 tables carry `ClubId` **and** `OwnerId` | Two tenant columns on one row, with no constraint that keeps them in agreement. See question 23. |
 
 ## 5. Open naming questions
 
-Numbering continues [`prd.md`](prd.md) §12.
+Numbering continues [`prd.md`](prd.md) §11.
 
 | # | Question | Owner |
 | --- | --- | --- |
