@@ -1,6 +1,7 @@
 ---
 stepsCompleted:
   - step-01-validate-prerequisites
+  - step-02-design-epics
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-fls-2026-08-25/prd.md
   - _bmad-output/planning-artifacts/prds/prd-fls-2026-08-25/domain-model.md
@@ -313,8 +314,298 @@ half-applied. The supplier decided on 2026-08-29 to finish all three. They are n
 
 ### FR Coverage Map
 
-{{requirements_coverage_map}}
+Every requirement maps to exactly one epic. 90 rows.
+
+| FR | Epic | What it delivers |
+| --- | --- | --- |
+| FR-1 | 1 | Structural club isolation |
+| FR-2 | 1 | Cross-club person and crew |
+| FR-3 | 1 | User and person separation |
+| FR-4 | 1 | Authentication with a refreshing token |
+| FR-5 | 1 | Roles and permissions |
+| FR-6 | 1 | Profile self-edit |
+| FR-7 | 1 | Password reset and email confirmation |
+| FR-8 | 1 | Audit record, per club |
+| FR-9 | 2 | Club master data |
+| FR-10 | 2 | Licences and medicals |
+| FR-11 | 3 | In-place record creation from the flight form |
+| FR-12 | 1 | Operating counters |
+| FR-13 | 2 | Reference data |
+| FR-14 | 2 | Translations |
+| FR-15 | 2 | System data and logs |
+| FR-16 | 3 | One flight form |
+| FR-17 | 3 | Conditional fields |
+| FR-18 | 3 | Typeahead over prefetched catalogs |
+| FR-19 | 3 | Date and time entry |
+| FR-20 | 3 | The NOW stamp |
+| FR-21 | 3 | Copy from the last flight |
+| FR-22 | 3 | Smart defaults |
+| FR-23 | 3 | Keyboard operation |
+| FR-24 | 3 | Airborne board |
+| FR-25 | 3 | Flight copy |
+| FR-26 | 3 | Speed budget |
+| FR-27 | 4 | Two state dimensions |
+| FR-28 | 4 | Shared open flight |
+| FR-29 | 4 | Daily validation |
+| FR-30 | 4 | Lock gate |
+| FR-31 | 4 | Lock countdown |
+| FR-32 | 4 | Billing gate |
+| FR-33 | 4 | Testable clock |
+| FR-34 | 4 | Aircraft movements |
+| FR-35 | 5 | Offline write path |
+| FR-36 | 5 | Offline read of today |
+| FR-37 | 5 | Unsent marker |
+| FR-38 | 5 | Reconnect and conflict |
+| FR-39 | 5 | Hold |
+| FR-40 | 5 | Stamp bypass of the hold |
+| FR-41 | 6 | Reservations |
+| FR-42 | 6 | Scheduler |
+| FR-43 | 6 | Roster day |
+| FR-44 | 6 | Season assignment |
+| FR-45 | 6 | Roster notification |
+| FR-46 | 7 | Charging rules as WHEN and THEN |
+| FR-47 | 7 | Visible run order |
+| FR-48 | 7 | Engine-stop flag |
+| FR-49 | 7 | Rules engine |
+| FR-50 | 7 | Dry run |
+| FR-51 | 8 | Invoice draft creation |
+| FR-52 | 8 | Invoice draft management |
+| FR-53 | 8 | Recipient snapshot |
+| FR-54 | 7 | Billing expectations |
+| FR-54a | 7 | Change preview |
+| FR-55 | 8 | Invoice mail export |
+| FR-56 | 8 | Invoice interface for an external accounting system |
+| FR-57 | 10 | Flight reports |
+| FR-58 | 10 | Custom report builder |
+| FR-59 | 10 | Spreadsheet export |
+| FR-60 | 1 | One search field with filter chips |
+| FR-61 | 1 | Record items |
+| FR-62 | 11 | Trial-flight registration |
+| FR-63 | 11 | Passenger-flight registration |
+| FR-64 | 11 | Landing page |
+| FR-65 | 11 | Abuse control |
+| FR-66 | 12 | Daily report email |
+| FR-67 | 12 | Licence expiry notification |
+| FR-68 | 12 | Monthly report for aircraft statistics |
+| FR-69 | 4 | Scheduled work dispatcher |
+| FR-70 | 2 | Email templates |
+| FR-71 | 9 | Export tool |
+| FR-72 | 9 | Self-service upload |
+| FR-73 | 9 | Count verification |
+| FR-74 | 9 | Invoice verification |
+| FR-75 | 9 | Mismatch acceptance |
+| FR-76 | 9 | Open mismatch list |
+| FR-77 | 9 | Commit and provisioning |
+| FR-78 | 9 | New password after migration |
+| FR-79 | 3 | Home dashboard |
+| FR-80 | 3 | Fast note path |
+| FR-81 | 1 | Four destinations |
+| FR-82 | 13 | Club export |
+| FR-83 | 13 | Club deletion |
+| FR-84 | 13 | Data-subject requests |
+| FR-85 | 13 | Provisioning without the supplier |
+| FR-86 | 13 | Error visibility |
+| FR-87 | 13 | Backup and restore |
+| FR-88 | 1 | User management |
+| FR-89 | 9 | Club provisioning |
+
+**Count per epic:** 1 → 13 · 2 → 6 · 3 → 14 · 4 → 9 · 5 → 6 · 6 → 5 · 7 → 7 · 8 → 5 · 9 → 9 ·
+10 → 3 · 11 → 4 · 12 → 3 · 13 → 6. Total 90.
+
+### Non-functional and additional coverage
+
+An NFR, an AR, and a UX-DR are not owned by one epic. Each one binds several. This table names where
+each is proved.
+
+| Requirement | Proved in |
+| --- | --- |
+| NFR-1 correctness | Epic 1 (isolation, one state source), Epic 7 (money) |
+| NFR-2 responsiveness | Epic 1 (the client platform), Epic 3 (the prefetch and the optimistic write) |
+| NFR-3 security | Epic 1 |
+| NFR-4 availability | Epic 13 |
+| NFR-5 data residency | Epic 13 |
+| NFR-6 legibility | Epic 1, then every later epic through the client platform |
+| NFR-7 accessibility | Epic 11 |
+| NFR-8 display | Epic 1 (the tokens and the contrast gate) |
+| NFR-9 observability | Epic 13 |
+| NFR-10 testability | Epic 4 |
+| NFR-11 language | Every epic |
+| NFR-12 platform floor | Epic 1 |
+| NFR-13 scale | Epic 4 (the nightly run), Epic 8 (the invoice run), Epic 9 (the import) |
+| AR-1 to AR-3, AR-24, AR-27, AR-30, AR-33 | Epic 1 |
+| AR-4, AR-5, AR-6, AR-15 | Epic 1, then held by a build gate |
+| AR-7, AR-25, AR-26 | Epic 1, then every epic |
+| AR-8, AR-10, AR-11, AR-12, AR-13 | Epic 5 |
+| AR-9, AR-14, AR-21, AR-22 | Epic 1 |
+| AR-16 money | Epic 7, held by a build gate |
+| AR-17 migration pipeline | Epic 9 |
+| AR-18, AR-23 | Epic 13, Epic 1 |
+| AR-19, AR-20 | Epic 1 |
+| AR-28 oracle reads | Scheduled per epic, above |
+| AR-29 legacy schema | Epic 9 |
+| AR-31 legacy defects | Epic 1 (the five tenancy defects), Epic 2 (the spellings), Epic 11 (the navigation bar) |
+| AR-32 free plan reserved | Epic 1 (the club kind, the plan, the aircraft limit, the three lifecycle states) |
+| UX-DR1 to UX-DR5, UX-DR6, UX-DR13 to UX-DR17, UX-DR22 to UX-DR25 | Epic 1, the client platform |
+| UX-DR7 to UX-DR12, UX-DR26 to UX-DR30, UX-DR34 | Epic 3 |
+| UX-DR18, UX-DR19, UX-DR32 | Epic 7 |
+| UX-DR20, UX-DR21, UX-DR31 | Epic 3, Epic 5, Epic 10 |
+| UX-DR33 voice and tone | Every epic |
+| UX-DR35 public surfaces | Epic 11 |
 
 ## Epic List
 
-{{epics_list}}
+13 epics. Every one of the 90 requirements maps to exactly one epic. The dependencies run strictly
+forward: no epic needs a later epic to work.
+
+**Seven deep slices** — club, flight, reservation, charging, invoicing, migration, and governance —
+against the thin remainder. That matches the spine's expected 6 to 8 (AD-1).
+
+**Three epics sit in the pro tier** — 7, 8, and 9. Core plus the open modules must build and test
+standalone without them (AD-12).
+
+### Epic 1: The template — sign in, and see only your club
+
+A user signs in and manages the club fleet. Nobody reaches another club's row, and a query that
+forgets the club filter returns zero rows. This epic is the template the spine demands, not a
+feature epic alone: it fixes the id strategy, it builds the client platform every later screen
+copies, and it ships the nine build gates with the CI that runs them. Every later story copies a
+skeleton from here.
+
+- **Slices:** `core/club` **deep** — the club, the user, the person, and the club membership, with the AD-4 invariant across records. `core/aircraft` **thin** — the template thin slice.
+- **Governed by:** AD-1, AD-2, AD-3, AD-4, AD-13, AD-17, AD-18, AD-19, AD-21
+- **Also delivers:** AR-1 the repository skeleton · AR-2 the id strategy, fixed before any second slice · AR-24 the nine build gates · AR-27 the new CI · AR-30 the T3 acceptance smoke · AR-33 `AGENTS.md` · the client platform: the design tokens, `RecordList` and `RecordItem`, the typeahead, the field row, the search field, the filter chips, the sort control, and the focus ring
+- **Oracle first:** Q-B8, Q-B9, Q-B13, Q-B17
+- **Blocked by:** question 26 — does the audit record carry a club, and what happens to the migrated audit history?
+- **FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-12, FR-60, FR-61, FR-81, FR-88
+
+### Epic 2: Set up the club — master data and reference data
+
+A club administrator configures every list the rest of the product uses: persons, locations, flight
+types, membership statuses, person categories, articles, and the email templates. The supplier's
+reference data supplies the aircraft and airfield facts, with no column that names a person.
+
+- **Slices:** `core/person`, `core/location`, `core/reference`, and about 40 more, all **thin**
+- **Governed by:** AD-1, AD-3, AD-4, AD-5
+- **Oracle first:** Q-B14, Q-B15, and five of the eight features with no e2e spec — articles CRUD, email-template CRUD, translation CRUD, system-data CRUD, and system logs
+- **FRs covered:** FR-9, FR-10, FR-13, FR-14, FR-15, FR-70
+
+### Epic 3: Log the flying day
+
+A duty flight leader logs a flight on a phone, in one form, with no page change. One press of NOW
+stamps the block start. This epic carries the speed budget, which the PRD names as one of the two
+capabilities that decide whether the product succeeds.
+
+- **Slices:** `core/flight` **deep** — the flight aggregate, the crew assignment, and the tow link
+- **Governed by:** AD-1, AD-10, AD-17, AD-19
+- **Oracle first:** the `legacy-oracle` read of the **88 legacy conditional directives**. It closes the fundamental-field set that AD-9 needs, and it answers Q-B19 and Q-B25. Also the dashboard read, the eighth feature with no e2e spec.
+- **Note:** Home ships here with the airborne panel, today's flights, and the expiring licences. Epic 6 adds the reservations panel. Home works without it.
+- **FRs covered:** FR-11, FR-16, FR-17, FR-18, FR-19, FR-20, FR-21, FR-22, FR-23, FR-24, FR-25, FR-26, FR-79, FR-80
+
+### Epic 4: The flight lifecycle — states, gates, and the nightly jobs
+
+A flight moves from open, through valid, to locked, and then becomes eligible for the rules engine.
+The screen states when the flight locks. A test drives both gates in one run with no change to the
+system clock.
+
+- **Slices:** `core/flight` **deep** — the two state dimensions and the two time gates. The scheduled-work dispatcher arrives here, because this epic runs the first job.
+- **Governed by:** AD-1, AD-6, AD-7
+- **Oracle first:** Q-B1, Q-B2, Q-B3, Q-B4, Q-B5, Q-B20, Q-B23. Risk R2 is blocking: the gate unit and the boundary appear in no document.
+- **FRs covered:** FR-27, FR-28, FR-29, FR-30, FR-31, FR-32, FR-33, FR-34, FR-69
+
+### Epic 5: Work offline, and resolve a conflict
+
+A duty flight leader logs a whole flight with no network. Every write reaches the server on
+reconnect, or it waits as a named pending item. Two people who changed different fields never see a
+dialog.
+
+- **Slices:** `client/platform` **deep** — the versioned offline queue and the service worker. `core/flight` **deep** — the conflict endpoint.
+- **Governed by:** AD-8, AD-9, AD-10, AD-11
+- **Oracle first:** Q-B12. Needs the fundamental-field set that Epic 3 closes.
+- **FRs covered:** FR-35, FR-36, FR-37, FR-38, FR-39, FR-40
+
+### Epic 6: Plan the season — reservations and roster days
+
+A pilot reserves an aircraft and the whole club sees it. A club administrator assigns a duty across
+a whole season in one pass, and corrects one day later without touching the rest. Adds the
+reservations panel to Home.
+
+- **Slices:** `core/reservation` **deep** — the overlap invariant. The roster day and the duty assignment are **thin**.
+- **Governed by:** AD-1, AD-2
+- **Oracle first:** Q-B18, Q-B26
+- **FRs covered:** FR-41, FR-42, FR-43, FR-44, FR-45
+
+### Epic 7: Charging rules and the engine — pro tier
+
+A club system carrier reads a rule as one sentence, sees the order the engine runs it in, and
+explains an invoice line to a member with the dry run. The engine reproduces a legacy invoice to the
+cent, and billing expectations hold it there.
+
+- **Slices:** `modules-pro/charging` **deep** — the nine-phase engine and the decrement loop
+- **Governed by:** AD-12, AD-14
+- **Oracle first:** Q-B6, Q-B7, Q-B22. This is RK-1 and risk R3, the highest risk in the product.
+- **Blocked by:** question 3 — may a club system carrier change the rule order?
+- **FRs covered:** FR-46, FR-47, FR-48, FR-49, FR-50, FR-54, FR-54a
+
+### Epic 8: Invoice drafts and the accounting handover — pro tier
+
+Scheduled work creates the invoice drafts from the eligible flights. A club system carrier reads,
+edits, and deletes them. The external accounting synchroniser reads them at the wire path it already
+polls.
+
+- **Slices:** `modules-pro/invoicing` **deep** — the invoice draft, the invoice line, and the recipient snapshot
+- **Governed by:** AD-6, AD-12, AD-14, AD-19
+- **Oracle first:** Q-B21, Q-B24, and the invoice mail export, one of the eight features with no e2e spec
+- **FRs covered:** FR-51, FR-52, FR-53, FR-55, FR-56
+
+### Epic 9: Move a club onto AlpenFlight — pro tier
+
+A club administrator runs the export tool, uploads one encrypted file, reads the counts side by
+side, sees each sampled invoice reproduce to the cent, accepts each mismatch with a written reason,
+and commits. The supplier does nothing. The club flies the next day.
+
+- **Slices:** `modules-pro/migration` **deep** — the source reader, the canonical import model, the validation, and the load
+- **Governed by:** AD-5, AD-12, AD-15
+- **Blocked by:** question 15 (who creates a club and its first administrator), question 21 (the invoice sample and the corpus), question 26 (the migrated audit history)
+- **Note:** the legacy schema facts come from `flsserver/` and from `docs/modernization/legacy-tables/`, which narrows the search and is not authoritative.
+- **FRs covered:** FR-71, FR-72, FR-73, FR-74, FR-75, FR-76, FR-77, FR-78, FR-89
+
+### Epic 10: Reports and export
+
+A club administrator reads the standard flight reports, builds a report from fields and conditions,
+and exports any list as a spreadsheet. No report shows another club's record.
+
+- **Slices:** `core/*` **thin**
+- **Governed by:** AD-2, AD-17
+- **FRs covered:** FR-57, FR-58, FR-59
+
+### Epic 11: The public surfaces
+
+A member of the public books a trial flight on an unknown device, in plain wording, with no aviation
+term left unexplained. This is the one epic under the full WCAG 2.2 AA floor.
+
+- **Slices:** `core/*` **thin**
+- **Governed by:** AD-3 (a public surface reads only an explicitly published subset), AD-18, AD-19
+- **Oracle first:** Q-B16
+- **FRs covered:** FR-62, FR-63, FR-64, FR-65
+
+### Epic 12: The club's email
+
+Scheduled work sends the club its daily flight summary, warns a person before a licence or a medical
+expires, and produces the monthly aircraft statistics. A club with nothing to report receives no
+email.
+
+- **Slices:** `core/*` **thin**, on the dispatcher Epic 4 delivered
+- **Governed by:** AD-6
+- **Oracle first:** the monthly aircraft statistic report, one of the eight features with no e2e spec
+- **FRs covered:** FR-66, FR-67, FR-68
+
+### Epic 13: Data governance and supplier operations
+
+A club exports itself at any time, and a person exercises their rights through their club
+administrator. The supplier deletes one club, restores one club, and sees every failure without a
+database query.
+
+- **Slices:** `platform` and `core/club` **deep** — an export and an erasure that span every table
+- **Governed by:** AD-4, AD-5, AD-16, AD-20
+- **Blocked by:** question 5 (does a flight record survive a person deletion), question 16 (the retention and deletion periods), question 19 (how the system counts a message to the supplier)
+- **FRs covered:** FR-82, FR-83, FR-84, FR-85, FR-86, FR-87
