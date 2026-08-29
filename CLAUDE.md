@@ -113,16 +113,7 @@ If the task does not fit a lane, ask. Do not guess.
 
 ## The surviving reverse-engineering
 
-`docs/modernization/` now holds only facts about the legacy system. Every one of these feeds
-rebuild 2:
-
-| File | What it gives you |
-| --- | --- |
-| `01-current-state.md` | The feature inventory: feature → code path → persona → e2e spec, plus 13 risk hotspots (R1–R13). **Load-bearing.** Every epic derives from it. |
-| `00-seed.md` | The sacred cows and strategic anchors. |
-| `legacy-migration-plan.md` | Every legacy table and EF entity — 59 tables, 56 entity classes, exhaustive. The "Destination" and "Semantics" columns are rebuild-1 decisions; treat those two columns as archive. |
-| `legacy-tables/` | Per-table legacy schema detail. |
-| `form-validation-parity-audit.md` | The legacy validation rules, field by field. |
+`docs/modernization/` holds some facts about the legacy system. can be used for narrowing down search, but is not authoritative. 
 
 ## Cross-cutting rules
 
