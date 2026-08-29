@@ -229,6 +229,8 @@ graph LR
 | Concern | Convention |
 | --- | --- |
 | Naming | `domain-model.md` is the authority. One word, one meaning. A synonym is a defect, and so is a collision with a name already in use. `Status` for a lookup, `State` for a state machine. No abbreviation in an identifier. A rename is applied everywhere in one pass — documents, tokens, identifiers, and this spine together. See `CLAUDE.md` directive 3. |
+| Comments | No comment in hand-authored implementation code. A name and a structure carry the intent instead, so the code stays the one source of truth and no comment can drift out of sync with it. Exception: a `package-info.java` file, whose sole content is its package-level Javadoc; and unmodified tool-scaffolded configuration (a CLI-generated `tsconfig.json`, `.vscode/*.json`, and the like) — its stock comments are not implementation code, and rewriting a generated file to strip them adds churn for no benefit. |
+| Versions | A planning document names a framework or a tool, never its pinned version. The version lives once, in the source config that consumes it — `build.gradle.kts`, `libs.versions.toml`, `package.json`, and the like — so a stale number in prose can never contradict the real pin. Exception: this table, the ratified architecture decision record. |
 | Package layout | By feature, never by layer. `platform/` holds the only cross-cutting code every slice may depend on. |
 | Ids | One id strategy across every table. The template epic fixes the type; every slice copies the skeleton. |
 | Money and counters | `BigDecimal` and `numeric`. Never a binary floating-point type. |

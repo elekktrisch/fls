@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: alpenflight-platform
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+server:
+  port: 8080
