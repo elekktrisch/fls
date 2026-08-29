@@ -174,7 +174,7 @@ Cross-slice access runs through a published interface or a domain event. A direc
 
 - **Binds:** every list surface; NFR-2, NFR-6
 - **Prevents:** a table that cannot reflow on a phone, and forty screens each solving the narrow layout differently.
-- **Rule:** One `RecordList` component renders cards on a narrow viewport and aligned columns on a wide one, from one definition, using CSS grid. No `<table>` element is used for a data list. The component carries table roles when the data is tabular and labels each field inside the card when it renders narrow. Every list surface uses it.
+- **Rule:** `RecordList` holds `RecordItem`, and every list surface in the product uses that pair — logbook, airborne board, invoice drafts, members, aircraft, reports. No `<table>` element is used for a data list. One `RecordItem` definition renders **stacked** on a narrow viewport and as **aligned zones** on a wide one, using CSS grid; dense mode drops it from 60px to 44px. It carries table roles when the data is tabular, and labels each field when it renders stacked. `EXPERIENCE.md` and `DESIGN.md` own the anatomy — identity, meta, metric, marker.
 
 ### AD-18 — The interface floor is legibility, not conformance
 
@@ -212,7 +212,7 @@ graph LR
 
 | Concern | Convention |
 | --- | --- |
-| Naming | `domain-model.md` is the authority. One word, one meaning. A synonym is a defect. `Status` for a lookup, `State` for a state machine. No abbreviation in an identifier. |
+| Naming | `domain-model.md` is the authority. One word, one meaning. A synonym is a defect, and so is a collision with a name already in use. `Status` for a lookup, `State` for a state machine. No abbreviation in an identifier. A rename is applied everywhere in one pass — documents, tokens, identifiers, and this spine together. See `CLAUDE.md` directive 3. |
 | Package layout | By feature, never by layer. `platform/` holds the only cross-cutting code every slice may depend on. |
 | Ids | One id strategy across every table. The template epic fixes the type; every slice copies the skeleton. |
 | Money and counters | `BigDecimal` and `numeric`. Never a binary floating-point type. |

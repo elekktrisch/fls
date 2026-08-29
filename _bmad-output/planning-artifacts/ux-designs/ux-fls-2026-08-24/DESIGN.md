@@ -82,7 +82,7 @@ spacing:
   tabbar-h: 56px
   row-h: 44px
   row-h-dense: 32px
-  strip-h: 60px
+  item-h: 60px
   zone-identity: 104px
   zone-metric: 88px
   touch-min: 44px
@@ -153,8 +153,8 @@ components:
     billedBorder: '{colors.line-strong}'
     unsentColor: '{colors.warning}'
     unsentBorder: '{colors.warning-dim}'
-  record-strip:
-    minHeight: '{spacing.strip-h}'
+  record-item:
+    minHeight: '{spacing.item-h}'
     minHeightDense: '{spacing.row-h}'
     padding: '{spacing.2} {spacing.3}'
     border: 'none'
@@ -243,7 +243,7 @@ Peer document: [`EXPERIENCE.md`](./EXPERIENCE.md). This file owns how AlpenFligh
 
 AlpenFlight is an instrument. It is not a web application with an aviation theme.
 
-The operator uses it beside an aircraft, on a flying day, with interruptions. The treasurer uses it
+The duty flight leader uses it beside an aircraft, on a flying day, with interruptions. The treasurer uses it
 to produce invoices that members dispute. Both jobs need the same thing: the screen states a fact,
 and the fact is correct. Nothing on the screen exists to please. Every element either carries data,
 or it accepts an input, or it is removed.
@@ -260,12 +260,12 @@ Three rules produce the whole appearance:
 The result reads as a panel instrument. That is the intent. The product replaces a system that
 clubs tuned over many years, so it must look like something that keeps working.
 
-**Dark only.** There is no light mode and no theme control. The operator accepted the sunlight and
+**Dark only.** There is no light mode and no theme control. The supplier accepted the sunlight and
 battery cost of this choice. Section *Colors* states what the palette must do to earn it.
 
 ## Colors
 
-**The contrast floor is unusual, and it is the price of the dark ground.** The operator reads this
+**The contrast floor is unusual, and it is the price of the dark ground.** The duty flight leader reads this
 screen outdoors, in direct sun, on a phone. Every colour that carries a value meets the WCAG AAA
 ratio of 7:1 against `{colors.surface-base}`. The AA minimum of 4.5:1 is not sufficient here.
 **Do not add a grey between `{colors.ink-settled}` and `{colors.ink-disabled}`.**
@@ -273,16 +273,16 @@ ratio of 7:1 against `{colors.surface-base}`. The AA minimum of 4.5:1 is not suf
 **Surfaces.** Four tones, and they differ by tone alone.
 
 - **`{colors.surface-base}` `#0A0E13`** is the ground. Almost every screen sits on it, and every
-  record strip sits on it. **A list has one background.** There is no alternate row tone.
+  record item sits on it. **A list has one background.** There is no alternate row tone.
 - **`{colors.surface-panel}` `#131A22`** raises the chrome: the top bar, the tab bar, list group
   headers, and rule cards.
 - **`{colors.surface-raised}` `#1C242E`** is for dialogs and menus, which float.
 - **`{colors.surface-input}` `#0F161D`** is darker than the ground. An input field recedes; it does
-  not stand out. The value inside it is what the operator reads.
+  not stand out. The value inside it is what the duty flight leader reads.
 
 **Text.**
 
-- **`{colors.ink-primary}` `#F2F6FA`** carries every value the operator must read. 17:1.
+- **`{colors.ink-primary}` `#F2F6FA`** carries every value the duty flight leader must read. 17:1.
 - **`{colors.ink-secondary}` `#A8B6C4`** carries field labels and column headings. 9.5:1.
 - **`{colors.ink-settled}` `#97A5B2`** carries data that is complete and closed — a billed flight,
   a past season. 7.3:1. It is quiet. It is still readable outdoors.
@@ -295,10 +295,10 @@ ratio of 7:1 against `{colors.surface-base}`. The AA minimum of 4.5:1 is not suf
   primary action. The NOW control. Cyan is the colour of the thing that is happening now, and of
   the control that makes it happen.
 - **`{colors.caution}` `#FFB43D` — amber. Locked.** A flight that the time gate closed. A rule that
-  stops the engine. Amber does not mean error. It means the operator can no longer change this.
+  stops the engine. Amber does not mean error. It means the duty flight leader can no longer change this.
 - **`{colors.warning}` `#FF6B6B` — red. Wrong or unsent.** A failed validation. A record that a
   device holds but has not sent. A conflict between two people. Red always names a thing the
-  operator can act on.
+  duty flight leader can act on.
 
 Each signal has a dim companion (`{colors.live-dim}`, `{colors.caution-dim}`,
 `{colors.warning-dim}`) for a background fill behind the signal colour. Never fill a large area with
@@ -309,7 +309,7 @@ row because of its category. Colour applied to make a screen look complete.
 
 > **Caution: green is absent on purpose.** Green reads as "correct" and this product must never
 > imply that a record is correct. It knows a record is complete, saved, or billed. It does not know
-> that the operator typed the right time.
+> that the duty flight leader typed the right time.
 
 ## Typography
 
@@ -346,7 +346,7 @@ The ramp is short, and the reason is density. Six roles, and no others.
 
 The scale is 4px, and every gap is a step on it: 4, 8, 12, 16, 20, 24, 32, 40, 56.
 
-**Alignment is a hard requirement, not a preference.** The operator named a misaligned element as a
+**Alignment is a hard requirement, not a preference.** The supplier named a misaligned element as a
 reason to distrust a screen. Every label in a column starts on the same x. Every value in a column
 ends on the same x. A row that has no value keeps its height.
 
@@ -355,7 +355,7 @@ ends on the same x. A row that has no value keeps its height.
 - `{spacing.row-h}` 44px is the default, and it is the minimum touch target. The phone always uses
   it.
 - `{spacing.row-h-dense}` 32px is available on a pointer device, for the logbook and the reports.
-  The operator turns it on. It is never the default.
+  The duty flight leader turns it on. It is never the default.
 
 **Breakpoints.** One column below 768px. Two columns from 768px. The dense desktop layout starts at
 1200px, and the container stops at `{spacing.container-max}` 1440px.
@@ -372,11 +372,11 @@ and from a hairline rule, never from a shadow.
 the only shadow in the product.
 
 **Motion is short and linear.** `{motion.fast}` 110ms for a state change. `{motion.reveal}` 140ms
-for a conditional field that appears. `{motion.instant}` for anything the operator triggered with a
+for a conditional field that appears. `{motion.instant}` for anything the duty flight leader triggered with a
 press — the press has already told them it worked.
 
 **Forbidden.** Easing curves that overshoot. A bounce. A fade longer than 140ms. Any animation that
-moves an element the operator is about to press. Any animation on a list that reorders.
+moves an element the duty flight leader is about to press. Any animation on a list that reorders.
 
 ## Shapes
 
@@ -406,16 +406,16 @@ at full strength. A filled marker uses the dim companion colour behind the signa
 - **State marker** — `OPEN`, `AIRBORNE`, `LOCKED`, `BILLED`, `UNSENT`. Bordered rectangle,
   `{typography.micro}`. `AIRBORNE` is the only marker with a full-strength border, because it is the
   only state that changes without a person acting.
-- **Record strip** — **The only list treatment in the product.** There is no data table. Every list
+- **Record item** — **The only list treatment in the product.** There is no data table. Every list
   of records uses this: the logbook, the airborne board, deliveries, members, aircraft, and
-  reports, on the phone and on the pointer device alike. See *Record strips* below for the anatomy.
+  reports, on the phone and on the pointer device alike. See *Record items* below for the anatomy.
 - **List group header** — `{colors.surface-panel}`, `{typography.micro}` in
   `{colors.ink-secondary}`, with a `{colors.line-strong}` rule below. It names the group and
-  carries its count: `IN THE AIR · 2`. The strip alternation restarts under every group header.
+  carries its count: `IN THE AIR · 2`. The item alternation restarts under every group header.
 - **List toolbar** — Search field, then filter chips, then the sort control, in that order. It sits
   above the first group header.
 - **Sort control** — 32px, square, bordered. It names the current sort: `DATE ↓`. It is the only
-  place sorting lives, because a strip has no column header to carry it.
+  place sorting lives, because an item has no column header to carry it.
 - **Filter chip** — 32px, square, bordered. Inactive is `{colors.ink-secondary}` on
   `{colors.surface-panel}`. Active is `{colors.live}` text on `{colors.live-dim}` with a cyan
   border, and it carries a clear control.
@@ -430,10 +430,10 @@ at full strength. A filled marker uses the dim companion colour behind the signa
 - **Focus ring** — 2px `{colors.live}`, 1px offset, on every focusable element. It is never removed
   and never replaced by a background change alone.
 
-## Record strips
+## Record items
 
 **AlpenFlight has no data table.** A table gives every field the same weight, and the fields do not
-have the same weight. A record strip formats each field by how much the reader needs it.
+have the same weight. A record item formats each field by how much the reader needs it.
 
 **The anatomy.** Four parts, and each part has one job.
 
@@ -468,7 +468,7 @@ HB-3215   21.08 · L. FREI · OFF 11:02 · LSZF → LSZF     02:05
                                                        LOCKED
 ```
 
-**Alignment is the reason for the fixed widths on a pointer device.** The operator said that a
+**Alignment is the reason for the fixed widths on a pointer device.** The supplier said that a
 misaligned element makes a screen untrustworthy. Fixed zones give the alignment of a table without
 giving every field the same weight. On a phone the same rule holds by a simpler means: every
 identity starts at the same left edge, and every metric ends at the same right edge.
@@ -477,19 +477,19 @@ identity starts at the same left edge, and every metric ends at the same right e
 between rows. The composition and the group headers do the separating. A group header restarts the
 list.
 
-**Colour in a strip.**
+**Colour in an item.**
 
 - A live metric is `{colors.live}`. The elapsed time of an airborne flight is the only routine case.
 - A settled record puts **every** zone in `{colors.ink-settled}`. A billed flight recedes as a whole,
   not one field at a time.
-- Nothing else in a strip is coloured.
+- Nothing else in an item is coloured.
 
-**Dense mode** collapses the strip from `{spacing.strip-h}` 60px to `{spacing.row-h}` 44px, and puts
+**Dense mode** collapses the item from `{spacing.item-h}` 60px to `{spacing.row-h}` 44px, and puts
 the identity, the meta, and the metric on one line with the marker at the far right. The zones keep
 their widths. Dense mode is a pointer-device option, never a phone default.
 
-**A strip keeps its height when a value is absent.** An empty metric reads `not set` in
-`{colors.ink-disabled}`. The strips stay even, and no row below moves.
+**An item keeps its height when a value is absent.** An empty metric reads `not set` in
+`{colors.ink-disabled}`. The items stay even, and no row below moves.
 
 ## Do's and Don'ts
 
@@ -501,9 +501,9 @@ their widths. Dense mode is a pointer-device option, never a phone default.
 | Show `not set` in `{colors.ink-disabled}` for an empty value | Leave a field blank or print a dash |
 | Keep a row's height when it has no value | Let a row collapse and shift the rows below it |
 | Right-align a metric, left-align an identity | Centre anything |
-| Build every list from record strips | Build a list as a table of equal cells |
+| Build every list from record items | Build a list as a table of equal cells |
 | Format each field by how much the reader needs it | Give every field the same weight |
-| Stack the strip on a phone, so the meta gets the width | Apply the fixed zone widths on a phone |
+| Stack the item on a phone, so the meta gets the width | Apply the fixed zone widths on a phone |
 | Hold the zone widths fixed on a pointer device | Let a zone size itself to its content there |
 | Give a list one background | Alternate the row tone, or rule under every row |
 | Put the sort control in the list toolbar | Put a sort or a filter in a column header |

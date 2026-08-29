@@ -25,9 +25,9 @@ the web client covers mobile use.
 
 **Two surfaces, one product.**
 
-- **The phone** is the hot path. The operator stands beside an aircraft. Coverage is poor. The
+- **The phone** is the hot path. The duty flight leader stands beside an aircraft. Coverage is poor. The
   screen must work with one thumb, and it must work with no network.
-- **The pointer device** is the dense variant. The operator uses a laptop at the desk in the hangar.
+- **The pointer device** is the dense variant. The duty flight leader uses a laptop at the desk in the hangar.
   The treasurer uses one for the accounting rules and the invoice run.
 
 **Two registers, one product.**
@@ -63,14 +63,14 @@ surface.
 
 | Surface | Purpose | Primary person |
 | --- | --- | --- |
-| Home | See what is happening now, and what needs attention | Operator, all |
-| Airborne board | Flights with a block start and no landing. Stamp NOW and Landing | Operator |
-| Log flight | Create and complete a flight | Operator, pilot, instructor |
+| Home | See what is happening now, and what needs attention | Duty flight leader, all |
+| Airborne board | Flights with a block start and no landing. Stamp NOW and Landing | Duty flight leader |
+| Log flight | Create and complete a flight | Duty flight leader, pilot, instructor |
 | Logbook | Find a past flight. Search and filter | All |
 | Air movements | Motor aircraft movements | Club admin |
 | Reservations · Scheduler | Book an aircraft for a timeslot | Pilot |
-| Planning days | One flying day: assigned operator and tow pilot | Club admin |
-| Season assignment | Assign the operator and tow pilot across a whole season, in one pass | Club admin |
+| Planning days | One flying day: assigned duty flight leader and tow pilot | Club admin |
+| Season assignment | Assign the duty flight leader and tow pilot across a whole season, in one pass | Club admin |
 | Members | Person records, licences, medical expiry, member state | Club admin |
 | Aircraft | Fleet records and counters | Club admin |
 | Reports | Flight reports and the custom report builder | Club admin |
@@ -87,7 +87,7 @@ dialog above the flight form. Nothing opens above them.
 
 ## Voice and Tone
 
-Microcopy. The brand posture lives in `DESIGN.md`. The project writes every operator-facing text in
+Microcopy. The brand posture lives in `DESIGN.md`. The project writes every user-facing text in
 ASD-STE100 Simplified Technical English: active voice, one meaning per word, one instruction per
 sentence.
 
@@ -129,16 +129,16 @@ Behavioural. The visual specification for each one lives in `DESIGN.md.Component
 | Component | Use | Behaviour |
 | --- | --- | --- |
 | **Typeahead picker** | Every catalog field, without exception | Filters a prefetched local list. Never waits on the network. A person matches on first name, last name, **and** city together. The list opens on focus, before a keystroke. `Enter` takes the highlighted entry. If nothing matches, the last entry is **Create "…"**, which opens the create-in-place dialog. |
-| **Date field** | Every date | One text input. The operator types `25.08.2026` against `([0-9]{2}\.){2}[0-9]{4}`, or opens the calendar and clicks. **Neither path is the fallback for the other.** A clear control empties it. Never a native `<input type="date">`. |
-| **Time field** | Every time | One text input. The operator types `1024` or `10:24`; the field formats on blur. A NOW control sits beside it. Never a native `<input type="time">`. |
+| **Date field** | Every date | One text input. The duty flight leader types `25.08.2026` against `([0-9]{2}\.){2}[0-9]{4}`, or opens the calendar and clicks. **Neither path is the fallback for the other.** A clear control empties it. Never a native `<input type="date">`. |
+| **Time field** | Every time | One text input. The duty flight leader types `1024` or `10:24`; the field formats on blur. A NOW control sits beside it. Never a native `<input type="time">`. |
 | **NOW control** | Block start, landing time | One press. No confirmation, no dialog. It writes the current time to that one field and saves it immediately. It works from the airborne board without opening the flight. |
-| **Create-in-place dialog** | Person, aircraft | Opens above the form. On save it closes, creates the record, selects it in the field that opened it, and returns focus to the next field. The operator never leaves the flight. |
+| **Create-in-place dialog** | Person, aircraft | Opens above the form. On save it closes, creates the record, selects it in the field that opened it, and returns focus to the next field. The duty flight leader never leaves the flight. |
 | **Copy-from-last** | Tow aircraft, routes, engine counter | Fills from the previous flight on this device. Values persist between sessions. A single control per group; never automatic without a visible mark. |
-| **Search field** | Logbook, members, aircraft, reports | One field. Matches across every displayed column at once. Filters as the operator types. Never a submit button. |
+| **Search field** | Logbook, members, aircraft, reports | One field. Matches across every displayed column at once. Filters as the duty flight leader types. Never a submit button. |
 | **Filter chip** | Beside every search field | Tap to open the values, tap a value to narrow. An active chip shows its value and a clear control. Chips are the **only** filter mechanism. |
-| **Record strip** | Every list, everywhere: logbook, airborne board, deliveries, members, aircraft, reports | The only list treatment. **There is no data table.** Four parts — identity, meta, metric, marker — each formatted by how much the reader needs it. **It stacks on a phone and sits side by side on a pointer device**; see `DESIGN.md.Record strips`. Tapping anywhere on the strip opens the record. An action in the far-right slot (NOW, LAND) acts on the record **without** opening it. A strip keeps its height when a value is absent. |
+| **Record item** | Every list, everywhere: logbook, airborne board, deliveries, members, aircraft, reports | The only list treatment. **There is no data table.** Four parts — identity, meta, metric, marker — each formatted by how much the reader needs it. **It stacks on a phone and sits side by side on a pointer device**; see `DESIGN.md.Record items`. Tapping anywhere on the item opens the record. An action in the far-right slot (NOW, LAND) acts on the record **without** opening it. An item keeps its height when a value is absent. |
 | **List group header** | Any list with groups | Names the group and its count, and restarts the list under it. On the airborne board the groups are `AT THE START`, `IN THE AIR`, `LANDED TODAY`, and older flights. |
-| **Sort control** | List toolbar, beside the search field and chips | Sorting lives here, because a strip has no column header. It names the current sort and its direction. **It never filters.** |
+| **Sort control** | List toolbar, beside the search field and chips | Sorting lives here, because an item has no column header. It names the current sort and its direction. **It never filters.** |
 | **Rule card** | Accounting rules | Reads as `WHEN … THEN …`. The run order number is on the left. Drag the handle to reorder, which opens the reorder preview. The engine-stop flag is always visible on the card, never hidden in an editor. |
 | **Dry run** | Accounting rules, migration verify | Takes one real flight. Shows each rule that fires, in order, what it consumes from the remaining time, and what it emits. Ends with the remainder and the total. |
 | **Hold banner** | Any open flight held by somebody else | Names the holder. Offers **Take over**. The fields below are read-only. |
@@ -156,8 +156,8 @@ Behavioural. The visual specification for each one lives in `DESIGN.md.Component
 | **Open flight** | Anywhere | Marker `OPEN`. It is a real record on the server, visible to the whole club. It is not a private draft. |
 | **Airborne** | Home, airborne board | Marker `AIRBORNE`, full-strength cyan border. Block start set, landing time absent. The elapsed time counts up in the row. |
 | **Held by another** | Flight form | Hold banner, read-only fields, **Take over** available. |
-| **Unsent** | Any record touched offline | Marker `UNSENT` in red, on the record and in the top bar as a count. It never blocks the operator from continuing. |
-| **Conflict** | On reconnect | Both values shown side by side, with who wrote each and when. The operator picks one. Nothing is discarded until they pick. |
+| **Unsent** | Any record touched offline | Marker `UNSENT` in red, on the record and in the top bar as a count. It never blocks the duty flight leader from continuing. |
+| **Conflict** | On reconnect | Both values shown side by side, with who wrote each and when. The duty flight leader picks one. Nothing is discarded until they pick. |
 | **Locked** | Flight | Marker `LOCKED` in amber. Fields read-only. The screen states why and when it happened. |
 | **Will lock** | Flight, within the final day | The flight states the remaining time before it locks. **The deadline is never a surprise.** |
 | **Billed** | Flight, delivery | Marker `BILLED` in `{colors.ink-settled}`. The flight links to the delivery it produced. |
@@ -175,7 +175,7 @@ anything a press caused. Nothing eases, bounces, or reorders under the pointer.
 
 **Conditional fields.** The selection drives visibility, exactly as legacy does across its 88
 conditional directives. A winch launch shows no tow aircraft and no release altitude. **A field that
-disappears must not move the field the operator is about to press** — reveal downward, never
+disappears must not move the field the duty flight leader is about to press** — reveal downward, never
 upward, and hold the scroll position.
 
 **Keyboard.** New capability; the legacy client has no keyboard handler anywhere in its flight
@@ -205,7 +205,7 @@ A flight is written by several people, on several devices, across several hours.
 1. **One holder at a time.** The person who opens the full edit form holds the flight. Everybody
    else sees it read-only, with the holder's name.
 2. **The hold expires.** It releases when the holder closes the flight, and after a short idle
-   period. The operator who opens a flight on a laptop and walks to the next glider never blocks the
+   period. The duty flight leader who opens a flight on a laptop and walks to the next glider never blocks the
    pilot who landed.
 3. **Take over is always available**, and it always names who is taken over from. The person taken
    over from is told.
@@ -215,8 +215,13 @@ A flight is written by several people, on several devices, across several hours.
 5. **An offline device never holds and never blocks.** It queues its writes and marks them `UNSENT`.
    On reconnect it applies them if nothing conflicts, and raises a conflict if something does.
 
-> `[ASSUMPTION]` The offline rule in point 5 is the facilitator's proposal, not an operator
-> decision. Confirm it before the architecture step.
+> **RESOLVED 2026-08-29 by `bmad-architecture`.** The supplier confirmed the offline rule and
+> extended it. A conflict is **field-level**, and a change to a fundamental field — one that
+> reshapes the record, such as the launch method — escalates to a whole-record conflict. The person
+> whose write arrives **second** resolves it. While a conflict is open the server value stands and
+> the flight bills on it. A stamp never conflicts: NOW and Landing are idempotent, first stamp wins.
+> A queued write **parks after 24 hours** — it stops applying by itself, it is never deleted, and it
+> returns as a pending item with Apply and Discard. See AD-9, AD-10, and AD-11.
 
 ## Speed Budget
 
@@ -262,8 +267,8 @@ Behavioural. The visual contrast requirements live in `DESIGN.md.Colors`.
 | Navigation | Bottom bar, four tabs | Top bar, four destinations |
 | Flight form | One column, long scroll, sticky summary above, sticky Save below | One dense form, multiple columns, no sticky elements |
 | Row height | 44px always | 44px, with a 32px dense option |
-| Record strip | Stacked: identity over meta at full width, metric over marker at the right | Side by side: fixed zones, 104px identity and 88px metric |
-| Logbook | Record strips, toolbar above | The same record strips, with dense mode available |
+| Record item | Stacked: identity over meta at full width, metric over marker at the right | Side by side: fixed zones, 104px identity and 88px metric |
+| Logbook | Record items, toolbar above | The same record items, with dense mode available |
 | Airborne board | Full screen, NOW at the right of each row | A panel on the dashboard |
 | Rules editor | Read and dry-run only | Full editing and reordering |
 | Density control | Absent | Present |
@@ -276,7 +281,7 @@ invoice. That decision is made at a desk.
 **What legacy FLS gets right, and what the rewrite must not lose.** Addendum §2 cites the code for
 each.
 
-- The flight form keeps the operator on one screen. It creates a person or an aircraft in place.
+- The flight form keeps the duty flight leader on one screen. It creates a person or an aircraft in place.
 - Every picker searches. All 21 of them, over 13 catalogs. Not a favoured few.
 - The form copies from the last flight: tow aircraft, both routes, engine counter.
 - It guesses well: start location falls back to the last one, then to the club home base.
@@ -284,7 +289,7 @@ each.
 - Dates accept the keyboard and the mouse equally.
 - It has a dedicated NOW control for the block start.
 
-**What legacy FLS gets wrong, in the operator's own words.**
+**What legacy FLS gets wrong, in the supplier's own words.**
 
 - **Search.** Filtering and sorting each column separately looked straightforward and is slow in
   use. Replaced by one search field plus chips.
@@ -305,11 +310,11 @@ each.
 ## Key Flows
 
 > The protagonist names below are placeholders drawn from the prototype fixtures. Replace them with
-> real club names when the operator supplies them.
+> real club names when the supplier supplies them.
 
 ### Flow 1 — Martin logs the first tow of the day
 
-Martin is the assigned operator at Birrfeld on a Saturday in August. He has a phone in his jacket
+Martin is the assigned duty flight leader at Birrfeld on a Saturday in August. He has a phone in his jacket
 pocket and a laptop on the table in the hangar. Eleven pilots want to fly.
 
 1. Martin opens AlpenFlight on his phone. **Home** shows nothing in the air, four reservations for
@@ -367,7 +372,7 @@ objection is not the price. It is the risk that billing changes.
    answered by arithmetic, not by a promise.** This is why the dry run is one surface with two jobs.
 5. He commits. The club runs the next flying day on AlpenFlight.
 6. `[OPEN]` What happens if a line does **not** reproduce? Peter needs a path that is not "call
-   support", because there is one operator and he is not staffed for it. Resolve before `bmad-prd`.
+   support", because there is one supplier and he is not staffed for it. Resolve before `bmad-prd`.
 
 ### Flow 4 — Beatrice assigns a whole season
 
@@ -375,7 +380,7 @@ Beatrice runs the club roster. It is March.
 
 1. She opens **Plan → Season assignment**.
 2. She sets the season range and picks the days: every Saturday and Sunday from April to October.
-3. She assigns the operator and the tow pilot across all of them **in one pass**, not one day at a
+3. She assigns the duty flight leader and the tow pilot across all of them **in one pass**, not one day at a
    time. This is the shape of the real job.
 4. In June a tow pilot cannot fly on one Sunday. She opens that single planning day and changes it.
    The season assignment is untouched.
@@ -384,9 +389,9 @@ Beatrice runs the club roster. It is March.
 
 | Item | Owner | Blocks |
 | --- | --- | --- |
-| `[OPEN]` Legacy click and keystroke count for the reference flight | Operator, per addendum §2 | The speed budget has no number |
+| `[OPEN]` Legacy click and keystroke count for the reference flight | Duty flight leader, per addendum §2 | The speed budget has no number |
 | `[OPEN]` The lock and billing time gates: unit and boundary (Q-B2, Q-B3) | `legacy-oracle` | The "will lock" countdown cannot state a figure |
 | `[OPEN]` Rule order and minimum decrement in the engine (Q-B6, Q-B7) | `legacy-oracle` | The dry-run trace cannot be built exactly |
 | `[OPEN]` What a club does when a migrated invoice line does not reproduce | `bmad-prd` | Flow 3 has no failure path |
-| `[ASSUMPTION]` The offline conflict rule (Concurrency, point 5) | Operator | Confirm before `bmad-architecture` |
-| `[ASSUMPTION]` Protagonist names are fixtures | Operator | Replace with real club names |
+| `[ASSUMPTION]` The offline conflict rule (Concurrency, point 5) | Duty flight leader | Confirm before `bmad-architecture` |
+| `[ASSUMPTION]` Protagonist names are fixtures | Duty flight leader | Replace with real club names |

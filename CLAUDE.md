@@ -10,18 +10,34 @@ Rebuild 2 starts from the legacy reverse-engineering only. The **BMad Method** d
 `/do-*` journey suite is retired. The product name stays **AlpenFlight**, and the new code goes
 back into `alpenflight/`.
 
-## Primary directives — PROVISIONAL
+## Primary directives — RATIFIED
 
-These two rules carried rebuild 1. They are **not yet ratified for rebuild 2**. The architecture
-step (`bmad-architecture`) must accept or reject each one. Until then, follow them.
+`bmad-architecture` ratified both rules on 2026-08-29. Directive 2 carries one amendment. The
+architecture spine is the authority:
+[`ARCHITECTURE-SPINE.md`](_bmad-output/planning-artifacts/architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md).
 
 1. **Working software over comprehensive documentation.** Skills, agent prompts, story bodies, and
    review prose exist to enable shipping behavior — not as deliverables. Doc drift is a nudge
    unless it actively misleads.
 2. **Business logic in the domain, not the database.** The schema enforces only structural
    invariants (primary keys, foreign keys, structural NOT NULL, identity-bearing partial UNIQUE,
-   performance indexes). State machines, ranges, calculations, and business rules go in the
-   application domain.
+   performance indexes, **and tenant isolation**). State machines, ranges, calculations, and
+   business rules go in the application domain.
+
+   **The amendment:** tenant isolation is an access boundary, not a business rule. It belongs to
+   the same category as a foreign key. Row-level security therefore does not violate this
+   directive. See AD-2.
+3. **Naming is a first-class decision, and it has no round limit.** A wrong name costs far more than
+   the time to get it right, because every document, screen, and identifier repeats it.
+
+   - Bring the alternatives and the reason for each. Do not settle on the first workable name.
+   - Expect several rounds. **Never cap them, and never signal impatience.**
+   - Test every candidate against `domain-model.md` §1 and against the existing names. Name a thing
+     for what it means, not for how it looks or how it works. One word, one meaning. A synonym is a
+     defect, and so is a collision with a name already in use.
+   - Never rename silently. State the collision or the reason, then apply the new name **everywhere
+     in one pass** — documents, tokens, identifiers, and the spine together. A half-applied rename
+     is worse than the old name.
 
 ## Operator-facing language — ASD-STE100
 
@@ -61,7 +77,7 @@ Before you read anything else, decide which lane you are in:
 | If the task is… | Go here |
 | --- | --- |
 | Planning the rewrite | Invoke the matching BMad skill. Order: `bmad-review` / `bmad-spec` (verify and lock the WHAT) → `bmad-prd` → `bmad-architecture` → `bmad-create-epics-and-stories` → `bmad-sprint-planning` → `bmad-build`. Output lands in `_bmad-output/`. Run `bmad-help` when you are unsure of the position. |
-| Building the rewrite | `bmad-build`. New code goes in `alpenflight/`. |
+| Building the rewrite | Read [`ARCHITECTURE-SPINE.md`](_bmad-output/planning-artifacts/architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md) **first** — it is the build substrate and it binds every slice. Then `bmad-build`. New code goes in `alpenflight/`. |
 | Extracting exact legacy behavior for one feature | Dispatch the `legacy-oracle` agent. It returns a testable behavior oracle. |
 | Reading or understanding legacy server (`flsserver/`) | Read `docs/legacy/server.md` first — that is the mental model. |
 | Reading or understanding legacy web (`flsweb/`) | Read `docs/legacy/web.md` first — that is the mental model. |
@@ -110,22 +126,15 @@ rebuild 2:
 
 ## Cross-cutting rules
 
-- **Multi-tenancy is convention in legacy.** Every legacy query filters by `ClubId`. Read
-  `docs/legacy/server.md` §4 before you add a query. Nothing structural enforces it — risk hotspot
-  R1, and the largest correctness risk in the rewrite. The new architecture must decide the
-  mechanism.
-- **DTOs are not entities.** In legacy, DTOs at the wire and entities at the database are separate
-  by design. Do not leak entities through controllers.
 - **Do not hardcode absolute server URLs in client code.** Assume same origin, and proxy in the dev
   server.
-- **Architecture diagrams and form-design PDFs are in `flsserver/doc/`.** Consult them before you
-  redesign a workflow that spans the legacy state machine, rules engine, or invoice flow.
 - **There is no CI on this branch.** Rebuild 1's 11 workflows are archived. The new stack brings its
   own.
 
 ## When in doubt
 
 - Where am I in the workflow → run `bmad-help`
+- What the architecture decided, and why a rule exists → `_bmad-output/planning-artifacts/architecture/architecture-fls-2026-08-29/` — the spine holds the 20 invariants, the memlog holds every reason
 - Legacy server semantics → `docs/legacy/server.md`
 - Legacy web semantics → `docs/legacy/web.md`
 - What the system does today → `docs/modernization/01-current-state.md`

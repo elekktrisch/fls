@@ -3,6 +3,7 @@ title: "PRD: AlpenFlight"
 status: draft
 created: 2026-08-25
 updated: 2026-08-29
+architecture: ../../architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md
 ---
 
 # PRD: AlpenFlight
@@ -11,6 +12,11 @@ Requirements for AlpenFlight. Target state only. Decisions and their reasons are
 
 Vocabulary, domain model, and the legacy name mapping: [`domain-model.md`](domain-model.md). Use
 those terms exactly. A synonym is a defect.
+
+**The architecture is decided.**
+[`ARCHITECTURE-SPINE.md`](../../architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md)
+carries 20 invariants (AD-1 to AD-20) and it is the authority on *how*. This PRD stays the authority
+on *what*. Where an `AD-n` is cited below, the spine holds the rule and its memlog holds the reason.
 
 ## 1. Product
 
@@ -571,6 +577,34 @@ the club, the user, and the request. No error record carries personal data in pl
 
 ## 5. Scope and non-goals
 
+### The three offerings — added 2026-08-29
+
+The product ships as three offerings, not one. This supersedes the brief's single flat price.
+
+| Offering | Runs where | Carries |
+| --- | --- | --- |
+| **Paid SaaS** | The supplier's server | Everything |
+| **Free plan** (v2) | The supplier's server | Everything, limited to one club and two aircraft, with the inactivity lifecycle |
+| **Community edition** | The club deploys it itself | Core plus the open modules. No invoicing, no migration, no commercial support |
+
+**Three module tiers carry the split, and the boundary is real.**
+
+- **Core** — Apache-2.0, in both editions: flight logging, master data, logbook, statistics, tenancy,
+  identity, reference-data sync.
+- **Open module** — Apache-2.0, in both editions, optional: FLARM. The SaaS ships it pre-installed and
+  pre-configured. That is a distribution difference, never a code difference.
+- **Pro module** — closed source, SaaS only: invoicing, migration, OGN.
+
+The boundary is enforced by a build, not by a repository split: CI builds and tests core plus the open
+modules **standalone on every commit**. See AD-12.
+
+**The migration is the paid moat, deliberately.** A club that self-deploys cannot bring its legacy FLS
+data. The community edition is the destination for a club that never ran FLS, never the escape route
+from it.
+
+**v1 reserves the shape; it does not build the free plan.** The club kind, the plan, the aircraft
+limit, and the three lifecycle states exist in v1. The free-plan surface and public sign-up are v2.
+
 ### In v1
 
 Every legacy feature except OGN ingestion. The migration path, self-service end to end. Rules engine
@@ -695,17 +729,28 @@ zero for anything a press caused. Nothing eases, bounces, or reorders under the 
 A failed authentication during a write does not lose the entry. No personal data appears in plain text
 in a log or an error record.
 
-**NFR-4: Availability.** The service is available on a weekend day when the weather permits flying. No
-formal uptime commitment applies to the closed user group.
+**NFR-4: Availability.** No single outage exceeds **one hour** during the flying window. The annual
+figure is **99.4 percent**. Planned maintenance is excluded, and it goes outside the flying window —
+a Swiss gliding club does not fly from October to March. The offline bridge is sized to the same one
+hour, because beyond an hour the conflict volume passes what a person will reconcile. The cap on one
+outage is the number that drives the design; the annual percentage alone would permit one long
+outage on the best flying Saturday of the year.
 
 **NFR-5: Data residency.** Every store, every backup, and every log stays in Switzerland or in the
 European Union.
 
-**NFR-6: Accessibility — the signed-in application.** Every action is reachable by keyboard in visual
+**NFR-6: Legibility — the signed-in application.** Every action is reachable by keyboard in visual
 order. A visible focus ring is never removed. Every input has a programmatic label, and a placeholder
 is never the label. No state is carried by colour alone: `AIRBORNE`, `LOCKED`, and `UNSENT` each carry
-a word. The system announces an error and ties it to its field. The elapsed time updates politely and
-never moves the focus.
+a word. Every error is tied to its field.
+
+**Reduced 2026-08-29, deliberately.** This requirement was named *accessibility*. It is now named
+*legibility*, because every rule above is already demanded by the speed budget and by sunlight — the
+fastest operator never touches the mouse, and a phone at midday on an airfield is functionally a
+low-vision device. **Dropped for the signed-in application:** screen-reader optimisation, live-region
+politeness tuning, and any formal WCAG conformance claim. Nobody tests against a screen reader here.
+`RecordList` still carries its table roles, because twenty lines now beats touching every screen after
+the promotion to a real launch. NFR-7 is **unchanged**.
 
 **NFR-7: Accessibility — the public surfaces.** All of NFR-6, and WCAG 2.2 AA in full on an unknown
 device. The form works with no scripting beyond validation. No aviation term appears without a plain
@@ -722,13 +767,28 @@ database query.
 **NFR-11: Language.** Every text a person reads is ASD-STE100 Simplified Technical English — the
 interface, the email, and the error messages, in German and in English.
 
-**NFR-12: Platform floor.** The product names a minimum browser version and a minimum phone screen
-width. Offline storage, the prefetched catalogs, and the 56-pixel targets all depend on it. Open
-question 18 supplies the values.
+**NFR-12: Platform floor.** The minimum browser is **latest-minus-one** for Chrome, Safari, Firefox,
+and Edge. That floor supplies baseline-2024 web features, so the product needs no polyfill budget and
+no transpile target below ES2022. Offline storage, the service worker, the prefetched catalogs, and
+the 56-pixel targets all rest on it. **Question 18 is closed.**
 
-**NFR-13: Scale.** The system carries the data volume of the largest club in the closed user group.
-The nightly engine run and the migration import each finish inside a defined budget. Open question 17
-supplies the numbers.
+**NFR-13: Scale.** The design target is the largest club in the closed user group: **8,000 flight
+records per year**, **10 years of history**, about **100,000 flight rows**, **300,000 invoice lines**,
+and about **1,000,000 audit rows** — roughly 1.5 million rows and 1 to 2 GB. Peak is **200 flight
+records on the best Saturday** and **fewer than 25 concurrent writers per club**.
+
+Budgets: the nightly engine run finishes in **60 seconds per club** and **10 minutes system-wide**; a
+monthly invoice run for the largest club finishes in **60 seconds**; a migration import for the
+largest club finishes in **30 minutes**, plus **30 minutes** to reproduce 10 years of invoices.
+
+**Question 17 is closed.** The numbers are an informed estimate, not a measurement — no live legacy
+instance was available. They are derived from the SFVS 2024 annual report (48 clubs, 1,997 members,
+4,183 declared flights) and cross-checked against the Swiss aircraft register (472 gliders plus 242
+powered gliders). **Revisit if** the first real migration reports more than 150,000 flights or 3
+million audit rows, or if an import passes 60 minutes.
+
+**The conclusion that follows:** AlpenFlight is a single-node workload. Nothing in this product
+justifies a message broker, a read replica, a cache tier, or a shard key.
 
 ## 8. Constraints
 
@@ -765,7 +825,7 @@ A dialog stacks one level deep, never two.
 | --- | --- | --- | --- |
 | RK-1 | The rules engine must reproduce a stateful decrement loop exactly | FR-49, FR-54, FR-74, SM-1 | Q-B6, Q-B7, Q-B22 |
 | RK-2 | The legacy test suite proves that features exist, not that they behave | Expand the suite early. No epic claims parity on it as it stands. | — |
-| RK-3 | Club isolation is conventional in the legacy system | FR-1, SM-4. Structural enforcement, proven by a failing test. | Q-B8, Q-B9 |
+| RK-3 | Club isolation is conventional in the legacy system | **Mitigated.** AD-2: row-level security with `FORCE ROW LEVEL SECURITY` and a non-owner role. One build gate proves a query with no filter returns zero rows — one test that cannot be forgotten, instead of ~200 that can. | Q-B8, Q-B9 |
 | RK-4 | The time gates are undocumented | FR-30, FR-32, FR-33 | Q-B2, Q-B3, Q-B20 |
 | RK-5 | One person builds and operates this | FR-85, FR-86, FR-89, SM-7 | 19 |
 | RK-6 | The speed budget has no number | FR-26 measures and reports until the figure exists | 1 |
@@ -774,8 +834,8 @@ A dialog stacks one level deep, never two.
 | RK-9 | A club cannot sign in before it configures its own email | FR-78, FR-89 | 15 |
 | RK-10 | A job re-run duplicates an invoice draft | FR-51, FR-69 | Q-B24 |
 | RK-11 | The legacy audit log serves every club to any authenticated user, and it carries no club column | FR-8. The migration must derive a club per audit row, or start the history empty. | 26 |
-| RK-12 | The legacy carries three tenancy mechanisms, and a shared read cannot be told from a forgotten filter | FR-1, FR-2, SM-4. One default that fails closed, plus a declared list of shared entities. | 23, 24, 25 |
-| RK-13 | A free club writes into a shared entity, and a paying club reads it | The plan is a club attribute, never a code path. Question 28 names every entity a free club may create. | 28, 29 |
+| RK-12 | **CLOSED 2026-08-29.** The legacy carries three tenancy mechanisms, and a shared read cannot be told from a forgotten filter | AD-2 and AD-3. Row-level security is the floor, three declared data kinds replace the three mechanisms, and a table declaring no kind fails the build. | — |
+| RK-13 | **CLOSED 2026-08-29.** A free club writes into a shared entity, and a paying club reads it | AD-3 removed the shared writable entity as a category. No club writes anything another club reads. | — |
 | RK-14 | A real free club locks every winter and is nagged every month | A Swiss gliding club is inactive from October to March, and the lock triggers after one month. The lock destroys nothing, but the nagging drives a real club away. Size one prolongation against a season. | 31 |
 | RK-15 | The ten-year soft delete keeps every abandoned sign-up | A free plan that is also the demonstration collects abandoned clubs. Ten years of storage each is a cost with no return. Scope the retention to a club that issued an invoice. | 32 |
 | RK-16 | A free club costs hosting and returns nothing | The free plan is a v2 item. Size the free load against the cost recovery target before it ships. | 17, 30 |
@@ -793,8 +853,8 @@ An id is stable. The list is not in sequence. `domain-model.md` §5 carries ques
    supplier.
 3. **Does FR-47 let a club system carrier change the rule order?** The legacy fixes the order by rule
    kind. Owner: the supplier.
-4. **Rename `Delivery` to `InvoiceDraft` in the domain, keeping `/deliveries` on the wire?** Applied
-   in this PRD. Confirm the wire path. Owner: the supplier, then `bmad-architecture`.
+4. **CLOSED 2026-08-29.** `Delivery` is `InvoiceDraft` in the domain, and **`/api/v1/deliveries/*`
+   keeps its wire path**, because the Proffix accounting synchroniser polls it (AD-19).
 5. **Does a flight record survive the deletion of a person record?** FR-84 assumes it does, with the
    identity removed. Needs a legal reading before the first real club.
 6. **Which languages does the legacy translation table hold?** FR-14 carries two.
@@ -804,50 +864,63 @@ An id is stable. The list is not in sequence. `domain-model.md` §5 carries ques
 16. **What is the retention period for a flight record, and the deletion period for a club?** FR-83
     and FR-84 both cite a period that no requirement supplies. Needs a legal reading. Owner: the
     supplier.
-17. **What data volume must the system carry?** NFR-13. Flights per club per year, the largest club,
-    the nightly engine run budget, and the migration import budget. Blocks `bmad-architecture`.
-    Owner: the supplier, from the legacy database.
-18. **Which browser version and which screen width are the floor?** NFR-12. Offline storage, the
-    service worker, and the prefetched catalogs all depend on it. Blocks `bmad-architecture`. Owner:
-    the supplier.
+17. **CLOSED 2026-08-29.** What data volume must the system carry? NFR-13 now carries the numbers and
+    the budgets, plus the revisit condition. Derived from public Swiss gliding statistics, because no
+    live legacy instance was available.
+18. **CLOSED 2026-08-29.** Which browser version is the floor? Latest-minus-one for Chrome, Safari,
+    Firefox, and Edge. NFR-12 carries it.
 19. **How does the system count a message to the supplier?** SM-3 and SM-7 have no instrument, and no
     support channel exists in this PRD. Define the channel, or mark both metrics not measurable in v1.
     Owner: the supplier.
-20. **Which write model applies to a field the full form changes offline?** FR-38 and FR-39. A stamp
-    bypasses the hold and an offline device takes no hold, so two users can complete one flight. State
-    which fields are last-write-wins and which use the conflict view. Blocks `bmad-architecture`.
-    Owner: the supplier, then `bmad-architecture`.
+20. **ANSWERED 2026-08-29.** Which write model applies to a field the full form changes offline?
+    **Field-level conflict, with a fundamental-field escalation** (AD-9). Two devices changing
+    different fields both apply. The same field changed differently raises a conflict dialog naming
+    both authors and both values. A change to a fundamental field — one that reshapes the record, such
+    as the launch method — escalates to a whole-record conflict. The person whose write arrives second
+    resolves it. While a conflict is open the server value stands and the flight bills on it.
+    **A stamp never conflicts** (AD-10): the NOW press and the landing stamp are idempotent, first
+    stamp wins, no dialog. **A queued write parks at 24 hours** (AD-11): it stops applying by itself,
+    it is never deleted, and it returns as a pending item with Apply and Discard.
+    *Still open, at epic level:* the exact membership of the fundamental-field set. Source: a
+    `legacy-oracle` read against the 88 legacy conditional directives, before the flight-form epic.
 21. **What is the minimum invoice sample, and what is the corpus?** FR-74 verifies a sample. SM-1
     targets 100 percent of "the corpus". Supply the minimum sample size, the selection rule, and the
     corpus definition. Blocks the migration epic. Owner: the supplier.
 22. **Which language does a user read, and where does the preference live?** FR-14 and FR-70. The
     interface and the email must pick the same language. Owner: the supplier.
-23. **Which entities are shared across clubs, and which belong to one club?** FR-1 and FR-2. The
-    legacy carries three mechanisms: a `ClubId` column on 18 tables, an `OwnerId` plus
-    `OwnershipType` pair on 36 tables, and no tenant column on 23 tables. All 18 `ClubId` tables also
-    carry `OwnerId`, and no constraint keeps the two columns in agreement. A person and an aircraft
-    are shared on purpose. The architecture needs one default that fails closed, plus a declared list
-    of the shared entities. Blocks `bmad-architecture`. Owner: `bmad-architecture`.
-24. **Where does the club filter get enforced?** FR-1 demands that a query with no club filter fails.
-    Two mechanisms make the failure structural: row-level security in the database with a session
-    variable, or a type that a query cannot compile without. A base repository class repeats the
-    legacy convention in a new language. Blocks `bmad-architecture`. Owner: `bmad-architecture`.
-25. **What replaces `OwnerId` and `OwnershipType`?** The legacy pair is a polymorphic pointer:
-    `OwnershipType` names whether `OwnerId` holds a club, a user, or the system. It blocks a foreign
-    key, a useful index, and row-level security. `FlightService.cs:483` compares `OwnerId` to a club
-    identifier and never reads `OwnershipType`, so the discriminator is carried and ignored. Q-B8 and
-    Q-B9 ask the behaviour. This question asks the replacement. Blocks `bmad-architecture`. Owner:
-    `bmad-architecture`.
+23. **ANSWERED 2026-08-29. The shared list is empty.** There is no shared *writable* entity at all
+    (AD-3). Three data kinds replace the legacy's three mechanisms. **System reference** —
+    supplier-owned, imported from an authoritative source, writable by no club: `ReferenceAircraft`
+    from the BAZL register, `ReferenceLocation` from OurAirports. **Club-scoped** — one club, RLS
+    enforced: `ClubAircraft`, `ClubLocation`, and everything else. **Cross-club link** — a row the
+    owning club creates, such as a `ClubMembership`. A table declaring no kind fails the build.
+    This removes both hazards a shared entity carried: a free club polluting what a paying club reads,
+    and one club deleting a record another club still uses.
+24. **ANSWERED 2026-08-29.** Where does the club filter get enforced? **In the database** (AD-2).
+    PostgreSQL row-level security with a session variable set once in the transaction opener, plus
+    `FORCE ROW LEVEL SECURITY` and a non-owner application role. Repository scoping is ergonomics and
+    never the guarantee. Compile-time type enforcement was **rejected**: it costs the most and
+    guarantees the least, because raw SQL, the bulk importer, and any job opening its own connection
+    walk past it. The decisive argument against test-only enforcement: proper testing means ~200
+    isolation tests a developer must remember to write, and forgetting the test fails exactly like
+    forgetting the filter. Row-level security needs **one** test that cannot be forgotten.
+25. **ANSWERED 2026-08-29.** What replaces `OwnerId` and `OwnershipType`? A plain `club_id` foreign
+    key on every club-scoped table — indexable, and it carries a policy. The polymorphic discriminator
+    **disappears**; the legacy carried it and ignored it, evidenced at `FlightService.cs:483`. A
+    system-reference table carries no tenant column at all, and a cross-club link is read through the
+    link the owning club created.
 26. **Does the audit log carry a club, and what happens to the migrated audit history?** FR-8 requires
     that a club reads only its own audit records. The legacy `AuditLogs` table carries six columns and
     no club. Every migrated audit row needs a club derived from its `RecordId`, or the history starts
     empty at cutover. Blocks the identity epic and the migration epic. Owner: the supplier, then
     `bmad-architecture`.
-28. **Which shared entity may a free club create?** Question 23 decides which entities are shared
-    across clubs. A person, an aircraft, and an airfield are shared in the legacy. If a free club
-    writes into a shared entity, a paying club reads it in a typeahead. A free user must also never
-    search a real person of another club, because FR-2 permits a cross-club crew member. Blocks the
-    free plan and constrains question 23. Owner: `bmad-architecture`.
+28. **CLOSED 2026-08-29. The answer is none.** No shared writable entity exists, so a free club can
+    write nothing another club reads (AD-3). The second half — a free user searching a real person of
+    another club — is closed by AD-4: **there is no global person search.** A club reads a person only
+    through a `ClubMembership` it owns, and a cross-club crew member is added by an explicit link.
+    That rule is required independently of the free plan, because the system holds names, addresses,
+    licences, and medical expiry, and letting any club enumerate every person is a personal-data
+    exposure under the Swiss DSG and the GDPR.
 29. **What does a free club not do, and what bounds it?** It produces no invoice a person outside the
     club receives, it counts in no success metric apart from the free count in SM-C1, and it raises no
     supplier alert. Name the write rate limit, the storage cap, and the rule for the content people
@@ -869,10 +942,10 @@ An id is stable. The list is not in sequence. `domain-model.md` §5 carries ques
     storage for ten years. Decide whether the ten years applies to every free club, or only to a club
     that issued an invoice. Also decide whether the terms put the retention duty on the club or on the
     supplier. Needs a legal reading before the free plan ships. Owner: the supplier.
-34. **Does a new free club get seeded demonstration data?** The free plan is now the demonstration, so
-    an empty club must either show its value immediately or teach the visitor to fill it. Seeded data
-    also collides with the aircraft limit in question 30 and with the migration path. Owner:
-    `bmad-architecture`.
+34. **DEFERRED 2026-08-29 to the v2 free-plan epic.** Does a new free club get seeded demonstration
+    data? It does not block v1, because v1 reserves the club kind and the lifecycle without building
+    the free-plan surface. One constraint now applies: seeded data is **club-scoped**, never written
+    into system reference data (AD-3), so it cannot reach another club.
 
 **Not blocking**
 

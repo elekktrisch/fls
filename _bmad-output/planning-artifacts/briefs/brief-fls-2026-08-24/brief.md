@@ -122,10 +122,34 @@ backups, the error tracking, and the payment fee. The operator's time is a contr
 
 Two consequences follow, and both are deliberate:
 
-- **A free tier does not fit.** A free tier attracts unknown users. AlpenFlight has none. Its clubs
-  are a known, finite list that already runs FLS. Use one flat price per club, and a
-  time-limited trial. This supersedes the freemium plan of rebuild 1. `bmad-prd` confirms the shape.
 - **Growth is not a success measure.** Enough clubs to cover the running cost is success.
+- **The supplier's time is the scarce resource, not the money.** Reconsider any decision that adds
+  recurring manual work.
+
+### The three offerings — superseded 2026-08-29
+
+**This supersedes the earlier text, which said a free tier does not fit and named a time-limited
+trial.** `bmad-prd` replaced the trial with a free plan. `bmad-architecture` then added a third
+offering. The product now carries three:
+
+| Offering | Runs where | Carries | Costs the supplier |
+| --- | --- | --- | --- |
+| **Paid SaaS** | The supplier's server | Everything | Hosting, covered by the price |
+| **Free plan** | The supplier's server | Everything, limited to one club and two aircraft, with an inactivity lifecycle | Hosting, not covered |
+| **Community edition** | The club deploys it itself | Core plus the open modules. No invoicing, no migration, no commercial support | **Nothing** |
+
+The community edition answers the buyer's real objection — *what happens when you stop?* — which no
+promise can answer. It also answers Startkladde, the free competitor this brief names below.
+
+**The migration is the paid moat, and that is deliberate.** A club that self-deploys cannot bring
+its legacy FLS data, because both the migration and the invoicing are pro modules. The community
+edition is therefore the destination for a club that never ran FLS, never the escape route from it.
+
+Licence for the public code: **Apache-2.0**. It permits closed pro modules with no argument, and an
+inbound contribution arrives under the same terms.
+
+Detail: PRD §5, and
+[`ARCHITECTURE-SPINE.md`](../../architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md) AD-12.
 
 ## Scope
 
