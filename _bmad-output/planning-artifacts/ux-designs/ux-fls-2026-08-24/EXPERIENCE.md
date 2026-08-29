@@ -28,7 +28,7 @@ the web client covers mobile use.
 - **The phone** is the hot path. The duty flight leader stands beside an aircraft. Coverage is poor. The
   screen must work with one thumb, and it must work with no network.
 - **The pointer device** is the dense variant. The duty flight leader uses a laptop at the desk in the hangar.
-  The treasurer uses one for the accounting rules and the invoice run.
+  The treasurer uses one for the charging rules and the invoice run.
 
 **Two registers, one product.**
 
@@ -51,9 +51,9 @@ what the person came to do.
 | --- | --- | --- |
 | **Home** | The dashboard: airborne panel, today, reservations, expiring licences and medicals | App open |
 | **Operate** | Log flight · Airborne · Logbook · Air movements | Tab 1 |
-| **Plan** | Reservations · Scheduler · Planning days · Season assignment | Tab 2 |
+| **Plan** | Reservations · Scheduler · Roster days · Season assignment | Tab 2 |
 | **Records** | Members · Aircraft · Locations · Reports | Tab 3 |
-| **Admin** | Accounting rules · Deliveries · Articles · Master data · Users · Email templates · System | Tab 4 |
+| **Admin** | Charging rules · Invoice drafts · Billing expectations · Articles · Master data · Users · Email templates · Migration · System | Tab 4 |
 
 Home is the app-open surface, not a fifth tab. On a phone the four destinations sit in the bottom
 bar. On a pointer device they sit in the top bar.
@@ -69,14 +69,14 @@ surface.
 | Logbook | Find a past flight. Search and filter | All |
 | Air movements | Motor aircraft movements | Club admin |
 | Reservations · Scheduler | Book an aircraft for a timeslot | Pilot |
-| Planning days | One flying day: assigned duty flight leader and tow pilot | Club admin |
+| Roster days | One flying day: assigned duty flight leader and tow pilot | Club admin |
 | Season assignment | Assign the duty flight leader and tow pilot across a whole season, in one pass | Club admin |
 | Members | Person records, licences, medical expiry, member state | Club admin |
 | Aircraft | Fleet records and counters | Club admin |
 | Reports | Flight reports and the custom report builder | Club admin |
-| **Accounting rules** | The ordered rule list, the WHEN/THEN editor, and the dry run | Club system carrier |
-| Deliveries | Generated invoice lines, view, edit, delete | Club system carrier |
-| Delivery creation test | The regression harness that proves parity | Club system carrier |
+| **Charging rules** | The ordered rule list, the WHEN/THEN editor, and the dry run | Club system carrier |
+| Invoice drafts | Generated invoice lines, view, edit, delete | Club system carrier |
+| Billing expectations | The regression harness that proves parity | Club system carrier |
 | Migration | Upload the legacy export, verify it, and commit | Club administrator |
 | Profile | The person's own record and password | All |
 | System | Logs, translations, system data | System admin |
@@ -120,7 +120,10 @@ sentence.
 | locked | closed, frozen, read-only |
 | open flight | draft, work in progress |
 | rule | filter, condition |
-| delivery | invoice line, billing item |
+| invoice draft | delivery, billing document |
+| invoice line | delivery item |
+| charging rule | accounting rule |
+| roster day | planning day |
 
 ## Component Patterns
 
@@ -136,11 +139,11 @@ Behavioural. The visual specification for each one lives in `DESIGN.md.Component
 | **Copy-from-last** | Tow aircraft, routes, engine counter | Fills from the previous flight on this device. Values persist between sessions. A single control per group; never automatic without a visible mark. |
 | **Search field** | Logbook, members, aircraft, reports | One field. Matches across every displayed column at once. Filters as the duty flight leader types. Never a submit button. |
 | **Filter chip** | Beside every search field | Tap to open the values, tap a value to narrow. An active chip shows its value and a clear control. Chips are the **only** filter mechanism. |
-| **Record item** | Every list, everywhere: logbook, airborne board, deliveries, members, aircraft, reports | The only list treatment. **There is no data table.** Four parts — identity, meta, metric, marker — each formatted by how much the reader needs it. **It stacks on a phone and sits side by side on a pointer device**; see `DESIGN.md.Record items`. Tapping anywhere on the item opens the record. An action in the far-right slot (NOW, LAND) acts on the record **without** opening it. An item keeps its height when a value is absent. |
+| **`RecordItem`** | Every list, everywhere: logbook, airborne board, invoice drafts, members, aircraft, reports | The only list treatment. **There is no data table.** Four parts — identity, meta, metric, marker — each formatted by how much the reader needs it. **It stacks on a phone and sits side by side on a pointer device**; see `DESIGN.md.Record items`. Tapping anywhere on the item opens the record. An action in the far-right slot (NOW, LAND) acts on the record **without** opening it. An item keeps its height when a value is absent. |
 | **List group header** | Any list with groups | Names the group and its count, and restarts the list under it. On the airborne board the groups are `AT THE START`, `IN THE AIR`, `LANDED TODAY`, and older flights. |
 | **Sort control** | List toolbar, beside the search field and chips | Sorting lives here, because an item has no column header. It names the current sort and its direction. **It never filters.** |
-| **Rule card** | Accounting rules | Reads as `WHEN … THEN …`. The run order number is on the left. Drag the handle to reorder, which opens the reorder preview. The engine-stop flag is always visible on the card, never hidden in an editor. |
-| **Dry run** | Accounting rules, migration verify | Takes one real flight. Shows each rule that fires, in order, what it consumes from the remaining time, and what it emits. Ends with the remainder and the total. |
+| **Rule card** | Charging rules | Reads as `WHEN … THEN …`. The run order number is on the left. Drag the handle to reorder, which opens the reorder preview. The engine-stop flag is always visible on the card, never hidden in an editor. |
+| **Dry run** | Charging rules, migration verify | Takes one real flight. Shows each rule that fires, in order, what it consumes from the remaining time, and what it emits. Ends with the remainder and the total. |
 | **Hold banner** | Any open flight held by somebody else | Names the holder. Offers **Take over**. The fields below are read-only. |
 | **Density control** | Logbook, reports, deliveries | Pointer devices only. Switches row height between 44px and 32px. Persists per person. Never appears on a phone. |
 
@@ -160,7 +163,7 @@ Behavioural. The visual specification for each one lives in `DESIGN.md.Component
 | **Conflict** | On reconnect | Both values shown side by side, with who wrote each and when. The duty flight leader picks one. Nothing is discarded until they pick. |
 | **Locked** | Flight | Marker `LOCKED` in amber. Fields read-only. The screen states why and when it happened. |
 | **Will lock** | Flight, within the final day | The flight states the remaining time before it locks. **The deadline is never a surprise.** |
-| **Billed** | Flight, delivery | Marker `BILLED` in `{colors.ink-settled}`. The flight links to the delivery it produced. |
+| **Billed** | Flight, invoice draft | Marker `BILLED` in `{colors.ink-settled}`. The flight links to the invoice draft it produced. |
 | **Validation failure** | Any field | The field takes the red edge marker. The message sits under the field, states what is wrong, and states what to do. Never a summary at the top of the form. Never a dialog. |
 | **Save failure** | Any write | The value stays on screen. The record becomes `UNSENT`. Nothing is lost, and nothing is silently retried without a mark. |
 
@@ -267,8 +270,8 @@ Behavioural. The visual contrast requirements live in `DESIGN.md.Colors`.
 | Navigation | Bottom bar, four tabs | Top bar, four destinations |
 | Flight form | One column, long scroll, sticky summary above, sticky Save below | One dense form, multiple columns, no sticky elements |
 | Row height | 44px always | 44px, with a 32px dense option |
-| Record item | Stacked: identity over meta at full width, metric over marker at the right | Side by side: fixed zones, 104px identity and 88px metric |
-| Logbook | Record items, toolbar above | The same record items, with dense mode available |
+| `RecordItem` | Stacked: identity over meta at full width, metric over marker at the right | Side by side: fixed zones, 104px identity and 88px metric |
+| Logbook | `RecordItem` rows, toolbar above | The same rows, with dense mode available |
 | Airborne board | Full screen, NOW at the right of each row | A panel on the dashboard |
 | Rules editor | Read and dry-run only | Full editing and reordering |
 | Density control | Absent | Present |
@@ -293,7 +296,7 @@ each.
 
 - **Search.** Filtering and sorting each column separately looked straightforward and is slow in
   use. Replaced by one search field plus chips.
-- **Accounting rules.** A rule is a WHEN/THEN pair with an engine-stop flag, and the 567-line editor
+- **Charging rules.** A rule is a WHEN/THEN pair with an engine-stop flag, and the 567-line editor
   flattens all three into one field list. Worse: the engine is a decrement loop, so **run order
   decides the invoice** — and the list screen never shows the order. Replaced by an ordered list,
   WHEN/THEN cards, and a dry run.
@@ -340,10 +343,10 @@ pocket and a laptop on the table in the hangar. Eleven pilots want to fly.
 
 ### Flow 2 — Ruth sees why the invoice changed
 
-Ruth is the treasurer. She inherited the accounting rules from a predecessor who left the club. A
+Ruth is the treasurer. She inherited the charging rules from a predecessor who left the club. A
 member has asked why their aerotow costs more than last season.
 
-1. Ruth opens **Admin → Accounting rules** on her laptop.
+1. Ruth opens **Admin → Charging rules** on her laptop.
 2. The list shows the rules **in the order the engine runs them**. Rule 1 is *Aerotow, first 10
    minutes*. It carries an amber line: *stops the engine*.
 3. She reads rule 1 as a sentence. `WHEN tow · any aircraft · 0–10 min`. `THEN article 4010 · per
@@ -360,7 +363,7 @@ member has asked why their aerotow costs more than last season.
 
 ### Flow 3 — Peter moves his club onto AlpenFlight
 
-Peter carries the system for his club. He configured the accounting rules eight years ago. His
+Peter carries the system for his club. He configured the charging rules eight years ago. His
 objection is not the price. It is the risk that billing changes.
 
 1. Peter runs the export tool against the legacy database. It produces one encrypted file.
@@ -389,9 +392,9 @@ Beatrice runs the club roster. It is March.
 
 | Item | Owner | Blocks |
 | --- | --- | --- |
-| `[OPEN]` Legacy click and keystroke count for the reference flight | Duty flight leader, per addendum §2 | The speed budget has no number |
+| `[OPEN]` Legacy click and keystroke count for the reference flight | Supplier, per addendum §2 | The speed budget has no number |
 | `[OPEN]` The lock and billing time gates: unit and boundary (Q-B2, Q-B3) | `legacy-oracle` | The "will lock" countdown cannot state a figure |
 | `[OPEN]` Rule order and minimum decrement in the engine (Q-B6, Q-B7) | `legacy-oracle` | The dry-run trace cannot be built exactly |
 | `[OPEN]` What a club does when a migrated invoice line does not reproduce | `bmad-prd` | Flow 3 has no failure path |
-| `[ASSUMPTION]` The offline conflict rule (Concurrency, point 5) | Duty flight leader | Confirm before `bmad-architecture` |
-| `[ASSUMPTION]` Protagonist names are fixtures | Duty flight leader | Replace with real club names |
+| `[ASSUMPTION]` The offline conflict rule (Concurrency, point 5) | Supplier | Confirm before `bmad-architecture` |
+| `[ASSUMPTION]` Protagonist names are fixtures | Supplier | Replace with real club names |

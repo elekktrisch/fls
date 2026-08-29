@@ -140,7 +140,8 @@ system. Every document, screen, and code identifier uses these terms. A synonym 
 | Audit record | `AuditRecord` | Who changed which record, when, and what changed. |
 | Migration | `Migration` | The transfer of one club into AlpenFlight: export, upload, verify, commit. |
 | Mismatch | `Mismatch` | A verified invoice line that does not reproduce to the cent during a migration. |
-| Record strip | — | The only list treatment. The product has no data table. |
+| Record list | `RecordList` | The container for every list of records. |
+| Record item | `RecordItem` | The only list treatment. The product has no data table. |
 
 ## 3. Domain model
 
@@ -426,7 +427,7 @@ Numbering continues [`prd.md`](prd.md) §11.
 
 | # | Question | Owner |
 | --- | --- | --- |
-| 2 | Rename "flight operator" to "duty flight leader"? Applied here and in the PRD. Not yet in `EXPERIENCE.md` or `DESIGN.md`. | Supplier |
+| 2 | **CLOSED 2026-08-29.** "Flight operator" is renamed to duty flight leader everywhere: this document, the PRD, `EXPERIENCE.md`, `DESIGN.md`, `brief.md`, and `addendum.md`. | Supplier |
 | 4 | Rename `Delivery` to `InvoiceDraft` in the domain, keeping `/deliveries` on the wire? | Supplier, then `bmad-architecture` |
 | 11 | What is `Flight.StartPosition`? Read here as the launch queue position. | `legacy-oracle` |
 | 12 | Is `CrewRole.PilotOrStudent` one role or two? The flight type already carries the training case. | `legacy-oracle` |

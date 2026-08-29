@@ -1,0 +1,12 @@
+# Line endings.
+#
+# AlpenFlight and its planning artifacts use LF only, in the repository and in
+# the working tree. This holds on Windows, macOS, and Linux.
+#
+# flsserver/ and flsweb/ are read-only upstream repositories. Git must not
+# convert them, because a converted line ending is drift from upstream.
+
+* text=auto eol=lf
+
+/flsserver/** -text
+/flsweb/**    -text

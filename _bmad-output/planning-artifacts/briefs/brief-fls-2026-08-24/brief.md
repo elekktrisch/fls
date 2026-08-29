@@ -53,12 +53,12 @@ accuracy, and the licence tracking with it.
 the accounting rules. They cannot justify a migration project, because the benefit is an absent
 future problem. **Their true objection is not price. It is the risk that billing changes.**
 
-**The daily user is the flight operator at the airfield.** They log flights on a phone, next to the
+**The daily user is the duty flight leader at the airfield.** They log flights on a phone, next to the
 aircraft, with poor mobile coverage. Speed matters more than features.
 
 **The pilot books an aircraft and reads their own flight history.** FLS serves them well today.
 
-The first club is the operator's own club, which runs FLS now. Addendum §6 holds the detail.
+The first club is the supplier's own club, which runs FLS now. Addendum §6 holds the detail.
 
 ## The solution
 
@@ -93,8 +93,8 @@ engine that consumes flight time in a loop. They must learn it to win clubs they
 
 **The second advantage is the speed of the flight form.** FLS logs a flight fast because the form
 does the work. It hides the fields the selected aircraft does not need. Every dropdown searches as
-the operator types. Every date accepts a typed value or a click, and neither is the fallback. It
-creates a missing person or aircraft in place, so the operator never leaves the form. It copies the
+the duty flight leader types. Every date accepts a typed value or a click, and neither is the fallback. It
+creates a missing person or aircraft in place, so the duty flight leader never leaves the form. It copies the
 route, the tow aircraft, and the engine counter from the last flight. It prefetches all of it before
 the form opens. **This is not a feature list. It is an interaction
 design, and a rewrite loses it by accident.**
@@ -118,7 +118,7 @@ AlpenFlight.
 
 The last row is the planning figure. It does not pay a developer. It pays for infrastructure
 comfortably. **The goal is therefore cost recovery.** Income must cover the server, the domain, the
-backups, the error tracking, and the payment fee. The operator's time is a contribution.
+backups, the error tracking, and the payment fee. The supplier's time is a contribution.
 
 Two consequences follow, and both are deliberate:
 
@@ -160,7 +160,7 @@ Detail: PRD §5, and
 - The migration path: export, upload, verification, and provisioning. All self-service.
 - Accounting rule parity, proven against recorded legacy results.
 - **Flight-form efficiency parity.** The form must hide irrelevant fields, search every dropdown as
-  the operator types, accept a date by keyboard or by click, create master data in place, copy
+  the duty flight leader types, accept a date by keyboard or by click, create master data in place, copy
   values from the last flight, and prefetch its catalogs. Count the clicks and the keystrokes, not
   the features. Add keyboard completion, which FLS does not have today. Addendum §2 records the
   behaviour and cites the code.
@@ -186,9 +186,9 @@ Detail: PRD §5, and
 | Income against infrastructure cost | Income covers cost every month |
 | Accounting parity | Every recorded legacy invoice line reproduces to the cent |
 | Migration data loss | Zero. Every flight, member, and rule transfers |
-| Self-service migration | A club administrator finishes it without the operator |
+| Self-service migration | A club administrator finishes it without the supplier |
 | Cross-tenant exposure | Zero. A test fails an unfiltered query |
-| Airfield logging | An operator logs a flight with no network connection |
+| Airfield logging | A duty flight leader logs a flight with no network connection |
 | Cost to log a flight | No more clicks and no more keystrokes than FLS needs, for the same glider flight with a tow |
 
 ## Open questions and risks

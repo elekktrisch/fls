@@ -75,7 +75,7 @@ FLS runs a decrement loop. Rules match against the remaining flight time, consum
 an invoice line, and repeat until no rule matches. Each club configures this.
 
 **How to settle both.** Register a free FlyLink account and a Vereinsflieger trial. Then do two
-things. Express one real accounting rule from the operator's own club. Log one glider flight with a
+things. Express one real accounting rule from the supplier's own club. Log one glider flight with a
 tow, and count the clicks and the keystrokes against the same flight in FLS. If a competitor passes both,
 the advantage narrows to migration alone, and the brief needs a correction. This test is cheap. Run
 it before the PRD locks the positioning.
@@ -90,11 +90,11 @@ on 2026-08-24.
 
 **The form hides what the selection makes irrelevant.** The three flight-edit templates carry 88
 conditional directives (`ng-if`, `ng-show`, `ng-hide`, `ng-disabled`, `ng-required`) —
-`flight-edit-glider-form.html` holds 55 of them on its own. The operator sees the fields for the
+`flight-edit-glider-form.html` holds 55 of them on its own. The duty flight leader sees the fields for the
 flight they are logging, and no others.
 
 **The form creates master data in place.** `FlightsController.js` imports `AddPersonController` and
-`AddAircraftController` directly. A missing pilot or a visiting aircraft does not send the operator
+`AddAircraftController` directly. A missing pilot or a visiting aircraft does not send the duty flight leader
 to the master-data screens and back. **This matters most at the moment it happens: a busy flying
 day, with an unfamiliar aircraft on the field.**
 
@@ -106,26 +106,26 @@ clones a whole flight.
 **The form guesses well when it has nothing to copy.** Start and landing locations fall back through
 `lastStartLocation`, then the club's home base.
 
-**Every dropdown searches as the operator types.** The three flight-edit templates configure 21
+**Every dropdown searches as the duty flight leader types.** The three flight-edit templates configure 21
 typeahead pickers over 13 catalogs: persons, glider pilots, tow pilots, instructors, observers,
 winch operators, glider aircraft, tow aircraft, locations, start types, glider flight types, tow
 flight types, and cost balance types. **This is every picker in the form, not a favoured few.**
-Person pickers search first name, last name, and city together, so an operator finds a pilot by the
+Person pickers search first name, last name, and city together, so a duty flight leader finds a pilot by the
 field they happen to remember.
 
-**The form is ready before the operator searches it.** The controller prefetches all 13 catalogs
+**The form is ready before the duty flight leader searches it.** The controller prefetches all 13 catalogs
 into scope before the form opens. The typeahead therefore filters a local list. It does not wait on
 the network — which is what makes it usable at an airfield with poor coverage.
 
 **Dates accept the mouse and the keyboard equally.** `fls-date-picker`
 (`core/directives/datePicker/DatePickerInputDirective.js`) renders one `<input type="text">` bound to
-a Pikaday calendar. The operator types `24.08.2026` against the pattern `([0-9]{2}\.){2}[0-9]{4}`,
+a Pikaday calendar. The duty flight leader types `24.08.2026` against the pattern `([0-9]{2}\.){2}[0-9]{4}`,
 or clicks the calendar. Both paths write the same model, and a clear button empties it. **Neither
 path is the fallback for the other.**
 
 > **Warning: rebuild 1 decided to drop this, and that decision is now reversed.** Its soft
 > preferences read "Native input types over custom controls" and "Legacy uses text inputs with
-> format-on-blur — we should not carry that forward". The operator reversed this on 2026-08-24. A
+> format-on-blur — we should not carry that forward". The supplier reversed this on 2026-08-24. A
 > native `<input type="date">` is slower to type into on desktop, and typing is the airfield hot
 > path. `bmad-ux` must not restore the rebuild-1 preference without raising it again.
 
@@ -137,7 +137,7 @@ port.** Rebuild 1 reached the same conclusion and filed it as a target, not as p
 decision that no feature list records, and a team that ports the field set without porting the
 behaviour ships a form that is complete and slower.
 
-**Measure the cost in clicks and keystrokes, not in seconds.** A stopwatch measures the operator's
+**Measure the cost in clicks and keystrokes, not in seconds.** A stopwatch measures the duty flight leader's
 familiarity and the network. A click count and a keystroke count measure the interface itself. They
 are deterministic, they do not need a practised user, and a Playwright test counts both by listening
 for mouse and key events. **Record the two counts for one glider flight with a tow on the legacy
@@ -155,7 +155,7 @@ The brief states the conclusion. This section shows the calculation.
 clubs_needed  =  monthly_running_cost  /  (price_per_club  ×  (1 − payment_fee))
 ```
 
-Running cost has these components. The operator supplies the real figures.
+Running cost has these components. The supplier supplies the real figures.
 
 | Component | Note |
 | --- | --- |
@@ -181,9 +181,9 @@ is reachable. The price decision also matters less than it looks: a doubled pric
 count, and both figures stay small. The PRD must not spend effort on price. It must spend effort on
 a migration that succeeds.
 
-**What the model excludes.** The operator's time. Any payment for the build. Support effort per
+**What the model excludes.** The supplier's time. Any payment for the build. Support effort per
 club. **Support effort is the figure most likely to make this model wrong.** If each club costs
-several hours a month, the limit becomes the operator's time, not money.
+several hours a month, the limit becomes the supplier's time, not money.
 
 ---
 
@@ -207,7 +207,7 @@ constraints the brief decides, and which stay open.
 | C17 — six new features before the first release | **Cut in full.** |
 | C19 — per-club branding | **Cut** with C17. |
 | C30 — freemium tier shape | **Superseded.** A free tier attracts unknown users, and this product has none. Use one flat price per club and a time-limited trial. |
-| C27 — anonymous sandbox with nightly reset | **Doubtful.** It exists to convert unknown users. Weigh its build cost against a demonstration by the operator. |
+| C27 — anonymous sandbox with nightly reset | **Doubtful.** It exists to convert unknown users. Weigh its build cost against a demonstration by the supplier. |
 | C23, C24 — the airfield hot path, and copy-from-last | **Raised.** The brief promotes flight-form efficiency to a stated advantage. These stop being preferences. Section 2 defines what they mean. |
 
 ### The PRD owns these
@@ -257,7 +257,7 @@ simplifies collection. It stays out of reach until the product exists and one cl
 **Port only the features the first club uses.** Rejected. It reaches a shipped product fastest, and
 it breaks the promise that a club's configuration survives. That promise is the product.
 
-**Run rebuild 1 and rebuild 2 at the same time.** The operator ended this on 2026-08-24. Rebuild 2
+**Run rebuild 1 and rebuild 2 at the same time.** The supplier ended this on 2026-08-24. Rebuild 2
 is the only track. Rebuild 1 closes once this approach proves itself.
 
 ---
@@ -272,14 +272,14 @@ an invoice, which is how billing errors reach them. The brief records their true
 that billing changes. **Every migration message must answer that objection first.** A message that
 leads with security, or with a modern interface, does not reach this person.
 
-**The flight operator.** Interruptions are constant during a flying day. They measure the product by
+**The duty flight leader.** Interruptions are constant during a flying day. They measure the product by
 the number of taps per flight, and by whether the entry survives a lost connection. **They do not
 care about any feature in the cut list.** They are the reason offline logging stayed in scope.
 
 **The pilot.** They use the system a few times a month. FLS serves them well today, so the rewrite
 risk is low. No design decision needs to optimise for them.
 
-**The operator (Roman).** He builds, hosts, and supports the product alone. His capacity limits
+**The supplier (Roman).** He builds, hosts, and supports the product alone. His capacity limits
 every commitment in the brief. Support effort per club is the figure most likely to break the cost
 model. See section 3.
 

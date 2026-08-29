@@ -434,8 +434,9 @@ every displayed value, with filter chips beside it.
 - Filter chips are the only filter mechanism. No column carries a filter.
 - The sort control sits in the list toolbar.
 
-**FR-61: Record strips.** Every list uses a record strip. The product contains no data table.
-- A strip carries an identity zone, a meta zone, a metric zone, and a state marker.
+**FR-61: Record items.** Every list uses a `RecordItem` inside a `RecordList`. The product
+contains no data table.
+- An item carries an identity zone, a meta zone, a metric zone, and a state marker.
 - It stacks on a phone, and it sits side by side on a pointer device.
 - It keeps its height when a value is absent.
 - The trailing slot carries one action that changes the record without opening it.
@@ -746,8 +747,8 @@ a word. Every error is tied to its field.
 
 **Reduced 2026-08-29, deliberately.** This requirement was named *accessibility*. It is now named
 *legibility*, because every rule above is already demanded by the speed budget and by sunlight — the
-fastest operator never touches the mouse, and a phone at midday on an airfield is functionally a
-low-vision device. **Dropped for the signed-in application:** screen-reader optimisation, live-region
+fastest duty flight leader never touches the mouse, and a phone at midday on an airfield is
+functionally a low-vision device. **Dropped for the signed-in application:** screen-reader optimisation, live-region
 politeness tuning, and any formal WCAG conformance claim. Nobody tests against a screen reader here.
 `RecordList` still carries its table roles, because twenty lines now beats touching every screen after
 the promotion to a real launch. NFR-7 is **unchanged**.
@@ -848,9 +849,9 @@ An id is stable. The list is not in sequence. `domain-model.md` §5 carries ques
 
 1. **The legacy click and keystroke count for the reference flight.** FR-26 measures and reports until
    this exists. Owner: the supplier.
-2. **Rename "flight operator" to "duty flight leader"?** Applied in this PRD and in
-   [`domain-model.md`](domain-model.md). Not yet applied in `EXPERIENCE.md` or `DESIGN.md`. Owner: the
-   supplier.
+2. **CLOSED 2026-08-29.** "Flight operator" is renamed to **duty flight leader** everywhere: this
+   PRD, [`domain-model.md`](domain-model.md), `EXPERIENCE.md`, `DESIGN.md`, `brief.md`, and
+   `addendum.md`. The word "operator" names nobody. The supplier builds and hosts the product.
 3. **Does FR-47 let a club system carrier change the rule order?** The legacy fixes the order by rule
    kind. Owner: the supplier.
 4. **CLOSED 2026-08-29.** `Delivery` is `InvoiceDraft` in the domain, and **`/api/v1/deliveries/*`

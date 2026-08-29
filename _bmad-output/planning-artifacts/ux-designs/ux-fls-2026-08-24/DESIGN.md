@@ -407,7 +407,7 @@ at full strength. A filled marker uses the dim companion colour behind the signa
   `{typography.micro}`. `AIRBORNE` is the only marker with a full-strength border, because it is the
   only state that changes without a person acting.
 - **Record item** — **The only list treatment in the product.** There is no data table. Every list
-  of records uses this: the logbook, the airborne board, deliveries, members, aircraft, and
+  of records uses this: the logbook, the airborne board, invoice drafts, members, aircraft, and
   reports, on the phone and on the pointer device alike. See *Record items* below for the anatomy.
 - **List group header** — `{colors.surface-panel}`, `{typography.micro}` in
   `{colors.ink-secondary}`, with a `{colors.line-strong}` rule below. It names the group and
