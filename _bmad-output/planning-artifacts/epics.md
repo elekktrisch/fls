@@ -609,3 +609,36 @@ database query.
 - **Governed by:** AD-4, AD-5, AD-16, AD-20
 - **Blocked by:** question 5 (does a flight record survive a person deletion), question 16 (the retention and deletion periods), question 19 (how the system counts a message to the supplier)
 - **FRs covered:** FR-82, FR-83, FR-84, FR-85, FR-86, FR-87
+
+
+## Document layout
+
+**This file is the index. It holds no story.** The stories live in one file per epic, under
+[`epics/`](epics/). An agent that builds a story reads this index and the one epic file it needs, not
+the whole backlog.
+
+| File | Holds |
+| --- | --- |
+| `epics.md` | This index: the requirements inventory, the FR coverage map, the epic list with goals and depths, and the naming notes |
+| `epics/epic-01-template.md` … `epics/epic-13-governance.md` | One epic each: the epic heading, its stories, and their acceptance criteria |
+
+There is no whole-document version of the stories, so no reader has to ask which one is current.
+
+**`bmad-sprint-planning` needs every epic file.** Its own instructions accept `epics.md`, `epic-*.md`,
+or a sharded `epics/` folder, and its script takes `--epic-file` once per file. Pass all 13:
+
+```
+uv run .claude/skills/bmad-sprint-planning/scripts/sprint_plan.py generate \
+  --epic-file _bmad-output/planning-artifacts/epics/epic-01-template.md \
+  --epic-file _bmad-output/planning-artifacts/epics/epic-02-master-data.md \
+  ... one --epic-file for each of the 13 ... \
+  --status-file _bmad-output/implementation-artifacts/sprint-status.yaml \
+  --stories-dir _bmad-output/implementation-artifacts \
+  --project "fls" --date "MM-DD-YYYY HH:MM"
+```
+
+## Epic files
+
+| Epic | File | Stories |
+| --- | --- | --- |
+| 1 | [`epics/epic-01-template.md`](epics/epic-01-template.md) | 9 |

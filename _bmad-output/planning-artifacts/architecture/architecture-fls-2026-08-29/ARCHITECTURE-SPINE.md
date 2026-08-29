@@ -192,13 +192,23 @@ Cross-slice access runs through a published interface or a domain event. A direc
 
 - **Binds:** deployment, environments, operations; both editions
 - **Prevents:** a deployment shape a volunteer cannot install, and a SaaS that costs more to run than it earns.
-- **Rule:** One container image serves the API and the built client. Docker Compose plus PostgreSQL is the supported install path for both editions; Kubernetes is permitted and never required. The image is stateless so several containers may run at once. Every store, backup, and log stays in Switzerland or the EU. Every unhandled error and every failed job is pushed to the supplier and never requires a database query to discover.
+- **Rule:** One container image serves the API and the built client. Docker Compose is the supported install path for both editions, and it starts PostgreSQL and the identity provider beside the image; Kubernetes is permitted and never required. See AD-22. The image is stateless so several containers may run at once. Every store, backup, and log stays in Switzerland or the EU. Every unhandled error and every failed job is pushed to the supplier and never requires a database query to discover.
 
 ### AD-21 — The legacy suite is an oracle, and AlpenFlight ships its own
 
 - **Binds:** every slice; RK-2, and the traceability map in PRD §13
 - **Prevents:** a builder treating `e2e/` as AlpenFlight's test suite, pointing it at the new app, or claiming parity on a suite that only proves a feature exists.
 - **Rule:** `e2e/` drives the **legacy** app and is read-only. It is a **behaviour oracle**, never AlpenFlight's test suite. AlpenFlight ships its **own** end-to-end suite inside `alpenflight/`, against the AlpenFlight app. A ported feature cites its oracle — the matching legacy spec, or a `legacy-oracle` read — and proves itself with a new test. **No epic claims parity on the legacy suite as it stands**, because that suite proves a feature exists and not that it behaves (RK-2). A deep slice carries parity tests for the behaviour it reproduces; a thin slice carries the isolation test and its own CRUD tests.
+
+### AD-22 — Identity is proven by an OIDC provider behind a port, and authorization is never external
+
+- **Binds:** FR-4, FR-5, FR-7, FR-78, FR-88, NFR-3; `platform`, `core/club`; both editions
+- **Prevents:** two failures at once. First, a bespoke authentication surface, where the product owns brute-force detection, account lockout, password policy, token revocation, and refresh rotation, and where one maintainer reviews all five alone. Second, the attempt-1 failure, where the provider held the roles: attempt 1 put authorization in Keycloak realm roles, and `Role`, `UserRole`, and `UserAccountState` disappeared from the schema, which broke the `User`, `Person`, `ClubMembership` triad and made a role change unauditable under FR-8.
+- **Rule:** The product authenticates against a standard **OpenID Connect** provider, reached through one `IdentityProvider` port in `platform`. **Keycloak is the reference implementation.** It ships in the development Compose file and in the community-edition manual, with its realm imported from a file in the repository. The SaaS deployment may use any **Keycloak-compatible** provider; the requirement is the standard, never the product. A provider change is a new adapter and a configuration change, never a code change in a slice.
+
+  **The port is small and it is the whole surface:** prove a sign-in, create a principal, deactivate a principal, start a password reset, and start an email confirmation. Nothing else crosses it.
+
+  **Authorization never leaves the product.** The provider proves who a person is. The role, the club membership, and the tenant boundary live in AlpenFlight tables, always. The access token names the subject; the club and the roles are resolved from `ClubMembership` on every request. A role change therefore writes an audit record under FR-8, and AD-2 still enforces the boundary in the database.
 
 ```mermaid
 graph LR
@@ -253,7 +263,7 @@ Remaining dependency versions — Gradle, Flyway, the OpenAPI generator, the Ind
 ```text
 alpenflight/
   server/
-    platform/          # typed ids, tenancy resolver, security, OpenAPI config
+    platform/          # typed ids, tenancy resolver, security, IdentityProvider port and Keycloak adapter, OpenAPI config
     core/              # Apache-2.0, both editions
       club/            # deep  — lifecycle
       flight/          # deep  — air state, process state, tow linkage
@@ -291,7 +301,7 @@ graph TD
 
 | PRD area | Lives in | Depth | Governed by |
 | --- | --- | --- | --- |
-| §4.1 Club isolation and identity | `core/club`, `platform` | deep | AD-2, AD-3, AD-4, AD-13 |
+| §4.1 Club isolation and identity | `core/club`, `platform` | deep | AD-2, AD-3, AD-4, AD-13, AD-22 |
 | §4.2 Master data | `core/aircraft`, `core/location`, `core/person`, `core/reference` | thin | AD-1, AD-3, AD-5 |
 | §4.3 Flight logging | `core/flight` | deep | AD-9, AD-10, AD-17 |
 | §4.4 Flight lifecycle | `core/flight` | deep | AD-6, AD-9 |
@@ -327,7 +337,7 @@ The **first epic is the template, not a feature**: one thin slice, one deep slic
 - **The fundamental-field set** — the exact closure that escalates a field conflict. Epic detail. Source: a `legacy-oracle` read against the 88 legacy conditional directives, before the flight-form epic.
 - **Id strategy** — one choice, applied everywhere. Fixed by the template epic before any second slice is built, so no two slices can diverge.
 - **The rules-engine internal design** — the nine phases are legacy behaviour, not an architecture choice. Owned by the charging epic after its `legacy-oracle` read.
-- **The authentication scheme** — token lifetime and refresh are bound by NFR-3; the provider choice is not a divergence risk and waits for the identity epic.
+- **The access-token lifetime, the refresh rotation, and the realm configuration** — bound by NFR-3 and FR-4, and owned by the identity story in the template epic. The provider question itself is closed by AD-22. **Superseded 2026-08-29:** this bullet previously said the provider choice was not a divergence risk. That was an assertion with no reasoning behind it, and it was wrong.
 - **jOOQ** — deferred, not rejected. Revisit if typed SQL in the rules engine and reports earns its cost.
 - **A runtime plugin API** — build-time modules serve both editions today. Revisit only when a real third party asks, against a known use case.
 - **The Startkladde importer** — a new reader under AD-15, v2. It also implies German clubs, which PRD §2 excludes from v1.
@@ -337,6 +347,7 @@ The **first epic is the template, not a feature**: one thin slice, one deep slic
 
 - **Reference-source terms.** Confirm the BAZL register export terms, and obtain written terms for the OGN device database. Until then the DDB is used for FLARM device matching only, never as the authoritative aircraft list. Before the reference-data epic.
 - **Startkladde parity and FLARM tiering.** FLARM is an open module in both editions, so the community edition matches Startkladde's automation. Confirm the community edition's cut line against Startkladde before it ships.
+- **The SaaS identity provider.** AD-22 requires a Keycloak-compatible OpenID Connect provider and leaves the SaaS product open. Decide it before the first paying club: self-hosted Keycloak, a Swiss or EU hosted provider, or another self-hosted implementation. The constraints are the licence, a one-command community install, no recurring per-user fee, Swiss or EU residency, and an upgrade path one person can carry for years.
 - **Free-plan lifecycle detail** — PRD questions 29, 31, 32, 34. The club kind, plan, aircraft limit, and three lifecycle states are reserved in v1; the surface is v2.
 - **PRD questions owned by the supplier** — 1, 2, 3, 5, 6, 15, 16, 19, 21, 22, 26, 30. None blocks the build gates or any AD above.
 

@@ -125,7 +125,7 @@ If the task does not fit a lane, ask. Do not guess.
 ## When in doubt
 
 - Where am I in the workflow → run `bmad-help`
-- What the architecture decided, and why a rule exists → `_bmad-output/planning-artifacts/architecture/architecture-fls-2026-08-29/` — the spine holds the 20 invariants, the memlog holds every reason
+- What the architecture decided, and why a rule exists → `_bmad-output/planning-artifacts/architecture/architecture-fls-2026-08-29/` — the spine holds the 22 invariants, the memlog holds every reason
 - Legacy server semantics → `docs/legacy/server.md`
 - Legacy web semantics → `docs/legacy/web.md`
 - What the system does today → `docs/modernization/01-current-state.md`

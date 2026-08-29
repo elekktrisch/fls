@@ -15,7 +15,7 @@ those terms exactly. A synonym is a defect.
 
 **The architecture is decided.**
 [`ARCHITECTURE-SPINE.md`](../../architecture/architecture-fls-2026-08-29/ARCHITECTURE-SPINE.md)
-carries 20 invariants (AD-1 to AD-20) and it is the authority on *how*. This PRD stays the authority
+carries 22 invariants (AD-1 to AD-22) and it is the authority on *how*. This PRD stays the authority
 on *what*. Where an `AD-n` is cited below, the spine holds the rule and its memlog holds the reason.
 
 ## 1. Product
