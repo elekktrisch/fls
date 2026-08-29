@@ -71,7 +71,7 @@ surface.
 | Reservations · Scheduler | Book an aircraft for a timeslot | Pilot |
 | Roster days | One flying day: assigned duty flight leader and tow pilot | Club admin |
 | Season assignment | Assign the duty flight leader and tow pilot across a whole season, in one pass | Club admin |
-| Members | Person records, licences, medical expiry, member state | Club admin |
+| Members | Person records, licences, medical expiry, membership status | Club admin |
 | Aircraft | Fleet records and counters | Club admin |
 | Reports | Flight reports and the custom report builder | Club admin |
 | **Charging rules** | The ordered rule list, the WHEN/THEN editor, and the dry run | Club system carrier |
@@ -325,7 +325,7 @@ pocket and a laptop on the table in the hangar. Eleven pilots want to fly.
 2. Sonja sits in HB-3215 at the runway start. Martin presses **Log flight**.
 3. The form opens. Every catalog is already loaded, because it prefetched. He types `ask` and the
    glider picker shows HB-3215 before he finishes the word. `Enter`.
-4. The form reshapes. Start type is `Aerotow`, carried from the last flight, so the tow block
+4. The form reshapes. The launch method is `Aerotow`, carried from the last flight, so the tow block
    appears. Tow aircraft HB-EAB is filled, copied from the last flight. He does not touch it.
 5. He types `aeb` and takes Sonja. He types `rot` and takes Daniel in the second seat. The flight
    type sets itself to `Training`, because Daniel is an instructor.
@@ -385,7 +385,7 @@ Beatrice runs the club roster. It is March.
 2. She sets the season range and picks the days: every Saturday and Sunday from April to October.
 3. She assigns the duty flight leader and the tow pilot across all of them **in one pass**, not one day at a
    time. This is the shape of the real job.
-4. In June a tow pilot cannot fly on one Sunday. She opens that single planning day and changes it.
+4. In June a tow pilot cannot fly on one Sunday. She opens that single roster day and changes it.
    The season assignment is untouched.
 
 ## Open Items

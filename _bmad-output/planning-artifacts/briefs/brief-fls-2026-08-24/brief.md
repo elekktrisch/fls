@@ -50,7 +50,7 @@ accuracy, and the licence tracking with it.
 ## Who this serves
 
 **The buyer is the committee member who carries the system.** Usually a volunteer. They configured
-the accounting rules. They cannot justify a migration project, because the benefit is an absent
+the charging rules. They cannot justify a migration project, because the benefit is an absent
 future problem. **Their true objection is not price. It is the risk that billing changes.**
 
 **The daily user is the duty flight leader at the airfield.** They log flights on a phone, next to the
@@ -70,7 +70,7 @@ thing FLS never had: a supported way in.
 2. **Upload.** A club administrator uploads the result through the browser. The supplier does
    nothing.
 3. **Verify.** The club inspects its own data before it commits. Flight counts, member records, and
-   accounting rules must all match.
+   charging rules must all match.
 4. **Operate.** The club runs its flying days on AlpenFlight. Its rules produce the same invoice
    lines, to the cent.
 
@@ -83,7 +83,7 @@ Each club migrates on its own schedule. There is no coordinated switch-over date
 | Flight logging, reservations, member records | Yes | Yes |
 | Swiss ownership, European hosting | Yes | Yes |
 | Licence and medical expiry tracking | Yes | Yes |
-| Accounting rules that each club configures | Yes | **Unconfirmed — see open question 2** |
+| Charging rules that each club configures | Yes | **Unconfirmed — see open question 2** |
 | A flight form built for speed: it reshapes itself, searches every dropdown, and edits master data in place | Yes | **Unconfirmed — see open question 2** |
 | Migration from a legacy FLS database | **Yes** | **No published support** |
 
@@ -158,7 +158,7 @@ Detail: PRD §5, and
 - Every feature FLS has today. Faithful behaviour, no deprecations. This is the product promise: a
   club's configuration survives the move.
 - The migration path: export, upload, verification, and provisioning. All self-service.
-- Accounting rule parity, proven against recorded legacy results.
+- Charging rule parity, proven against recorded legacy results.
 - **Flight-form efficiency parity.** The form must hide irrelevant fields, search every dropdown as
   the duty flight leader types, accept a date by keyboard or by click, create master data in place, copy
   values from the last flight, and prefetch its catalogs. Count the clicks and the keystrokes, not
@@ -198,7 +198,7 @@ Two facts are open. Neither blocks the PRD. Both change what the PRD says.
 1. **How many clubs run legacy FLS today?** This is the real addressable list. The count of Swiss
    glider clubs is a poor substitute. The table above uses 80 as a placeholder. If the real figure
    is small, cost recovery needs a higher price or a wider market.
-2. **Do the competitors support accounting rules that each club configures?** Their published
+2. **Do the competitors support charging rules that each club configures?** Their published
    material describes billing and exports. It does not settle the question. If they support such
    rules, the advantage narrows to the migration alone, and this brief must say so. Addendum §1
    names a cheap test.

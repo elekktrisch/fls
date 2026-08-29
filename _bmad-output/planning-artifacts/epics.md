@@ -1,5 +1,6 @@
 ---
-stepsCompleted: []
+stepsCompleted:
+  - step-01-validate-prerequisites
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-fls-2026-08-25/prd.md
   - _bmad-output/planning-artifacts/prds/prd-fls-2026-08-25/domain-model.md
@@ -8,10 +9,14 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-designs/ux-fls-2026-08-24/EXPERIENCE.md
   - _bmad-output/planning-artifacts/briefs/brief-fls-2026-08-24/brief.md
   - _bmad-output/planning-artifacts/briefs/brief-fls-2026-08-24/addendum.md
-  - docs/modernization/01-current-state.md
-  - docs/modernization/legacy-tables/
-  - docs/modernization/form-validation-parity-audit.md
-cautionedDocuments:
+referenceOnlyDocuments:
+  - path: docs/modernization/
+    reason: >-
+      Not authoritative, per CLAUDE.md, revised 2026-08-29. Use the folder to
+      narrow a search. Take exact legacy behaviour from a legacy-oracle read
+      against flsserver/ and flsweb/, never from this folder. The useful parts
+      are 01-current-state.md for the feature map and legacy-tables/ for the
+      per-column schema dump.
   - path: docs/modernization/form-validation-parity-audit.md
     reason: >-
       Probably stale. Its AF columns describe rebuild-1 code that is deleted.
@@ -23,8 +28,7 @@ excludedDocuments:
   - path: docs/modernization/legacy-migration-plan.md
     reason: >-
       Attempt-1 material, not a target reference. Its Destination, Semantics,
-      Owned by, and Notes columns are all rebuild-1. The legacy schema facts
-      come from docs/modernization/legacy-tables/ and from flsserver/ instead.
+      Owned by, and Notes columns are all rebuild-1.
 ---
 
 # AlpenFlight - Epic Breakdown
@@ -199,9 +203,13 @@ Source: `prd.md` section 7. 13 requirements.
 
 ### Additional Requirements
 
-Source: `ARCHITECTURE-SPINE.md` (AD-1 to AD-21, the build gates, the stack, the structural seed, the
-consistency conventions) and `docs/modernization/`. These bind implementation, so each one carries
-into a story or into the template epic.
+Source: `ARCHITECTURE-SPINE.md` — AD-1 to AD-21, the build gates, the stack, the structural seed, and
+the consistency conventions. These bind implementation, so each one carries into a story or into the
+template epic.
+
+**`docs/modernization/` is not a source here.** `CLAUDE.md` demoted it on 2026-08-29: it narrows a
+search, and it is not authoritative. Exact legacy behaviour comes from a `legacy-oracle` read
+against `flsserver/` and `flsweb/`.
 
 **The starter template.** The architecture names **no third-party starter template**. It supplies a
 **Structural Seed** instead, and it gives one instruction: *the first epic is the template, not a
@@ -236,7 +244,7 @@ nine build gates. Every later story copies a skeleton.
 - **AR-26: The stack.** Java 25 LTS, Spring Boot 4.1.1, PostgreSQL 18.6, Angular 22.0.1. Angular 22 carries stable Signal Forms, stable `resource`, `rxResource`, and `httpResource`, and it is zoneless by default. Signal Forms are the mechanism for the flight form's conditional fields. The remaining dependency versions are pinned and verified at repository creation.
 - **AR-27: There is no CI on this branch.** Rebuild 1's 11 workflows are archived. Epic 1 brings the new CI, and the build gates ride on it.
 - **AR-28: The `legacy-oracle` reads the epics must schedule.** (a) The 88 legacy conditional directives, to close the fundamental-field set, before the flight-form epic. (b) The eight legacy features with no e2e spec: the monthly aircraft statistic report, the invoice mail export, articles CRUD, email-template CRUD, translation CRUD, system-data CRUD, system logs, and the dashboard. (c) The 26 behavioural questions Q-B1 to Q-B26, each attached to the epic that touches it.
-- **AR-29: The legacy schema inventory.** 59 tables and 56 entity classes. The fact source is `docs/modernization/legacy-tables/`: 59 folders, each holding `_table.json` and one JSON file per column. The migration epic reads that folder and `flsserver/`. It does not read `legacy-migration-plan.md`, which is attempt-1 material.
+- **AR-29: The legacy schema inventory.** 59 tables and 56 entity classes. `docs/modernization/legacy-tables/` holds 59 folders, each with `_table.json` and one JSON file per column. It narrows the search. The migration epic proves every mapping against `flsserver/` before it writes a story, because the folder is not authoritative. It does not read `legacy-migration-plan.md`, which is attempt-1 material.
 - **AR-30: The T3 acceptance smoke.** `TESTING.md` names the minimum bar that proves the system runs: sign in, read the current user, read and write a flight, then re-read to confirm persistence. The first parity check for AlpenFlight is a T3 equivalent, and it belongs in Epic 1.
 - **AR-31: The legacy defects not to carry forward.** `domain-model.md` section 4.6 lists them: the two misspelled location types, the two misspelled translation keys, the two spellings of `DaecIndex`, the two spellings of `Licence`, the four real member numbers hardcoded in a public repository, the navigation-bar tautology, and the five tenancy defects (`AuditLogsController`, `DashboardService`, `FlightService.cs:1186`, `FlightService.cs:483`, `PersonService.GetPerson(id, controlAccess)`).
 - **AR-32: v1 reserves the free plan, and does not build it.** The club kind, the plan, the aircraft limit, and the three lifecycle states are first-class in v1. The free-plan surface and public sign-up are v2.
@@ -300,10 +308,8 @@ half-applied. The supplier decided on 2026-08-29 to finish all three. They are n
 - **N-2: "Duty flight leader", closed.** The word "operator" carried two meanings. It is now split everywhere: **duty flight leader** for the person at the airfield, and **supplier** for the person who builds and hosts the product. Applied in `prd.md`, `domain-model.md`, `EXPERIENCE.md`, `brief.md`, and `addendum.md`. PRD question 2 and domain-model question 2 are closed. Three open-item rows in `EXPERIENCE.md` named the wrong owner after the earlier partial pass; they now name the supplier.
 - **N-3: The surface names, closed.** `EXPERIENCE.md` said "Accounting rules", "Deliveries", "Planning days", and "Delivery creation test". It now says charging rules, invoice drafts, roster days, and billing expectations, and its Admin destination matches `prd.md` section 9. Its one-word-one-thing table carried the reverse rule for "delivery"; that row is replaced by four rows that match `domain-model.md`.
 
-**Two words still need a decision. Neither blocks the epic list.**
-
-- **N-4: "operator" in AD-5.** The spine says a reference import drops every "owner, operator, and billing column". Here "operator" is the aviation term for the entity that operates an aircraft, taken from the BAZL register columns. `domain-model.md` says the word names nobody. The spine is ratified, so this needs the supplier, not a silent edit.
-- **N-5: "winch operator" against `WinchDriver`.** `domain-model.md` names the role `WinchDriver`. `addendum.md` says "winch operators" inside a list of the 13 legacy catalogs, where it describes the legacy name. That use is left as it is, because changing it would misdescribe the legacy.
+- **N-4: "operator" in AD-5, closed.** The supplier decided that a club records its own ownership claim on its own aircraft record, inside its own tenant. AD-5 now says the reference import drops every column that names or addresses a person, and it names the register columns by their position, not by the word. It also states the club-side half. `domain-model.md` section 2.2 gained the four names the spine introduced: `ReferenceAircraft`, `ClubAircraft`, `ReferenceLocation`, and `ClubLocation`.
+- **N-5: A legacy name never appears in our prose, closed.** The supplier set the rule: our documents use the target name, and `domain-model.md` section 4 carries the legacy mapping. Applied to `addendum.md` (supervising pilots, winch drivers, launch methods, cost splits, charging rules), `brief.md` (charging rules), and `EXPERIENCE.md` (membership status, launch method, roster day). A legacy name stays only where the sentence describes the legacy system, such as PRD question Q-B26.
 
 ### FR Coverage Map
 

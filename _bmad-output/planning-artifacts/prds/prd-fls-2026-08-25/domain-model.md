@@ -48,6 +48,8 @@ system. Every document, screen, and code identifier uses these terms. A synonym 
 | Term | Identifier | Definition |
 | --- | --- | --- |
 | Aircraft | `Aircraft` | One airframe: glider, tug, powered aircraft, or motor glider. |
+| Reference aircraft | `ReferenceAircraft` | Facts about one airframe, from the national register. System reference data. The supplier owns it, no club writes it, and it carries no column that names a person. |
+| Club aircraft | `ClubAircraft` | The club record for one aircraft. Club-scoped. It points at a `ReferenceAircraft` when the registration matches, and it stands alone when it does not. It carries the counters, the status, the home airfield, and the club ownership claim. |
 | Registration | `Registration` | The national registration marking, such as `HB-3215`. |
 | Competition ID | `CompetitionId` | The short competition marking on a glider's fin. |
 | Aircraft category | `AircraftCategory` | Glider, glider with engine, motor glider, powered aircraft, multi-engine, jet, helicopter. |
@@ -56,6 +58,8 @@ system. Every document, screen, and code identifier uses these terms. A synonym 
 | Counter unit | `CounterUnit` | Minutes, or hours to two decimals. |
 | Airfield | `Airfield` | A place an aircraft takes off from or lands at. |
 | Location | `Location` | The wider record an airfield is one kind of. Also waypoints, mountain tops, and outlanding fields. Every airfield is a location; not every location is an airfield. |
+| Reference location | `ReferenceLocation` | Facts about one public airfield, from an authoritative source. System reference data. |
+| Club location | `ClubLocation` | The club record for one location. Club-scoped. It covers an outlanding field, a private strip, and a waypoint, which no public source carries. |
 | Home airfield | `HomeAirfield` | The club's base, and the default airfield of an aircraft. |
 | Route point | `RoutePoint` | A named reporting point for arrival or departure. |
 | Outbound route | `OutboundRoute` | The departure route the flight used. |

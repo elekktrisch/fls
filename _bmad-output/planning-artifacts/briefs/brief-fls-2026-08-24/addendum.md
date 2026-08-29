@@ -64,7 +64,7 @@ at CHF 29.
 Two of AlpenFlight's claimed advantages are unconfirmed against the competitors, and one test
 settles both.
 
-**First, the accounting rules.** No competitor's published material states whether a club can define
+**First, the charging rules.** No competitor's published material states whether a club can define
 **rules that consume flight time and produce invoice lines**. They describe billing, fee
 determination, and account posting. That language fits a rate card. It also fits a rule engine.
 
@@ -75,7 +75,7 @@ FLS runs a decrement loop. Rules match against the remaining flight time, consum
 an invoice line, and repeat until no rule matches. Each club configures this.
 
 **How to settle both.** Register a free FlyLink account and a Vereinsflieger trial. Then do two
-things. Express one real accounting rule from the supplier's own club. Log one glider flight with a
+things. Express one real charging rule from the supplier's own club. Log one glider flight with a
 tow, and count the clicks and the keystrokes against the same flight in FLS. If a competitor passes both,
 the advantage narrows to migration alone, and the brief needs a correction. This test is cheap. Run
 it before the PRD locks the positioning.
@@ -107,9 +107,9 @@ clones a whole flight.
 `lastStartLocation`, then the club's home base.
 
 **Every dropdown searches as the duty flight leader types.** The three flight-edit templates configure 21
-typeahead pickers over 13 catalogs: persons, glider pilots, tow pilots, instructors, observers,
-winch operators, glider aircraft, tow aircraft, locations, start types, glider flight types, tow
-flight types, and cost balance types. **This is every picker in the form, not a favoured few.**
+typeahead pickers over 13 catalogs: persons, glider pilots, tow pilots, instructors, supervising pilots,
+winch drivers, glider aircraft, tow aircraft, locations, launch methods, glider flight types, tow
+flight types, and cost splits. **This is every picker in the form, not a favoured few.**
 Person pickers search first name, last name, and city together, so a duty flight leader finds a pilot by the
 field they happen to remember.
 
@@ -266,7 +266,7 @@ is the only track. Rebuild 1 closes once this approach proves itself.
 
 The brief names the three personas. This section adds only what the brief omits.
 
-**The club system carrier.** They sometimes inherited the accounting rules from a predecessor who
+**The club system carrier.** They sometimes inherited the charging rules from a predecessor who
 has left, so they may not know why a rule exists. They answer the questions when a member disputes
 an invoice, which is how billing errors reach them. The brief records their true objection: the risk
 that billing changes. **Every migration message must answer that objection first.** A message that

@@ -102,7 +102,7 @@ Cross-slice access runs through a published interface or a domain event. A direc
 
 - **Binds:** NFR-3, FR-83, FR-84; the reference-sync slice
 - **Prevents:** republishing the home addresses of private aircraft owners to every club. The Swiss register's owner columns carry a full name and postal address, and 62% of glider-family aircraft are owned by a private person.
-- **Rule:** A reference import drops every owner, operator, and billing column at the reader, before the canonical model. No reference table has a column naming a person. `Aircraft Address` is the ICAO 24-bit code and is not a postal address.
+- **Rule:** A reference import drops every column that names or addresses a person, at the reader, before the canonical model. In the Swiss register these are columns 35 to 39. No reference table has a column naming a person. `Aircraft Address` is the ICAO 24-bit code, and it is not a postal address. A club records its own ownership claim on its `ClubAircraft` row, inside its own tenant. Reference data never carries it.
 
 ### AD-6 — The application server holds no state
 
