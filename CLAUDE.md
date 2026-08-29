@@ -81,7 +81,7 @@ Before you read anything else, decide which lane you are in:
 | Extracting exact legacy behavior for one feature | Dispatch the `legacy-oracle` agent. It returns a testable behavior oracle. |
 | Reading or understanding legacy server (`flsserver/`) | Read `docs/legacy/server.md` first — that is the mental model. |
 | Reading or understanding legacy web (`flsweb/`) | Read `docs/legacy/web.md` first — that is the mental model. |
-| Anything in `e2e/` | Self-contained Playwright suite against the **legacy** app at `localhost:3000`. Start its infrastructure with `bash e2e/scripts/dev-up.sh`. |
+| Anything in `e2e/` | Self-contained Playwright suite against the **legacy** app at `localhost:3000`. Start its infrastructure with `bash e2e/scripts/dev-up.sh`. **It is a behaviour oracle, never AlpenFlight's test suite.** AlpenFlight ships its own suite inside `alpenflight/`. See AD-21. |
 | Understanding what rebuild 1 decided | `docs/attempt-1/`. History, not authority. |
 
 If the task does not fit a lane, ask. Do not guess.

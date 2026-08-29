@@ -194,6 +194,12 @@ Cross-slice access runs through a published interface or a domain event. A direc
 - **Prevents:** a deployment shape a volunteer cannot install, and a SaaS that costs more to run than it earns.
 - **Rule:** One container image serves the API and the built client. Docker Compose plus PostgreSQL is the supported install path for both editions; Kubernetes is permitted and never required. The image is stateless so several containers may run at once. Every store, backup, and log stays in Switzerland or the EU. Every unhandled error and every failed job is pushed to the supplier and never requires a database query to discover.
 
+### AD-21 — The legacy suite is an oracle, and AlpenFlight ships its own
+
+- **Binds:** every slice; RK-2, and the traceability map in PRD §13
+- **Prevents:** a builder treating `e2e/` as AlpenFlight's test suite, pointing it at the new app, or claiming parity on a suite that only proves a feature exists.
+- **Rule:** `e2e/` drives the **legacy** app and is read-only. It is a **behaviour oracle**, never AlpenFlight's test suite. AlpenFlight ships its **own** end-to-end suite inside `alpenflight/`, against the AlpenFlight app. A ported feature cites its oracle — the matching legacy spec, or a `legacy-oracle` read — and proves itself with a new test. **No epic claims parity on the legacy suite as it stands**, because that suite proves a feature exists and not that it behaves (RK-2). A deep slice carries parity tests for the behaviour it reproduces; a thin slice carries the isolation test and its own CRUD tests.
+
 ```mermaid
 graph LR
   Phone[Phone - offline queue] --> RP[Reverse proxy]
