@@ -472,7 +472,7 @@ copies, and it ships the nine build gates with the CI that runs them. Every late
 skeleton from here.
 
 - **Slices:** `core/club` **deep** — the club, the user, the person, and the club membership, with the AD-4 invariant across records. `core/aircraft` **thin** — the template thin slice.
-- **Governed by:** AD-1, AD-2, AD-3, AD-4, AD-13, AD-17, AD-18, AD-19, AD-21
+- **Governed by:** AD-1, AD-2, AD-3, AD-4, AD-13, AD-17, AD-18, AD-19, AD-21, AD-22
 - **Also delivers:** AR-1 the repository skeleton · AR-2 the id strategy, fixed before any second slice · AR-24 the nine build gates · AR-27 the new CI · AR-30 the T3 acceptance smoke · AR-33 `AGENTS.md` · the client platform: the design tokens, `RecordList` and `RecordItem`, the typeahead, the field row, the search field, the filter chips, the sort control, and the focus ring
 - **Oracle first:** Q-B8, Q-B9, Q-B13, Q-B17
 - **Blocked by:** question 26 — does the audit record carry a club, and what happens to the migrated audit history?
@@ -639,6 +639,10 @@ uv run .claude/skills/bmad-sprint-planning/scripts/sprint_plan.py generate \
 
 ## Epic files
 
+**This table owns the story count.** An epic file never states how many stories it holds, and its
+frontmatter never carries a count. When you add or remove a story, update this table in the same
+pass.
+
 | Epic | File | Stories |
 | --- | --- | --- |
-| 1 | [`epics/epic-01-template.md`](epics/epic-01-template.md) | 9 |
+| 1 | [`epics/epic-01-template.md`](epics/epic-01-template.md) | 12 |

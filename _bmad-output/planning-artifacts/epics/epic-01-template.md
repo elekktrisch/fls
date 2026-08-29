@@ -12,30 +12,59 @@ updated: 2026-08-29
 A user signs in and manages the club fleet. Nobody reaches another club's row, and a query that
 forgets the club filter returns zero rows.
 
-This epic is the **template**, which the spine states plainly: *the first epic is the template, not a
-feature.* It fixes the id strategy, it builds the client platform every later screen copies, and it
-ships the nine build gates with the CI that runs them. Every later story copies a skeleton from here.
+This epic is the **template**. The spine states it: *the first epic is the template, not a feature.*
+It fixes the id strategy, it builds the client platform, and it ships the nine build gates with the
+CI that runs them. Every later story copies a skeleton from here.
 
-**Covers:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-12, FR-60, FR-61, FR-81, FR-88
-**Slices:** `core/club` deep, `core/aircraft` thin
-**Governed by:** AD-1, AD-2, AD-3, AD-4, AD-13, AD-17, AD-18, AD-19, AD-21, AD-22
-**Oracle first:** Q-B8, Q-B9, Q-B13, Q-B17
-**Blocked by:** question 26, for the migrated audit history only. Story 1.9 ships the new-record half.
+| Field | Value |
+| --- | --- |
+| **Covers** | FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-12, FR-60, FR-61, FR-81, FR-88 |
+| **Slices** | `core/club` deep, `core/aircraft` thin |
+| **Governed by** | AD-1, AD-2, AD-3, AD-4, AD-13, AD-17, AD-18, AD-19, AD-21, AD-22 |
+| **Oracle first** | Q-B8, Q-B9, Q-B13, Q-B17 |
+| **Blocked by** | Question 26, for the migrated audit history only. Story 1.9 ships the new-record part. |
 
-### Story 1.1: The running skeleton
+**Sequence.** Stories 1.1 to 1.4 build the substrate, in that order. Story 1.5 needs the shell of
+story 1.4. Story 1.6 needs the record list of story 1.5, and it reads the club from a development
+source. Story 1.7 deletes that source. Story 1.9 ships before story 1.10 and story 1.12, because
+both write an audit record.
+
+### Story 1.1: The build tree and the image
 
 As a supplier,
-I want one command to build, test, and run AlpenFlight,
-So that every later story starts from a proven skeleton, and the architecture gates run on every
-commit.
+I want one command to build and test AlpenFlight,
+So that every later story starts from a proven tree.
 
 **Acceptance Criteria:**
 
 **Given** a clean checkout
 **When** the supplier runs the documented build command
 **Then** Gradle builds the multi-module tree of the Structural Seed: `server/platform`,
-`server/core`, `server/modules-open`, `server/modules-pro`, `client/`, and `deploy/`
+`server/core`, `server/modules-open`, `server/modules-pro`, `client/platform`, `client/features`,
+and `deploy/`
 **And** the build produces one container image that serves the API and the built client.
+
+**Given** the remaining dependency versions are unpinned
+**When** this story completes
+**Then** Gradle, Flyway, the OpenAPI generator, the IndexedDB wrapper, and Keycloak each carry a
+pinned version, verified against the published release notes and not recalled from memory.
+
+**Given** the server publishes an OpenAPI specification
+**When** the client build runs
+**Then** it generates the TypeScript types from that specification
+**And** a component uses a generated type as its own type, with no hand-written model.
+
+**Given** `alpenflight/` now holds code
+**When** the supplier runs `bmad-project-context` against it
+**Then** the run writes `AGENTS.md`.
+
+### Story 1.2: The runtime, the first migration, and the id strategy
+
+As a supplier,
+I want one command to start the whole system, and one id type for every table,
+So that a developer runs AlpenFlight with no manual step, and no two slices choose a different id.
+
+**Acceptance Criteria:**
 
 **Given** the container image and the Compose file
 **When** the supplier runs one command
@@ -49,33 +78,50 @@ request
 **Then** it creates the `club` table, the table declares its data kind, and it carries a version
 column.
 
-**Given** the id strategy is fixed in this story
-**When** any later slice creates an entity
-**Then** it uses the one declared id type
-**And** the decision is recorded in the spine, because the spine defers it to this epic.
-
-**Given** the remaining dependency versions are unpinned
+**Given** the id strategy
 **When** this story completes
-**Then** Gradle, Flyway, the OpenAPI generator, the IndexedDB wrapper, and Keycloak each carry a
-pinned version, verified against the web and not recalled from memory.
+**Then** `platform` declares one id type, and the `club` table uses it
+**And** a test fails the build when a table's primary key uses a different type
+**And** the spine records the decision, because the spine defers it to this epic.
+
+### Story 1.3: The build gates and CI
+
+As a supplier,
+I want CI to run nine gates on every commit, and to prove that each gate fails,
+So that the architecture holds without an agent having to remember it.
+
+**Acceptance Criteria:**
 
 **Given** the nine build gates
 **When** CI runs on a commit
 **Then** every gate runs, and a violation fails the build
-**And** the gate set covers: a thin slice with no `application/` package, a deep slice with all four,
-core never referencing a pro module, core plus the open modules building standalone, a data kind on
-every table, no binary floating-point type in a charging or invoice type, no cross-slice reach, the
-cross-tenant read test, no direct `now()` call, and a version column on every mutable entity.
+**And** the gate set is:
 
-**Given** the injected `Clock`
-**When** any code needs the time
-**Then** it reads the injected `Clock`
-**And** a build gate fails a direct `now()` call, so both time gates stay drivable in a test.
+1. A thin slice contains no `application/` package; a deep slice contains all four.
+2. Core never references a pro module.
+3. Core plus the open modules build and test standalone.
+4. Every club-scoped table has a row-level-security policy, and every table declares its data kind.
+5. No binary floating-point type appears in a charging, delivery, or invoice type.
+6. No cross-slice reach into another slice's internals.
+7. A cross-tenant read test proves that a query without a filter returns zero rows.
+8. No code calls `now()` directly; the `Clock` is injected, so a test can drive both time gates.
+9. Every mutable entity carries a version column.
 
-**Given** the server publishes an OpenAPI specification
-**When** the client build runs
-**Then** it generates the TypeScript types from that specification
-**And** a component uses a generated type as its own type, with no hand-written model.
+**Given** each of the nine gates
+**When** CI runs it against a deliberate violation
+**Then** the build fails, and the failure names the gate
+**And** the nine violation cases stay in the repository, so a gate that stops working is found.
+
+> **Note on gate 2 and gate 3.** Both run against an empty `modules-open` and `modules-pro` tree
+> until Epic 7 ships the first pro module. Their violation cases are the only proof they work.
+
+### Story 1.4: The application shell and the design tokens
+
+As a user,
+I want one shell with four destinations, and one token set behind every screen,
+So that every later screen looks and moves the same, on a phone and on a laptop.
+
+**Acceptance Criteria:**
 
 **Given** the application shell
 **When** a user opens the application on a phone
@@ -89,11 +135,7 @@ cross-tenant read test, no direct `now()` call, and a version column on every mu
 **And** every corner radius is zero
 **And** the ground is `surface-base`, with no light mode and no theme control.
 
-**Given** `alpenflight/` now holds code
-**When** the supplier runs `bmad-project-context` against it
-**Then** the run writes `AGENTS.md`.
-
-### Story 1.2: The record list and the list toolbar
+### Story 1.5: The record list and the list toolbar
 
 As a user,
 I want every list to read as a record item, with one search field and filter chips,
@@ -115,7 +157,7 @@ metric 88 pixels right-aligned, and the marker under the metric. *(FR-61)*
 
 **Given** a record with an absent value
 **When** the item renders
-**Then** the item keeps its height, and the empty value reads `not set` in `ink-disabled`
+**Then** the item keeps its height, and the empty value shows `not set` in `ink-disabled`
 **And** no row below it moves.
 
 **Given** a list with groups
@@ -145,11 +187,16 @@ metric 88 pixels right-aligned, and the marker under the metric. *(FR-61)*
 **When** assistive technology reads it
 **Then** the item carries its table roles, and it labels each field when it renders stacked.
 
-### Story 1.3: See only your own club's aircraft
+### Story 1.6: See only your own club's aircraft
 
 As a club administrator,
 I want the club fleet in one list, and no aircraft of any other club anywhere,
-So that the isolation is proved by a gate before any second slice exists.
+So that a gate proves the isolation before any second slice exists.
+
+> **Note on sequence.** This story proves the boundary before story 1.7 supplies a real signed-in
+> club. Until then the tenancy resolver reads the club from a development source. Story 1.7 replaces
+> that source with the token, and deletes it. This story stands alone, so it carries no forward
+> dependency.
 
 **Acceptance Criteria:**
 
@@ -168,7 +215,7 @@ query.
 **Given** a query that omits the club filter
 **When** the cross-tenant read test runs it
 **Then** it returns zero rows
-**And** the test fails the build when it does not. *(FR-1)*
+**And** the test fails the build when the query returns a row. *(FR-1)*
 
 **Given** a user of club A and a record identifier of club B
 **When** the user requests that identifier directly in a URL
@@ -186,13 +233,9 @@ state, and the error state in one declaration.
 
 **Given** the aircraft list
 **When** it renders
-**Then** it uses the `RecordList` and toolbar from story 1.2.
+**Then** it uses the `RecordList` and toolbar from story 1.5.
 
-> **Note on sequence.** This story proves the boundary before story 1.4 supplies a real signed-in
-> club. Until then the tenancy resolver reads the club from a development source. Story 1.4 replaces
-> that source with the token. This story stands alone, so it carries no forward dependency.
-
-### Story 1.4: Sign in through the identity provider, and stay signed in
+### Story 1.7: Sign in through the identity provider, and stay signed in
 
 As a user,
 I want to sign in once and stay signed in through a flying day,
@@ -211,7 +254,20 @@ So that the application never interrupts me while I log a flight.
 **Then** the token supplies the subject only
 **And** the club, the roles, and the tenant boundary resolve from `ClubMembership` in AlpenFlight
 tables, never from a claim the provider controls
-**And** this replaces the development source that story 1.3 used.
+**And** this replaces the development source that story 1.6 used.
+
+**Given** the development tenancy source of story 1.6
+**When** this story completes
+**Then** the repository holds no development tenancy source
+**And** a test fails the build when any code outside the transaction opener sets the club session
+variable, because AD-13 permits no second tenancy path. *(AD-13)*
+
+**Given** the realm configuration held in the repository
+**When** it is applied
+**Then** the access token lives 15 minutes, the refresh token lives 30 days, and the provider rotates
+the refresh token on every use
+**And** the provider accepts one reuse of the previous refresh token, so a lost response on a weak
+network does not sign the user out.
 
 **Given** a signed-in user and a flying day of many hours
 **When** the access token expires
@@ -221,7 +277,7 @@ tables, never from a claim the provider controls
 **Given** a user who is part way through a write
 **When** the request is rejected for an expired token
 **Then** the entry stays on screen, the client refreshes, and it repeats the write
-**And** no typed value is lost. *(Q-B13)*
+**And** the client loses no typed value. *(Q-B13)*
 
 **Given** the `IdentityProvider` port in `platform`
 **When** a slice needs an identity operation
@@ -235,18 +291,18 @@ Keycloak-compatible provider is a new adapter and a configuration change.
 **When** it reaches any signed-in endpoint
 **Then** the system refuses it, and the response reveals nothing about the record.
 
-### Story 1.5: The person, the club membership, and the roles
+### Story 1.8: The person, the club membership, and the roles
 
 As a club administrator,
 I want a person to exist apart from a login, and to belong to several clubs,
-So that a pilot who flies for two clubs keeps one record, and no club can read another club's people.
+So that a pilot who flies for two clubs keeps one record, and no club can read another club's persons.
 
 **Acceptance Criteria:**
 
 **Given** a person record
 **When** it is created
 **Then** it exists with no user
-**And** a visiting pilot needs no login. *(FR-3)*
+**And** a visiting pilot needs no sign-in. *(FR-3)*
 
 **Given** a person who flies for two clubs
 **When** each club records a membership
@@ -266,7 +322,7 @@ So that a pilot who flies for two clubs keeps one record, and no club can read a
 **Given** a crew member who belongs only to club B
 **When** club A adds them to a flight
 **Then** club A adds them by an explicit cross-club link, never by a typeahead over every person
-**And** club A sees its own flight, and club B does not see it because of that reference. *(FR-2, Q-B8)*
+**And** club A sees its own flight. Club B does not see that flight. *(FR-2, Q-B8)*
 
 **Given** the role set
 **When** a user holds a role
@@ -278,11 +334,70 @@ So that a pilot who flies for two clubs keeps one record, and no club can read a
 **Then** the system refuses it, and the message names what the user lacks
 **And** the refusal happens at the permission layer, so it holds before the surface exists.
 
-### Story 1.6: Edit my own record and my password
+### Story 1.9: The audit record
+
+As a club administrator,
+I want every change recorded with who, what, when, and which record,
+So that I answer a question about a change without asking the supplier.
+
+**Acceptance Criteria:**
+
+**Given** any create, update, or delete of a flight, a person, an aircraft, a charging rule, or an
+invoice draft
+**When** it commits
+**Then** the system writes an audit record naming the actor, the record, the time, and each changed
+field with its old value and its new value. *(FR-8)*
+
+**Given** the audit record
+**When** the change commits
+**Then** the audit record writes in the same transaction as the change, so no change commits without
+its audit record
+**And** the audit write carries no validation and no business rule, so a defect in the audit code
+never stops a user from logging a flight.
+
+**Given** a soft delete, which the spine makes the default for a business record
+**When** it commits
+**Then** the audit record names the event a delete.
+
+**Given** a change made by scheduled work, and not by a user
+**When** it commits
+**Then** the audit record names the actor `system`.
+
+**Given** a role change or a club-membership change
+**When** it commits
+**Then** it writes an audit record
+**And** this holds because AD-22 keeps authorization in AlpenFlight tables, where the audit reaches
+it.
+
+**Given** an audit record
+**When** it is written
+**Then** it names its club.
+
+**Given** a club administrator of club A
+**When** they read the audit records
+**Then** they read only the records of club A
+**And** they read no record of club B through any interface.
+
+**Given** an erasure request under FR-84
+**When** Epic 13 runs it
+**Then** the erasure path covers the audit records that name that person
+**And** the audit record keeps its actor, its record, and its time, so the trail stays complete.
+
+**Given** a log line or an error record
+**When** the system writes it
+**Then** it carries no personal data
+**And** this rule holds for the log and for the error record, never for the audit table.
+
+**Given** the legacy audit history carries no club
+**When** the migration runs
+**Then** it follows the path question 26 decides: derive a club per row, or start the history empty
+**And** this story ships the new-record part, which question 26 does not block.
+
+### Story 1.10: Edit my own record and my password
 
 As a user,
 I want to correct my own details and change my own password,
-So that I do not ask an administrator for a change only I can make.
+So that I do not ask an administrator for a change that I can make myself.
 
 **Acceptance Criteria:**
 
@@ -301,9 +416,9 @@ So that I do not ask an administrator for a change only I can make.
 
 **Given** a user edits their profile
 **When** they save
-**Then** the change writes an audit record, once story 1.9 ships.
+**Then** the change writes an audit record.
 
-### Story 1.7: Reset a password, and confirm an email address
+### Story 1.11: Reset a password, and confirm an email address
 
 As a user who forgot a password,
 I want a reset link that works once,
@@ -312,9 +427,8 @@ So that I sign in again with no message to an administrator.
 **Acceptance Criteria:**
 
 **Given** the identity provider owns the reset flow
-**When** this story completes
-**Then** the work is to configure the realm and to prove the behaviour, not to build a reset
-mechanism
+**When** a user requests a reset
+**Then** the provider runs the flow, and AlpenFlight builds no reset mechanism
 **And** AlpenFlight holds no reset token. *(AD-22)*
 
 **Given** a request for a password reset
@@ -323,25 +437,26 @@ mechanism
 **And** it reveals nothing about which addresses the system holds. *(FR-7)*
 
 **Given** a reset link
-**When** the user opens it inside the fixed period
+**When** the user opens it inside one hour
 **Then** they set a new password
 **And** the link does not work a second time.
 
 **Given** a reset link
-**When** the fixed period has passed
+**When** one hour has passed
 **Then** the link fails, and the message states that it expired.
 
 **Given** a new user
 **When** they confirm their email address
-**Then** the provider records the confirmation, and AlpenFlight reads it through the port.
+**Then** the provider records the confirmation, and AlpenFlight reads it through the port
+**And** the confirmation link lives 24 hours.
 
 **Given** the realm configuration
 **When** it is applied
 **Then** it sets the password policy, the brute-force detection, and the account lockout
-**And** the configuration lives in the repository as a file, so a community install gets the same
+**And** the configuration lives in the repository as a file, so a community install has the same
 settings.
 
-### Story 1.8: Manage the users of my club
+### Story 1.12: Manage the users of my club
 
 As a club administrator,
 I want to create, link, and deactivate the users of my own club,
@@ -367,42 +482,5 @@ of their own club, and assigns a role from the FR-5 role set
 
 **Given** a club administrator
 **When** they remove a role from a user
-**Then** the user loses the surfaces that role reached, on their next request
+**Then** the user no longer reaches the surfaces of that role, on their next request
 **And** the change never touches the identity provider.
-
-### Story 1.9: The audit record
-
-As a club administrator,
-I want every change recorded with who, what, when, and which record,
-So that I answer a question about a change without asking the supplier.
-
-**Acceptance Criteria:**
-
-**Given** any create, update, or delete of a flight, a person, an aircraft, a charging rule, or an
-invoice draft
-**When** it commits
-**Then** the system writes an audit record naming the user, the record, the time, and what changed. *(FR-8)*
-
-**Given** a role change or a club-membership change
-**When** it commits
-**Then** it writes an audit record
-**And** this holds because AD-22 keeps authorization in AlpenFlight tables, where the audit reaches
-it.
-
-**Given** an audit record
-**When** it is written
-**Then** it names its club.
-
-**Given** a club administrator of club A
-**When** they read the audit records
-**Then** they read only the records of club A
-**And** they read no record of club B through any interface.
-
-**Given** the legacy audit history carries no club
-**When** the migration runs
-**Then** it follows the path question 26 decides: derive a club per row, or start the history empty
-**And** this story ships the new-record half, which question 26 does not block.
-
-**Given** an audit record
-**When** it is written
-**Then** it carries no personal data in plain text beyond the identifier of the actor and the record.
