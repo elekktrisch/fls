@@ -84,7 +84,7 @@ Cross-slice access runs through a published interface or a domain event. A direc
 
 - **Binds:** FR-1, FR-2, FR-8, SM-4, R1, RK-3, RK-12; every table
 - **Prevents:** a forgotten club filter returning another club's rows — the defect the legacy carries in `AuditLogsController`, `DashboardService`, and `FlightService.GetFlights`.
-- **Rule:** Every club-scoped table has a PostgreSQL row-level-security policy plus `FORCE ROW LEVEL SECURITY`. The application connects as a non-owner role and cannot bypass its own policies. The session variable is set once, in the transaction opener. Repository-level scoping is additive convenience and is never the guarantee. A query that omits the filter returns **zero rows**.
+- **Rule:** Every club-scoped table has a PostgreSQL row-level-security policy plus `FORCE ROW LEVEL SECURITY`. The application connects as a non-owner role and cannot bypass its own policies. The session variable is set once, in the transaction opener. Repository-level scoping is additive convenience and is never the guarantee. A query that omits the filter returns **zero rows**. A club-scoped table's policy checks the row's `club_id` against the session variable in both `USING` and `WITH CHECK`; `WITH CHECK (true)` is a bypass, not a policy. `club` itself is the one exception — the tenant root carries no `club_id`, so its policy's `WITH CHECK (true)` is correct for that table alone.
 
 ### AD-3 — There are no shared writable entities
 
@@ -232,7 +232,7 @@ graph LR
 | Comments | No comment in hand-authored implementation code. A name and a structure carry the intent instead, so the code stays the one source of truth and no comment can drift out of sync with it. Exception: a `package-info.java` file, whose sole content is its package-level Javadoc; and unmodified tool-scaffolded configuration (a CLI-generated `tsconfig.json`, `.vscode/*.json`, and the like) — its stock comments are not implementation code, and rewriting a generated file to strip them adds churn for no benefit. |
 | Versions | A planning document names a framework or a tool, never its pinned version. The version lives once, in the source config that consumes it — `build.gradle.kts`, `libs.versions.toml`, `package.json`, and the like — so a stale number in prose can never contradict the real pin. Exception: this table, the ratified architecture decision record. |
 | Package layout | By feature, never by layer. `platform/` holds the only cross-cutting code every slice may depend on. |
-| Ids | One id strategy across every table. The template epic fixes the type; every slice copies the skeleton. |
+| Ids | UUID v7 for every table's primary key. Fixed 2026-08-30, story 1.2. The PostgreSQL 18 native `uuidv7()` function is the column default; the matching Hibernate id generator mints the id via `uuidv7()` before the insert, so the row is written with a known id. Every slice copies this skeleton. |
 | Money and counters | `BigDecimal` and `numeric`. Never a binary floating-point type. |
 | Dates and times | Stored with an explicit zone. A time-gate boundary states its zone and its inclusivity. |
 | The clock | A `Clock` is injected. No code calls `now()` directly, so both time gates are drivable in a test without touching the system clock. |
@@ -337,7 +337,7 @@ The **first epic is the template, not a feature**: one thin slice, one deep slic
 ## Deferred
 
 - **The fundamental-field set** — the exact closure that escalates a field conflict. Epic detail. Source: a `legacy-oracle` read against the 88 legacy conditional directives, before the flight-form epic.
-- **Id strategy** — one choice, applied everywhere. Fixed by the template epic before any second slice is built, so no two slices can diverge.
+- **Id strategy** — **Fixed 2026-08-30, story 1.2.** UUID v7, applied everywhere. See the Ids convention row above.
 - **The rules-engine internal design** — the nine phases are legacy behaviour, not an architecture choice. Owned by the charging epic after its `legacy-oracle` read.
 - **The access-token lifetime, the refresh rotation, and the realm configuration** — bound by NFR-3 and FR-4, and owned by the identity story in the template epic. The provider question itself is closed by AD-22. **Superseded 2026-08-29:** this bullet previously said the provider choice was not a divergence risk. That was an assertion with no reasoning behind it, and it was wrong.
 - **jOOQ** — deferred, not rejected. Revisit if typed SQL in the rules engine and reports earns its cost.

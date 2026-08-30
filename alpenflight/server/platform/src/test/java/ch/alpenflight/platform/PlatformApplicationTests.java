@@ -6,28 +6,24 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.autoconfigure.exclude="
+                    + "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,"
+                    + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                    + "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration"
+        })
 class PlatformApplicationTests {
 
     @Value("${local.server.port}")
     private int port;
 
-    @Autowired
-    private ApplicationContext applicationContext;
-
     private final HttpClient client = HttpClient.newHttpClient();
-
-    @Test
-    void startsWithNoDatasourceConfigured() {
-        assertThat(applicationContext.getBeanNamesForType(DataSource.class)).isEmpty();
-    }
 
     @Test
     void systemStatusEndpointAnswersUp() throws Exception {

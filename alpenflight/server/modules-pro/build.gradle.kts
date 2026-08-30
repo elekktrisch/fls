@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    alias(libs.plugins.spring.dependency.management)
 }
 
 group = "ch.alpenflight"
@@ -13,6 +14,12 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}")
+    }
 }
 
 dependencies {

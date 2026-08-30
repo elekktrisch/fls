@@ -55,10 +55,22 @@ npm install --prefix client
 npm run generate:api --workspace=platform --prefix client
 ```
 
+## Start the whole system
+
+```sh
+docker compose up --build
+```
+
+Run this from `deploy/`. It starts PostgreSQL, Keycloak, and the app image together, on one
+network. The first migration creates the `club` table and seeds its one row; the app connects as a
+non-owner database role that row-level security still restricts. Every table's primary key is a
+UUID v7, minted by PostgreSQL's native `uuidv7()` column default and read back through Hibernate.
+
 ## What this story does not wire up yet
 
-- No database, no first migration, no id strategy -- story 1.2.
 - No CI workflow -- story 1.3.
 - No application shell, no design tokens -- story 1.4.
 - Every module under `server/core`, `server/modules-open`, `server/modules-pro` is an empty
-  placeholder: build wiring only, no slice, no business rule.
+  placeholder: build wiring only, no slice, no business rule, except the `Club` entity story 1.2
+  adds to prove the id strategy.
+- No sign-in, no realm content beyond the import proof -- story 1.7.

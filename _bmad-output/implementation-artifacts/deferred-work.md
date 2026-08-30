@@ -43,3 +43,27 @@ existing entries.
   evidence: Gradle and Docker are separate build systems with no native shared-value mechanism;
     full de-duplication needs a build-arg pipeline or a deliberate decision to accept the
     duplication, not a story-1.1 blocker.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-the-runtime-the-first-migration-and-the-id-strategy.md`
+  summary: No isolated unit test for `UuidV7Generator` -- it fires only on INSERT and mints
+    distinct, time-ordered values -- only indirect coverage exists today through one
+    integration test.
+  evidence: Test-coverage gap, not a defect; not blocking this story's acceptance criteria.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-the-runtime-the-first-migration-and-the-id-strategy.md`
+  summary: `UuidV7Generator` reads the raw physical JDBC connection and issues an extra
+    round-trip query per insert, bypassing Hibernate's normal execution path.
+  evidence: Acceptable for `club`'s low insert volume today; worth revisiting before a
+    high-insert table (e.g. `flight`, per this story's own Design Notes) adopts the same
+    generator.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-the-runtime-the-first-migration-and-the-id-strategy.md`
+  summary: The `club_isolation` RLS predicate would raise a raw cast error if
+    `app.current_club_id` were ever set to a non-UUID string.
+  evidence: Not reachable today -- only test code sets the variable, always with a valid UUID.
+    Revisit when story 1.7's real transaction opener starts setting it from a JWT claim.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-the-runtime-the-first-migration-and-the-id-strategy.md`
+  summary: No documented local-dev reset procedure for dropping the `postgres-data` volume or
+    re-importing the Keycloak realm when migrations or realm content change during iteration.
+  evidence: Cosmetic developer-experience gap, not a functional defect.

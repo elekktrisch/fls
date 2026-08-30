@@ -3,7 +3,7 @@ import java.net.URI
 import java.util.concurrent.TimeUnit
 
 plugins {
-    java
+    `java-library`
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
 }
@@ -23,8 +23,17 @@ repositories {
 
 dependencies {
     implementation(libs.spring.boot.starter.webmvc)
+    api(libs.spring.boot.starter.data.jpa)
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
+    implementation(libs.spring.boot.flyway)
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.postgresql)
+    runtimeOnly(libs.postgresql)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.named<Test>("test") {
@@ -42,6 +51,10 @@ fun startPlatformAppOnPort(jarFile: java.io.File, port: Int): Process =
         "--server.port=$port",
         "--spring.main.banner-mode=off",
         "--spring.main.lazy-initialization=false",
+        "--spring.autoconfigure.exclude=" +
+            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration," +
+            "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
+            "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration",
     ).redirectErrorStream(true).start()
 
 fun pumpProcessOutputUntilClosed(process: Process, into: StringBuilder): Thread =
