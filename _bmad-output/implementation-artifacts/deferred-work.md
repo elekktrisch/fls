@@ -67,3 +67,14 @@ existing entries.
   summary: No documented local-dev reset procedure for dropping the `postgres-data` volume or
     re-importing the Keycloak realm when migrations or realm content change during iteration.
   evidence: Cosmetic developer-experience gap, not a functional defect.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-the-build-gates-and-ci.md`
+  summary: Build gate 4 -- every table declares its data kind (`system-reference`, `club-scoped`,
+    `cross-club-link`, or the `club`-only `tenant-root` exception) via
+    `COMMENT ON TABLE ... IS 'data-kind: ...'`, and every club-scoped table's row-level-security
+    policy is verified by an automated check, not just declared by story 1.2's migration.
+  evidence: Story 1.3's spec exceeded the 1,600-token target with all nine gates included. Gates
+    1, 2, 3, 5, 6, 7, 8, and 9 form one complete, working CI pipeline on their own; gate 4 needs a
+    new migration (`V3__club_data_kind.sql`) and a new Testcontainers-backed check
+    (`server/core/src/integrationTest/.../DataKindAndRlsGateIT.java`) and is self-contained enough
+    to land as a fast follow-up patch to the same `.github/workflows/ci.yml` this story creates.

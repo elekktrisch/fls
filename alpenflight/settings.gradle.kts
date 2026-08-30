@@ -18,6 +18,7 @@ include(
     "server:core",
     "server:modules-open",
     "server:modules-pro",
+    "server:build-gates",
     "client:platform",
     "client:features",
 )
