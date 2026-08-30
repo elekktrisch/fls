@@ -16,7 +16,7 @@ const ADMIN = { username: "testclubadmin", password: "s" } as const;
 
 const LEGACY_STACK_WALKTHROUGH_BUDGET_MS = 180_000;
 
-// ext: alpenflight-proof-fanout.yml add_shot basenames
+// ext: screenshot basenames were consumed by rebuild 1 CI (archived in docs/attempt-1/)
 const GALLERY_PICKER_PNG = "legacy-flightreports-picker.png";
 const GALLERY_RESULT_PNG = "legacy-flightreports-result.png";
 const GALLERY_CUSTOM_PNG = "legacy-flightreports-custom.png";

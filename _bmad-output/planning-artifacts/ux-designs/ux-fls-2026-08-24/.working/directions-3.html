@@ -1,0 +1,236 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AlpenFlight — three design directions</title>
+<style>
+/* ============ page chrome (not part of any direction) ============ */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#5A6472;font:14px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;padding:28px}
+.page-h{max-width:1600px;margin:0 auto 24px}
+.page-h h1{font-size:20px;font-weight:600;margin:0 0 6px}
+.page-h p{margin:0;color:#D2D8E0;font-size:13px;max-width:74ch;line-height:1.55}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1600px;margin:0 auto;align-items:start}
+.col{background:#fff;color:#111;border-radius:2px;overflow:hidden}
+.col > .meta{padding:16px 18px;background:#3C4552;color:#fff}
+.col > .meta h2{margin:0 0 6px;font-size:15px;font-weight:600;letter-spacing:.02em}
+.col > .meta .tag{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#A8B4C4}
+.col > .meta p{margin:8px 0 0;font-size:12px;line-height:1.55;color:#D2D8E0}
+.stage{padding:18px;background:#EDEFF2}
+.cap{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6B7280;margin:0 0 8px}
+.phone{width:300px;margin:0 auto;border:8px solid #2A2F36;border-radius:22px;overflow:hidden}
+.desk{border:1px solid #C9CDD3;overflow:hidden}
+@media(max-width:1100px){.grid{grid-template-columns:1fr}}
+
+/* ================================================================
+   DIRECTION A - INSTRUMENT
+   bg #0B0F14 - panel #141A21 - line #232C36 - fg #E8EDF3
+   muted #7D8B9A - accent cyan #57C4E5 - caution #FFB020 - warn #FF4D4F
+   Radius 0. Every number monospaced and tabular.
+   ================================================================ */
+.A{background:#0B0F14;color:#E8EDF3;font:13px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif}
+.A .num{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.A .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.14em;color:#7D8B9A}
+.A .bar{background:#141A21;border-bottom:1px solid #232C36;padding:9px 12px;display:flex;justify-content:space-between;align-items:center}
+.A .bar strong{font-size:12px;font-weight:600;letter-spacing:.04em;color:#57C4E5}
+.A .sticky{background:#101820;border-bottom:1px solid #2E3A46;padding:10px 12px;display:flex;gap:12px;align-items:baseline}
+.A .sticky .big{font-family:ui-monospace,Menlo,monospace;font-size:17px;color:#57C4E5;font-variant-numeric:tabular-nums}
+.A .sticky .sm{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#E8EDF3}
+.A .f{padding:9px 12px;border-bottom:1px solid #1A222B;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.A .f .v{font-family:ui-monospace,Menlo,monospace;font-size:14px;color:#E8EDF3;font-variant-numeric:tabular-nums}
+.A .f .v.empty{color:#4C5A68}
+.A .f.focus{background:#131C25;box-shadow:inset 2px 0 0 #57C4E5}
+.A .save{position:sticky;bottom:0;background:#57C4E5;color:#06121A;text-align:center;padding:13px;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.A table{width:100%;border-collapse:collapse}
+.A th{font-size:9.5px;text-transform:uppercase;letter-spacing:.14em;color:#7D8B9A;text-align:left;padding:8px 10px;border-bottom:1px solid #2E3A46;font-weight:500;background:#101820}
+.A td{padding:7px 10px;border-bottom:1px solid #1A222B;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;font-variant-numeric:tabular-nums}
+.A td.t{font-family:-apple-system,"Segoe UI",sans-serif}
+.A .st{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border:1px solid}
+.A .st.open{color:#57C4E5;border-color:#2A5C71}
+.A .st.lock{color:#FFB020;border-color:#6B4A10}
+.A .st.bill{color:#7D8B9A;border-color:#2E3A46}
+.A .st.draft{color:#FF4D4F;border-color:#6B2224}
+
+/* ================================================================
+   DIRECTION B - TIMETABLE
+   bg #FFFFFF - subtle #F4F5F6 - rule #111111 - hair #D4D6D8
+   fg #111111 - muted #6B6B6B - signal #EB0000
+   Radius 0. Rules instead of shadows. Helvetica-class type.
+   ================================================================ */
+.B{background:#fff;color:#111;font:13px/1.35 "Helvetica Neue",Helvetica,Arial,sans-serif}
+.B .num{font-variant-numeric:tabular-nums}
+.B .bar{border-bottom:2px solid #111;padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline}
+.B .bar strong{font-size:13px;font-weight:700;letter-spacing:-.01em}
+.B .bar span{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6B6B6B}
+.B .sticky{border-bottom:1px solid #111;padding:9px 12px;display:flex;gap:14px;align-items:baseline;background:#F4F5F6}
+.B .sticky .big{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.B .sticky .sm{font-size:12px;font-variant-numeric:tabular-nums;color:#111}
+.B .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:#6B6B6B}
+.B .f{padding:8px 12px;border-bottom:1px solid #D4D6D8;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.B .f .v{font-size:14px;font-variant-numeric:tabular-nums;font-weight:500}
+.B .f .v.empty{color:#B0B2B4;font-weight:400}
+.B .f.focus{box-shadow:inset 3px 0 0 #EB0000}
+.B .save{position:sticky;bottom:0;background:#111;color:#fff;text-align:center;padding:13px;font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.B table{width:100%;border-collapse:collapse}
+.B th{font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:#6B6B6B;text-align:left;padding:7px 10px;border-bottom:2px solid #111;font-weight:700}
+.B td{padding:6px 10px;border-bottom:1px solid #D4D6D8;font-size:12.5px;font-variant-numeric:tabular-nums}
+.B .st{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700}
+.B .st.open{color:#111}
+.B .st.lock{color:#6B6B6B}
+.B .st.bill{color:#B0B2B4}
+.B .st.draft{color:#EB0000}
+
+/* ================================================================
+   DIRECTION C - TOOL
+   bg #FAFAF8 - panel #FFFFFF - hair #E3E4E2 - chrome #2B3238
+   fg #1A1D1F - muted #6E7478 - signal #C8102E used once per screen
+   Radius 2px. Weight over decoration.
+   ================================================================ */
+.C{background:#FAFAF8;color:#1A1D1F;font:13px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif}
+.C .num{font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.C .bar{background:#2B3238;color:#fff;padding:11px 14px;display:flex;justify-content:space-between;align-items:center}
+.C .bar strong{font-size:13px;font-weight:600;letter-spacing:.03em}
+.C .bar span{font-size:11px;color:#A9B0B5}
+.C .sticky{background:#fff;border-bottom:1px solid #E3E4E2;padding:12px 14px;display:flex;gap:14px;align-items:baseline}
+.C .sticky .big{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.C .sticky .sm{font-size:12.5px;color:#6E7478;font-variant-numeric:tabular-nums}
+.C .lbl{font-size:11px;color:#6E7478}
+.C .f{background:#fff;padding:10px 14px;border-bottom:1px solid #E3E4E2;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.C .f .v{font-size:14.5px;font-weight:500;font-variant-numeric:tabular-nums}
+.C .f .v.empty{color:#B7BBBD;font-weight:400}
+.C .f.focus{box-shadow:inset 3px 0 0 #C8102E;background:#FDFCFB}
+.C .save{position:sticky;bottom:0;background:#2B3238;color:#fff;text-align:center;padding:14px;font-weight:600;font-size:13px;letter-spacing:.03em;border-radius:2px}
+.C table{width:100%;border-collapse:collapse;background:#fff}
+.C th{font-size:11px;color:#6E7478;text-align:left;padding:9px 12px;border-bottom:1px solid #D8DAD8;font-weight:500}
+.C td{padding:9px 12px;border-bottom:1px solid #EEEFED;font-size:13px;font-variant-numeric:tabular-nums}
+.C .st{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:500}
+.C .st.open{background:#EAF0F4;color:#2B3238}
+.C .st.lock{background:#F1F0EC;color:#6E7478}
+.C .st.bill{background:#F1F0EC;color:#A9AEA8}
+.C .st.draft{background:#FBE9EB;color:#C8102E}
+</style>
+
+<div class="page-h">
+  <h1>AlpenFlight — three design directions</h1>
+  <p>The same two screens in three visual personalities. Hero screen: the flight form on a phone (long scroll, sticky summary, sticky Save). Secondary: the logbook on a desktop, with four flight states visible. The content is real: Birrfeld LSZF, ASK 21 HB-3215, tow HB-EAB. Pick one, mix two, or reject all three.</p>
+</div>
+
+<div class="grid">
+
+<!-- ============== A ============== -->
+<div class="col">
+  <div class="meta">
+    <div class="tag">Direction A</div>
+    <h2>Instrument</h2>
+    <p>A glass cockpit. Dark ground, one cyan for what is live, one amber for what is locked. Every number is monospaced and column-aligned, so a wrong digit shows itself. Nothing is decorative. The screen looks like avionics because it does the same job.</p>
+  </div>
+  <div class="stage">
+    <p class="cap">Phone - log flight</p>
+    <div class="phone A">
+      <div class="bar"><strong>ALPENFLIGHT</strong><span class="lbl">LSZF</span></div>
+      <div class="sticky"><span class="big">HB-3215</span><span class="sm">10:24</span><span class="lbl">ASK 21</span></div>
+      <div class="f"><span class="lbl">Date</span><span class="v num">24.08.2026</span></div>
+      <div class="f"><span class="lbl">Airfield</span><span class="v">LSZF</span></div>
+      <div class="f"><span class="lbl">Start type</span><span class="v">Aerotow</span></div>
+      <div class="f focus"><span class="lbl">Glider</span><span class="v">HB-3215</span></div>
+      <div class="f"><span class="lbl">Pilot</span><span class="v">S. Aebi</span></div>
+      <div class="f"><span class="lbl">2nd seat</span><span class="v">D. Roth</span></div>
+      <div class="f"><span class="lbl">Take-off</span><span class="v num">10:24</span></div>
+      <div class="f"><span class="lbl">Landing</span><span class="v num">11:42</span></div>
+      <div class="f"><span class="lbl">Block</span><span class="v num">01:18</span></div>
+      <div class="f"><span class="lbl">Tow plane</span><span class="v">HB-EAB</span></div>
+      <div class="f"><span class="lbl">Release</span><span class="v num">600 m</span></div>
+      <div class="f"><span class="lbl">Remarks</span><span class="v empty">not set</span></div>
+      <div class="save">Save flight</div>
+    </div>
+    <p class="cap" style="margin-top:16px">Desktop - logbook</p>
+    <div class="desk A">
+      <table>
+        <tr><th>Date</th><th>Aircraft</th><th>Pilot</th><th>Block</th><th>State</th></tr>
+        <tr><td>24.08</td><td>HB-3215</td><td class="t">S. Aebi</td><td>01:18</td><td><span class="st draft">Draft</span></td></tr>
+        <tr><td>24.08</td><td>HB-1782</td><td class="t">M. Weber</td><td>00:47</td><td><span class="st open">Open</span></td></tr>
+        <tr><td>21.08</td><td>HB-3215</td><td class="t">L. Frei</td><td>02:05</td><td><span class="st lock">Locked</span></td></tr>
+        <tr><td>17.08</td><td>HB-EAB</td><td class="t">S. Aebi</td><td>00:15</td><td><span class="st bill">Billed</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============== B ============== -->
+<div class="col">
+  <div class="meta">
+    <div class="tag">Direction B</div>
+    <h2>Timetable</h2>
+    <p>A Swiss printed document. White ground, hard black rules, Helvetica-class type, and no shadow anywhere. One red, used only for what is unfinished or wrong. The screen reads like an SBB departure board: dense, factual, and hard to misread.</p>
+  </div>
+  <div class="stage">
+    <p class="cap">Phone - log flight</p>
+    <div class="phone B">
+      <div class="bar"><strong>AlpenFlight</strong><span>Birrfeld</span></div>
+      <div class="sticky"><span class="big">HB-3215</span><span class="sm">10:24</span><span class="lbl">ASK 21</span></div>
+      <div class="f"><span class="lbl">Date</span><span class="v num">24.08.2026</span></div>
+      <div class="f"><span class="lbl">Airfield</span><span class="v">LSZF</span></div>
+      <div class="f"><span class="lbl">Start type</span><span class="v">Aerotow</span></div>
+      <div class="f focus"><span class="lbl">Glider</span><span class="v">HB-3215</span></div>
+      <div class="f"><span class="lbl">Pilot</span><span class="v">S. Aebi</span></div>
+      <div class="f"><span class="lbl">2nd seat</span><span class="v">D. Roth</span></div>
+      <div class="f"><span class="lbl">Take-off</span><span class="v num">10:24</span></div>
+      <div class="f"><span class="lbl">Landing</span><span class="v num">11:42</span></div>
+      <div class="f"><span class="lbl">Block</span><span class="v num">01:18</span></div>
+      <div class="f"><span class="lbl">Tow plane</span><span class="v">HB-EAB</span></div>
+      <div class="f"><span class="lbl">Release</span><span class="v num">600 m</span></div>
+      <div class="f"><span class="lbl">Remarks</span><span class="v empty">not set</span></div>
+      <div class="save">Save flight</div>
+    </div>
+    <p class="cap" style="margin-top:16px">Desktop - logbook</p>
+    <div class="desk B">
+      <table>
+        <tr><th>Date</th><th>Aircraft</th><th>Pilot</th><th>Block</th><th>State</th></tr>
+        <tr><td>24.08</td><td>HB-3215</td><td>S. Aebi</td><td>01:18</td><td><span class="st draft">Draft</span></td></tr>
+        <tr><td>24.08</td><td>HB-1782</td><td>M. Weber</td><td>00:47</td><td><span class="st open">Open</span></td></tr>
+        <tr><td>21.08</td><td>HB-3215</td><td>L. Frei</td><td>02:05</td><td><span class="st lock">Locked</span></td></tr>
+        <tr><td>17.08</td><td>HB-EAB</td><td>S. Aebi</td><td>00:15</td><td><span class="st bill">Billed</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============== C ============== -->
+<div class="col">
+  <div class="meta">
+    <div class="tag">Direction C</div>
+    <h2>Tool</h2>
+    <p>A Sinn watch or a Leica body. Warm off-white ground, graphite chrome, hairline rules, and exactly one red that appears once per screen. The restraint carries the reliability: the screen stays quiet, so the one item that needs attention gets it.</p>
+  </div>
+  <div class="stage">
+    <p class="cap">Phone - log flight</p>
+    <div class="phone C">
+      <div class="bar"><strong>AlpenFlight</strong><span>Birrfeld</span></div>
+      <div class="sticky"><span class="big">HB-3215</span><span class="sm">10:24 - ASK 21</span></div>
+      <div class="f"><span class="lbl">Date</span><span class="v num">24.08.2026</span></div>
+      <div class="f"><span class="lbl">Airfield</span><span class="v">LSZF</span></div>
+      <div class="f"><span class="lbl">Start type</span><span class="v">Aerotow</span></div>
+      <div class="f focus"><span class="lbl">Glider</span><span class="v">HB-3215</span></div>
+      <div class="f"><span class="lbl">Pilot</span><span class="v">S. Aebi</span></div>
+      <div class="f"><span class="lbl">2nd seat</span><span class="v">D. Roth</span></div>
+      <div class="f"><span class="lbl">Take-off</span><span class="v num">10:24</span></div>
+      <div class="f"><span class="lbl">Landing</span><span class="v num">11:42</span></div>
+      <div class="f"><span class="lbl">Block</span><span class="v num">01:18</span></div>
+      <div class="f"><span class="lbl">Tow plane</span><span class="v">HB-EAB</span></div>
+      <div class="f"><span class="lbl">Release</span><span class="v num">600 m</span></div>
+      <div class="f"><span class="lbl">Remarks</span><span class="v empty">not set</span></div>
+      <div class="save">Save flight</div>
+    </div>
+    <p class="cap" style="margin-top:16px">Desktop - logbook</p>
+    <div class="desk C">
+      <table>
+        <tr><th>Date</th><th>Aircraft</th><th>Pilot</th><th>Block</th><th>State</th></tr>
+        <tr><td>24.08</td><td>HB-3215</td><td>S. Aebi</td><td>01:18</td><td><span class="st draft">Draft</span></td></tr>
+        <tr><td>24.08</td><td>HB-1782</td><td>M. Weber</td><td>00:47</td><td><span class="st open">Open</span></td></tr>
+        <tr><td>21.08</td><td>HB-3215</td><td>L. Frei</td><td>02:05</td><td><span class="st lock">Locked</span></td></tr>
+        <tr><td>17.08</td><td>HB-EAB</td><td>S. Aebi</td><td>00:15</td><td><span class="st bill">Billed</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>

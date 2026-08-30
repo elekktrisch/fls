@@ -1,0 +1,457 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AlpenFlight — key screens</title>
+<style>
+/* ==========================================================================
+   AlpenFlight key screens. Tokens from DESIGN.md frontmatter, verbatim.
+   Governed by:
+     DESIGN.md      Colors / Typography / Layout & Spacing / Shapes / Components
+     EXPERIENCE.md  Component Patterns, State Patterns, Interaction Primitives,
+                    Flow 1 (Martin logs the first tow), Flow 2 (Ruth sees why)
+   Screens:
+     1  Home, phone            - dashboard, airborne panel  (Flow 1 step 1, 7)
+     2  Airborne board, phone  - NOW and Landing stamps      (Flow 1 step 7, 9)
+     3  Log flight, desktop    - one dense form, conditional (Flow 1 step 3-6)
+     4  Accounting rules       - ordered list + dry run      (Flow 2 step 2-7)
+   ========================================================================== */
+:root{
+  --surface-base:#0A0E13; --surface-panel:#131A22; --surface-raised:#1C242E;
+  --surface-input:#0F161D; --surface-hover:#1A232D; --surface-selected:#0E2029;
+  --ink-primary:#F2F6FA; --ink-secondary:#A8B6C4; --ink-settled:#97A5B2;
+  --ink-disabled:#5E6E7D; --ink-on-live:#04121A;
+  --line-hairline:#1F2A35; --line-strong:#33414F;
+  --live:#5FD0F0; --live-dim:#12303C;
+  --caution:#FFB43D; --caution-dim:#3A2A0C;
+  --warning:#FF6B6B; --warning-dim:#3A1618;
+  --sans:system-ui,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,monospace;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s8:32px;
+  --topbar-h:52px;--tabbar-h:56px;--row-h:44px;--stamp-h:56px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#242C36;color:var(--ink-primary);font:14px/1.45 var(--sans);padding:28px}
+
+/* page chrome only - not part of the design */
+.pg{max-width:1560px;margin:0 auto}
+.pg h1{font-size:20px;font-weight:600;margin:0 0 6px}
+.pg .sub{color:var(--ink-secondary);font-size:13px;margin:0 0 24px;max-width:78ch;line-height:1.55}
+.row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin-bottom:28px}
+.item{}
+.cap{font:600 11px/1.2 var(--sans);text-transform:uppercase;letter-spacing:.12em;color:var(--ink-secondary);margin:0 0 4px}
+.cap2{font-size:12px;color:var(--ink-disabled);margin:0 0 10px;max-width:44ch;line-height:1.5}
+.phone{width:330px;border:9px solid #05080B;border-radius:26px;overflow:hidden;background:var(--surface-base)}
+.win{border:1px solid var(--line-strong);background:var(--surface-base);overflow:hidden}
+
+/* ---- shared AlpenFlight primitives ------------------------------------- */
+.micro{font:600 11px/1.2 var(--sans);text-transform:uppercase;letter-spacing:.12em}
+.val{font-family:var(--mono);font-size:15px;font-weight:500;line-height:1.25;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.lead{font-family:var(--mono);font-size:19px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+
+.topbar{height:var(--topbar-h);background:var(--surface-panel);border-bottom:1px solid var(--line-strong);
+        display:flex;align-items:center;justify-content:space-between;padding:0 var(--s3)}
+.topbar .wm{color:var(--live)}
+.topbar .rt{display:flex;align-items:center;gap:var(--s3)}
+.topbar .base{color:var(--ink-secondary)}
+.av{width:26px;height:26px;border-radius:9999px;background:var(--surface-raised);border:1px solid var(--line-strong);
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-secondary)}
+.unsent{color:var(--warning);border:1px solid var(--warning-dim);padding:2px 6px}
+
+.tabbar{height:var(--tabbar-h);background:var(--surface-panel);border-top:1px solid var(--line-strong);display:flex}
+.tabbar div{flex:1;display:flex;align-items:center;justify-content:center;color:var(--ink-secondary);border-top:2px solid transparent}
+.tabbar div.on{color:var(--live);border-top-color:var(--live)}
+
+.sect{background:var(--surface-panel);border-bottom:1px solid var(--line-strong);
+      padding:var(--s2) var(--s3);color:var(--ink-secondary);display:flex;justify-content:space-between}
+
+.frow{min-height:var(--row-h);padding:var(--s2) var(--s3);border-bottom:1px solid var(--line-hairline);
+      display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
+/* record list: strips, no row rule (DESIGN.md Components > Record list) */
+.lst .frow{border-bottom:0;background:var(--surface-base)}
+.frow .lb{color:var(--ink-secondary)}
+.frow .vv{color:var(--ink-primary)}
+.frow .vv.empty{color:var(--ink-disabled);font-family:var(--sans);font-size:13px;font-weight:400}
+.frow.foc{background:var(--surface-selected);box-shadow:inset 2px 0 0 var(--live)}
+.frow.err{box-shadow:inset 2px 0 0 var(--warning)}
+.errmsg{padding:0 var(--s3) var(--s2);color:var(--warning);font-size:12.5px;border-bottom:1px solid var(--line-hairline)}
+
+.mk{display:inline-block;padding:2px 6px;border:1px solid}
+.mk.open{color:var(--live);border-color:var(--live-dim)}
+.mk.air{color:var(--live);border-color:var(--live)}
+.mk.lock{color:var(--caution);border-color:var(--caution-dim)}
+.mk.bill{color:var(--ink-settled);border-color:var(--line-strong)}
+.mk.uns{color:var(--warning);border-color:var(--warning-dim)}
+
+.stamp{height:var(--stamp-h);min-width:96px;background:var(--live);color:var(--ink-on-live);border:0;
+       display:flex;align-items:center;justify-content:center;cursor:default}
+.btn{height:44px;padding:0 var(--s5);background:var(--live);color:var(--ink-on-live);border:0;
+     display:inline-flex;align-items:center;justify-content:center}
+.btn2{height:44px;padding:0 var(--s5);background:transparent;color:var(--ink-primary);
+      border:1px solid var(--line-strong);display:inline-flex;align-items:center;justify-content:center}
+
+table{width:100%;border-collapse:collapse}
+th{background:var(--surface-panel);border-bottom:1px solid var(--line-strong);color:var(--ink-secondary);
+   text-align:left;padding:var(--s2) var(--s3);font:600 11px/1.2 var(--sans);text-transform:uppercase;letter-spacing:.12em}
+th.r,td.r{text-align:right}
+table tr:hover td{background:var(--surface-hover)}
+td{border-bottom:0;padding:0 var(--s3);height:var(--row-h);
+   font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+td.t{font-family:var(--sans);font-size:14px;font-weight:400}
+
+.strip{min-height:60px;padding:var(--s2) var(--s3);display:flex;align-items:center;gap:var(--s3);
+       background:var(--surface-base)}
+.strip .idz{width:104px;flex:0 0 104px}
+.strip .idz .id{font-family:var(--mono);font-size:19px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+.strip .mtz{flex:1;min-width:0;color:var(--ink-secondary)}
+.strip .mcz{width:88px;flex:0 0 88px;text-align:right}
+.strip .mcz .m{font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;display:block}
+.strip .mcz .mk{margin-top:5px}
+.strip .act{flex:0 0 auto;margin-left:var(--s2)}
+/* PHONE LAYOUT - stacked. The fixed zone widths are pointer-device only;
+   on a 330px screen they squeeze the meta and wrap it.  DESIGN.md > Record strips. */
+.phone .strip{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) 0 var(--s2) var(--s3);min-height:60px}
+.phone .strip .txt{flex:1 1 auto;min-width:0}
+.phone .strip .txt .id{display:block;font-family:var(--mono);font-size:19px;font-weight:600;
+                       line-height:1.15;font-variant-numeric:tabular-nums}
+.phone .strip .txt .micro{display:block;color:var(--ink-secondary);margin-top:3px}
+.phone .strip .rt{flex:0 0 auto;text-align:right}
+.phone .strip .rt .m{display:block;font-family:var(--mono);font-size:15px;font-weight:500;
+                     font-variant-numeric:tabular-nums}
+.phone .strip .rt .mk{display:inline-block;margin-top:5px}
+.phone .strip .act{flex:0 0 auto;margin-left:var(--s2)}
+.phone .strip.settled .id,.phone .strip.settled .m,.phone .strip.settled .micro{color:var(--ink-settled)}
+.search{background:var(--surface-input);border:1px solid var(--line-strong);padding:var(--s2) var(--s3);
+        color:var(--ink-primary);display:flex;gap:var(--s2);align-items:center}
+.search .ph{color:var(--ink-disabled)}
+.chips{display:flex;gap:var(--s2);padding:var(--s2) var(--s3);flex-wrap:wrap;border-bottom:1px solid var(--line-hairline)}
+.chip{height:32px;padding:0 var(--s3);background:var(--surface-panel);border:1px solid var(--line-strong);
+      color:var(--ink-secondary);display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.chip.on{background:var(--live-dim);border-color:var(--live);color:var(--live)}
+
+.card{background:var(--surface-panel);border:1px solid var(--line-hairline);padding:var(--s3);
+      display:flex;gap:var(--s3);margin-bottom:var(--s2)}
+.card .ord{color:var(--live);min-width:24px}
+.card .cl{margin-bottom:2px}
+.card .cl .k{color:var(--ink-secondary);display:inline-block;min-width:44px}
+.card .stop{color:var(--caution);font-size:12.5px;margin-top:var(--s1)}
+.card .hd{color:var(--ink-disabled);margin-left:auto;align-self:center}
+
+.trace{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;padding:var(--s3)}
+.trace .ln{display:flex;justify-content:space-between;padding:var(--s1) 0;color:var(--ink-secondary)}
+.trace .ln .csm{color:var(--live)}
+.trace .tot{display:flex;justify-content:space-between;border-top:1px solid var(--line-strong);
+            margin-top:var(--s2);padding-top:var(--s2);color:var(--ink-primary)}
+.banner{background:var(--surface-raised);border-bottom:1px solid var(--line-strong);padding:var(--s3);
+        display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+.skel{height:var(--row-h);display:flex;align-items:center;padding:0 var(--s3)}
+.skel i{display:block;height:11px;background:var(--surface-panel)}
+</style>
+
+<div class="pg">
+<h1>AlpenFlight — key screens</h1>
+<p class="sub">Four load-bearing surfaces at 1:1, built from the DESIGN.md tokens verbatim. Dark only, radius 0, monospaced tabular numbers, cyan = live, amber = locked, red = wrong or unsent. Every list is a record strip — stacked on the phone, side by side on the pointer device. One background, no alternating tone, no rule under any row. Content is real: Birrfeld LSZF, 25 August 2026.</p>
+
+<!-- ============ ROW 1: phones ============ -->
+<div class="row">
+
+  <!-- 1. HOME -->
+  <div class="item">
+    <p class="cap">1 · Home, phone</p>
+    <p class="cap2">Flow 1 step 1. Airborne panel first, then today, reservations, expiries. One flight is UNSENT — the count also shows in the top bar.</p>
+    <div class="phone">
+      <div class="topbar"><span class="micro wm">ALPENFLIGHT</span>
+        <span class="rt"><span class="micro unsent">1 UNSENT</span><span class="micro base">LSZF</span><span class="av">MW</span></span></div>
+
+      <div class="gh"><span class="micro">IN THE AIR</span><span class="micro">2</span></div>
+<div class="lst">
+        <div class="strip"><span class="txt"><span class="id">HB-3215</span><span class="micro">S. AEBI · OFF 10:24</span></span><span class="rt"><span class="m" style="color:var(--live)">01:18</span><span class="micro mk air">AIRBORNE</span></span></div>
+        <div class="strip"><span class="txt"><span class="id">HB-1782</span><span class="micro">L. FREI · OFF 10:51</span></span><span class="rt"><span class="m" style="color:var(--live)">00:51</span><span class="micro mk air">AIRBORNE</span></span></div>
+      </div>
+<div class="sect"><span class="micro">TODAY</span><span class="micro">7 FLIGHTS</span></div>
+<div class="lst">
+      <div class="frow"><span class="lb micro">BLOCK TIME</span><span class="val vv">06:12</span></div>
+      <div class="frow"><span class="lb micro">PILOTS</span><span class="val vv">9</span></div>
+      <div class="frow"><span class="lb micro">TOWS</span><span class="val vv">7</span></div>
+
+      </div>
+<div class="sect"><span class="micro">RESERVATIONS</span><span class="micro">NEXT</span></div>
+<div class="lst">
+      <div class="frow"><span><span class="val vv">14:00</span> <span style="color:var(--ink-secondary)">HB-2044</span></span>
+        <span style="color:var(--ink-secondary);font-size:13px">L. Frei</span></div>
+
+      </div>
+<div class="gh"><span class="micro">EXPIRING</span><span class="micro" style="color:var(--caution)">2</span></div>
+<div class="lst">
+        <div class="strip"><span class="txt"><span class="id">D. Roth</span><span class="micro">MEDICAL EXPIRES</span></span><span class="rt"><span class="m" style="color:var(--caution)">15.09.</span></span></div>
+        <div class="strip"><span class="txt"><span class="id">J. Suter</span><span class="micro">LICENCE EXPIRES</span></span><span class="rt"><span class="m" style="color:var(--caution)">02.10.</span></span></div>
+      </div>
+      <div style="padding:var(--s3)"><div class="btn micro" style="width:100%">+ LOG FLIGHT</div></div>
+      <div class="tabbar"><div class="micro on">OPERATE</div><div class="micro">PLAN</div><div class="micro">RECORDS</div><div class="micro">ADMIN</div></div>
+    </div>
+  </div>
+<!-- 2. AIRBORNE BOARD -->
+  <div class="item">
+    <p class="cap">2 · Airborne board, phone</p>
+    <p class="cap2">Flow 1 steps 7 and 9. Stacked strips: the meta gets the full width and does not wrap. NOW is the largest control in the product. It bypasses the hold, needs no confirmation, and sits in the thumb arc.</p>
+    <div class="phone">
+      <div class="topbar"><span class="micro wm">ALPENFLIGHT</span>
+        <span class="rt"><span class="micro base">LSZF</span><span class="av">MW</span></span></div>
+
+      <div class="gh"><span class="micro">AT THE START</span><span class="micro">1</span></div>
+<div class="lst">
+        <div class="strip"><span class="txt"><span class="id">HB-2044</span><span class="micro">M. WEBER · TOW HB-EAB · AEROTOW</span></span><span class="rt"><span class="m" style="color:var(--ink-disabled)">not set</span><span class="micro mk open">OPEN</span></span><span class="act"><span class="stamp micro">NOW</span></span></div>
+      </div>
+      <div class="gh"><span class="micro">IN THE AIR</span><span class="micro">2</span></div>
+<div class="lst">
+        <div class="strip"><span class="txt"><span class="id">HB-3215</span><span class="micro">S. AEBI · D. ROTH · OFF 10:24</span></span><span class="rt"><span class="m" style="color:var(--live)">01:18</span><span class="micro mk air">AIRBORNE</span></span><span class="act"><span class="stamp micro">LAND</span></span></div>
+        <div class="strip"><span class="txt"><span class="id">HB-1782</span><span class="micro">L. FREI · OFF 10:51</span></span><span class="rt"><span class="m" style="color:var(--live)">00:51</span><span class="micro mk air">AIRBORNE</span></span><span class="act"><span class="stamp micro">LAND</span></span></div>
+      </div>
+      <div class="gh"><span class="micro">LANDED TODAY</span><span class="micro">7</span></div>
+<div class="lst">
+        <div class="strip"><span class="txt"><span class="id">HB-3215</span><span class="micro">J. SUTER · OFF 09:15 · LSZF → LSZF</span></span><span class="rt"><span class="m">00:42</span><span class="micro mk uns">UNSENT</span></span></div>
+        <div class="strip"><span class="txt"><span class="id">HB-2044</span><span class="micro">L. FREI · OFF 08:40 · WINCH</span></span><span class="rt"><span class="m">00:28</span><span class="micro mk open">OPEN</span></span></div>
+        <div class="strip"><span class="txt"><span class="id">HB-1782</span><span class="micro">P. KELLER · OFF 08:02 · AEROTOW</span></span><span class="rt"><span class="m">00:19</span></span></div>
+      </div>
+      <div class="tabbar"><div class="micro on">OPERATE</div><div class="micro">PLAN</div><div class="micro">RECORDS</div><div class="micro">ADMIN</div></div>
+    </div>
+  </div>
+<!-- 4a. RULES (narrow col beside phones) -->
+  <div class="item" style="flex:1;min-width:520px">
+    <p class="cap">4 · Accounting rules + dry run, desktop</p>
+    <p class="cap2">Flow 2 steps 2–7. The list is in engine run order. Each rule is a WHEN/THEN sentence with the stop flag visible. The reorder preview shows the money before it commits.</p>
+    <div class="win">
+      <div class="topbar"><span class="micro wm">ALPENFLIGHT</span>
+        <span class="rt"><span class="micro" style="color:var(--ink-secondary)">OPERATE</span><span class="micro" style="color:var(--ink-secondary)">PLAN</span>
+          <span class="micro" style="color:var(--ink-secondary)">RECORDS</span><span class="micro" style="color:var(--live)">ADMIN</span>
+          <span class="micro base">LSZF</span><span class="av">RB</span></span></div>
+
+      <div style="padding:var(--s4)">
+        <div class="micro" style="color:var(--ink-secondary);margin-bottom:var(--s3)">ACCOUNTING RULES · RUN ORDER</div>
+
+        <div class="card"><span class="ord lead">1</span>
+          <span><div class="val" style="margin-bottom:6px">Aerotow, first 10 minutes</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">WHEN</span> tow · any aircraft · 0–10 min</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">THEN</span> art. 4010 · per minute · pilot</div>
+            <div class="stop">▸ stops the engine</div></span>
+          <span class="hd">≡</span></div>
+
+        <div class="card"><span class="ord lead">2</span>
+          <span><div class="val" style="margin-bottom:6px">Aerotow, remaining time</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">WHEN</span> tow · any aircraft · unlimited</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">THEN</span> art. 4011 · per minute · pilot</div></span>
+          <span class="hd">≡</span></div>
+
+        <div class="card" style="border-color:var(--live);background:var(--surface-selected)"><span class="ord lead">3</span>
+          <span><div class="val" style="margin-bottom:6px">Landing tax, glider</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">WHEN</span> glider · LSZF · unlimited</div>
+            <div class="cl val" style="font-size:13.5px"><span class="micro k">THEN</span> art. 4200 · per landing · pilot</div></span>
+          <span class="hd" style="color:var(--live)">≡</span></div>
+
+        <div style="display:flex;gap:var(--s4);margin-top:var(--s5)">
+          <div style="flex:1;border:1px solid var(--line-strong)">
+            <div class="sect"><span class="micro">DRY RUN · 21.08 HB-3215 · S. AEBI</span></div>
+            <div class="trace">
+              <div class="ln"><span>block time in</span><span class="vv" style="color:var(--ink-primary)">01:18</span></div>
+              <div class="ln"><span>→ rule 1 takes <span class="csm">00:10</span></span><span>CHF 25.00</span></div>
+              <div class="ln"><span>→ rule 2 takes <span class="csm">01:08</span></span><span>CHF 68.00</span></div>
+              <div class="ln"><span>remains</span><span>00:00</span></div>
+              <div class="tot"><span>total</span><span>CHF 93.00</span></div>
+            </div>
+          </div>
+          <div style="flex:1;border:1px solid var(--caution)">
+            <div class="sect" style="border-color:var(--caution)"><span class="micro" style="color:var(--caution)">REORDER PREVIEW · RULE 3 MOVES TO 2</span></div>
+            <div class="trace">
+              <div class="ln"><span>block time in</span><span style="color:var(--ink-primary)">01:18</span></div>
+              <div class="ln"><span>→ rule 1 takes <span class="csm">00:10</span></span><span>CHF 25.00</span></div>
+              <div class="ln"><span>→ rule 3 takes <span class="csm">00:00</span></span><span>CHF 12.00</span></div>
+              <div class="ln"><span>→ rule 2 takes <span class="csm">01:08</span></span><span>CHF 51.00</span></div>
+              <div class="tot"><span>total</span><span style="color:var(--caution)">CHF 88.00</span></div>
+              <div style="color:var(--caution);font-family:var(--sans);font-size:12.5px;margin-top:var(--s2)">
+                This order changes the invoice by CHF −5.00.</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--s2);margin-top:var(--s4);justify-content:flex-end">
+          <span class="btn2 micro">CANCEL</span><span class="btn micro">KEEP THE NEW ORDER</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROW 2: desktop form ============ -->
+<div class="row">
+  <div class="item" style="flex:1;min-width:900px">
+    <p class="cap">3 · Log flight, desktop — one dense form</p>
+    <p class="cap2">Flow 1 steps 3–6. No wizard and no Next control. The tow block is present because the start type is Aerotow; a winch launch removes it. One field is held by another person, one field shows a validation failure, and the flight states when it locks.</p>
+    <div class="win">
+      <div class="topbar"><span class="micro wm">ALPENFLIGHT</span>
+        <span class="rt"><span class="micro" style="color:var(--live)">OPERATE</span><span class="micro" style="color:var(--ink-secondary)">PLAN</span>
+          <span class="micro" style="color:var(--ink-secondary)">RECORDS</span><span class="micro" style="color:var(--ink-secondary)">ADMIN</span>
+          <span class="micro base">LSZF</span><span class="av">MW</span></span></div>
+
+      <div class="banner">
+        <span><span class="micro mk open">OPEN</span>
+          <span class="lead" style="margin-left:var(--s3)">HB-3215</span>
+          <span class="val" style="color:var(--ink-secondary);margin-left:var(--s2)">ASK 21 · 25.08.2026 · LSZF</span></span>
+        <span><span class="micro" style="color:var(--caution)">LOCKS IN 1 D 6 H</span>
+          <span class="btn2 micro" style="margin-left:var(--s3)">CANCEL</span>
+          <span class="btn micro" style="margin-left:var(--s2)">SAVE</span></span></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+        <!-- col 1: launch -->
+        <div style="border-right:1px solid var(--line-hairline)">
+          <div class="sect"><span class="micro">LAUNCH</span></div>
+          <div class="frow"><span class="lb micro">DATE</span><span class="val vv">25.08.2026</span></div>
+          <div class="frow"><span class="lb micro">AIRFIELD</span><span class="val vv">LSZF</span></div>
+          <div class="frow"><span class="lb micro">START TYPE</span><span class="val vv">Aerotow</span></div>
+          <div class="frow"><span class="lb micro">FLIGHT TYPE</span><span class="val vv">Training</span></div>
+          <div class="sect"><span class="micro">ROUTE</span><span class="micro" style="color:var(--live)">COPY FROM LAST</span></div>
+          <div class="frow"><span class="lb micro">OUTBOUND</span><span class="val vv">LSZF</span></div>
+          <div class="frow"><span class="lb micro">INBOUND</span><span class="val vv">LSZF</span></div>
+        </div>
+
+        <!-- col 2: glider -->
+        <div style="border-right:1px solid var(--line-hairline)">
+          <div class="sect"><span class="micro">GLIDER</span></div>
+          <div class="frow foc"><span class="lb micro">GLIDER</span><span class="val vv">HB-3215</span></div>
+          <div class="frow"><span class="lb micro">PILOT</span><span class="val vv">S. Aebi</span></div>
+          <div class="frow"><span class="lb micro">2ND SEAT</span><span class="val vv">D. Roth</span></div>
+          <div class="frow"><span class="lb micro">INSTRUCTOR</span><span class="val vv">D. Roth</span></div>
+          <div class="frow"><span class="lb micro">BLOCK START</span><span class="val vv">10:24</span></div>
+          <div class="frow err"><span class="lb micro">LANDING</span><span class="val vv">10:19</span></div>
+          <div class="errmsg">The landing time is before the block start. Enter a time after 10:24.</div>
+          <div class="frow"><span class="lb micro">BLOCK TIME</span><span class="val" style="color:var(--ink-disabled)">not set</span></div>
+          <div class="frow"><span class="lb micro">LANDINGS</span><span class="val vv">1</span></div>
+        </div>
+
+        <!-- col 3: tow -->
+        <div>
+          <div class="sect"><span class="micro">TOW PLANE</span><span class="micro" style="color:var(--ink-disabled)">START TYPE = AEROTOW</span></div>
+          <div class="frow"><span class="lb micro">TOW PLANE</span><span class="val vv">HB-EAB</span></div>
+          <div class="frow"><span class="lb micro">TOW PILOT</span><span class="val vv">M. Weber</span></div>
+          <div class="frow"><span class="lb micro">RELEASE</span><span class="val vv">600 m</span></div>
+          <div class="frow"><span class="lb micro">TOW LANDING</span><span class="val vv">10:39</span></div>
+          <div class="frow"><span class="lb micro">TOW BLOCK</span><span class="val vv">00:15</span></div>
+          <div class="frow"><span class="lb micro">ENGINE COUNTER</span><span class="val vv">1284.6</span></div>
+          <div class="sect"><span class="micro">REMARKS</span></div>
+          <div class="frow" style="min-height:72px;align-items:flex-start">
+            <span style="color:var(--ink-primary);font-size:13.5px">Local soaring, Lägern ridge.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROW 3: states ============ -->
+<div class="row">
+  <div class="item" style="min-width:430px;flex:1">
+    <p class="cap">Logbook — record strips, cold load</p>
+    <p class="cap2">No table. The pointer-device layout: identity 104px, meta flexible, metric 88px right-aligned, marker below it. A phone stacks the same four parts instead. One background, no row rules. Sort sits in the toolbar, because a strip has no column header. The two reserved strips at the foot hold final geometry during a cold load.</p>
+    <div class="win">
+      <div class="tbar">
+        <div class="search"><span style="color:var(--ink-disabled)">⌕</span><span class="ph">Search flights</span></div>
+        <div style="display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center">
+          <span class="chip on">This season ✕</span><span class="chip">Any aircraft ▾</span>
+          <span class="chip">Any pilot ▾</span><span class="chip">Any state ▾</span>
+          <span class="sortc micro" style="margin-left:auto">DATE ↓</span>
+        </div>
+      </div>
+
+      <div class="gh"><span class="micro">TODAY · 25.08</span><span class="micro">2</span></div>
+      <div class="lst">
+        <div class="strip">
+          <span class="idz"><span class="id">HB-3215</span></span>
+          <span class="mtz"><span class="micro">S. AEBI · D. ROTH · OFF 10:24 · TRAINING</span></span>
+          <span class="mcz"><span class="m" style="color:var(--live)">01:18</span><span class="micro mk air">AIRBORNE</span></span>
+        </div>
+        <div class="strip">
+          <span class="idz"><span class="id">HB-2044</span></span>
+          <span class="mtz"><span class="micro">L. FREI · OFF 08:40 · LSZF → LSZF</span></span>
+          <span class="mcz"><span class="m">00:28</span><span class="micro mk open">OPEN</span></span>
+        </div>
+      </div>
+
+      <div class="gh"><span class="micro">EARLIER</span><span class="micro">142</span></div>
+      <div class="lst">
+        <div class="strip">
+          <span class="idz"><span class="id">HB-3215</span></span>
+          <span class="mtz"><span class="micro">21.08 · L. FREI · OFF 11:02 · LSZF → LSZF</span></span>
+          <span class="mcz"><span class="m">02:05</span><span class="micro mk lock">LOCKED</span></span>
+        </div>
+        <div class="strip settled">
+          <span class="idz"><span class="id">HB-EAB</span></span>
+          <span class="mtz"><span class="micro">17.08 · S. AEBI · TOW · OFF 14:11</span></span>
+          <span class="mcz"><span class="m">00:15</span><span class="micro mk bill">BILLED</span></span>
+        </div>
+        <div class="strip">
+          <span class="idz"><span class="id">HB-1782</span></span>
+          <span class="mtz"><span class="micro">17.08 · J. SUTER · WINCH · NO TOW</span></span>
+          <span class="mcz"><span class="m" style="color:var(--ink-disabled);font-family:var(--sans);font-size:13px">not set</span><span class="micro mk uns">UNSENT</span></span>
+        </div>
+        <div class="strip"><span class="idz"><i style="display:block;height:13px;width:82px;background:var(--surface-panel)"></i></span>
+          <span class="mtz"><i style="display:block;height:9px;width:70%;background:var(--surface-panel)"></i></span>
+          <span class="mcz"><i style="display:block;height:11px;width:52px;background:var(--surface-panel);margin-left:auto"></i></span></div>
+        <div class="strip"><span class="idz"><i style="display:block;height:13px;width:82px;background:var(--surface-panel)"></i></span>
+          <span class="mtz"><i style="display:block;height:9px;width:55%;background:var(--surface-panel)"></i></span>
+          <span class="mcz"><i style="display:block;height:11px;width:52px;background:var(--surface-panel);margin-left:auto"></i></span></div>
+      </div>
+
+      <div class="gh" style="border-bottom:0;border-top:1px solid var(--line-strong)">
+        <span class="micro">DENSE MODE · POINTER DEVICE ONLY</span></div>
+      <div class="lst">
+        <div class="strip" style="min-height:44px">
+          <span class="idz"><span class="id" style="font-size:15px">HB-3215</span></span>
+          <span class="mtz"><span class="micro">21.08 · L. FREI · OFF 11:02</span></span>
+          <span class="mcz"><span class="m">02:05</span></span>
+          <span class="act"><span class="micro mk lock">LOCKED</span></span>
+        </div>
+        <div class="strip" style="min-height:44px">
+          <span class="idz"><span class="id" style="font-size:15px">HB-EAB</span></span>
+          <span class="mtz"><span class="micro">17.08 · S. AEBI · TOW</span></span>
+          <span class="mcz"><span class="m">00:15</span></span>
+          <span class="act"><span class="micro mk bill">BILLED</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="item" style="min-width:430px;flex:1">
+    <p class="cap">Held by another · Conflict on reconnect</p>
+    <p class="cap2">Two State Patterns rows. The hold names the holder and offers Take over. The conflict shows both values, with who wrote each, and discards nothing until the operator picks.</p>
+    <div class="win" style="margin-bottom:var(--s4)">
+      <div class="banner"><span><span class="micro mk open">OPEN</span>
+        <span class="lead" style="margin-left:var(--s3)">HB-1782</span></span>
+        <span class="btn2 micro">TAKE OVER</span></div>
+      <div style="padding:var(--s3);color:var(--ink-secondary);font-size:13.5px;border-bottom:1px solid var(--line-hairline)">
+        M. Weber is editing this flight.</div>
+      <div class="frow"><span class="lb micro">PILOT</span><span class="val" style="color:var(--ink-settled)">L. Frei</span></div>
+      <div class="frow"><span class="lb micro">BLOCK START</span><span class="val" style="color:var(--ink-settled)">10:51</span></div>
+      <div class="frow" style="border-bottom:0"><span class="lb micro">LANDING</span><span class="val" style="color:var(--ink-disabled)">not set</span></div>
+    </div>
+
+    <div class="win">
+      <div class="banner" style="border-bottom-color:var(--warning)">
+        <span><span class="micro mk uns">CONFLICT</span>
+          <span class="lead" style="margin-left:var(--s3)">HB-3215</span></span>
+        <span class="micro" style="color:var(--warning)">LANDING TIME</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr">
+        <div style="border-right:1px solid var(--line-hairline)">
+          <div class="sect"><span class="micro">THIS DEVICE</span></div>
+          <div style="padding:var(--s3)"><div class="lead">11:42</div>
+            <div class="micro" style="color:var(--ink-secondary);margin-top:6px">M. WEBER · 11:44 · OFFLINE</div>
+            <div class="btn2 micro" style="margin-top:var(--s3);width:100%">KEEP THIS</div></div>
+        </div>
+        <div>
+          <div class="sect"><span class="micro">THE SERVER</span></div>
+          <div style="padding:var(--s3)"><div class="lead">11:39</div>
+            <div class="micro" style="color:var(--ink-secondary);margin-top:6px">S. AEBI · 11:41</div>
+            <div class="btn2 micro" style="margin-top:var(--s3);width:100%">KEEP THIS</div></div>
+        </div>
+      </div>
+      <div style="padding:var(--s3);color:var(--ink-secondary);font-size:12.5px;border-top:1px solid var(--line-hairline)">
+        Nothing is discarded until you pick one.</div>
+    </div>
+  </div>
+</div>
+
+</div>

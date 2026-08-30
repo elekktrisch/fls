@@ -25,24 +25,13 @@ e2e/screenshots
 !.claude/memory/
 !.claude/settings.json
 !.claude/hooks/
-alpenflight/server/build
-alpenflight/server/.gradle
-alpenflight/web/node_modules
-alpenflight/web/node_modules_sandbox
-alpenflight/web/node_modules.windows
-alpenflight/web/scripts/node_modules
-alpenflight/web/dist
-alpenflight/web/.angular
+alpenflight/**/.gradle/
+alpenflight/**/build/
+alpenflight/client/node_modules/
+alpenflight/client/**/node_modules/
+alpenflight/client/platform/dist/
+alpenflight/client/platform/.angular/
 .pnpm-store/
-
-# Per-developer Keycloak env (Google OAuth client secrets, SMTP overrides,
-# SPA base URL). .env.example is the committed template.
-alpenflight/auth/.env
-alpenflight/web/e2e/screenshots/
-
-# Local backend bring-up runtime artifacts (real-idp dev stack + ci.yml)
-alpenflight/server/backend.log
-alpenflight/server/backend.pid
 
 # /comment-strip working state (manifests, shard state)
 .comment-strip/

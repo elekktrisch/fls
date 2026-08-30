@@ -1,0 +1,8 @@
+{
+  "name": "alpenflight-client",
+  "private": true,
+  "description": "npm workspaces root for client/platform.",
+  "workspaces": [
+    "platform"
+  ]
+}

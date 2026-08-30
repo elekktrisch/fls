@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: alpenflight-platform
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:alpenflight}
+    username: ${DB_APP_USER:app_user}
+    password: ${DB_APP_PASSWORD:app_user}
+  flyway:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:alpenflight}
+    user: ${DB_OWNER_USER:alpenflight}
+    password: ${DB_OWNER_PASSWORD:alpenflight}
+    placeholders:
+      appPassword: ${DB_APP_PASSWORD:app_user}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+server:
+  port: 8080

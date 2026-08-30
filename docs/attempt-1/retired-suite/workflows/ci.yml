@@ -1,0 +1,2352 @@
+name: ci
+
+# Trigger policy (J-25 T-05 dedup): `push` is `main`-only — the post-merge
+# run that performs the canonical `github.ref == 'refs/heads/main'`-gated
+# gh-pages proof-gallery deploy. In-flight `integration/**` branches always
+# carry a (draft) PR in this flow, so the `pull_request` trigger covers them
+# with a SINGLE run (a branch listed under both `push` and `pull_request`
+# would otherwise run twice on one commit — different `github.ref` → the
+# `ci-${{ github.ref }}` concurrency groups don't cancel each other).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, "integration/**"]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide whether the alpenflight/ lane needs to run based on what changed.
+  #
+  # Legacy (flsserver + flsweb + e2e) is reference-only and exercised by the
+  # `nightly.yml` workflow on a schedule — see CLAUDE.md "Legacy is
+  # reference-only". PR CI only gates the rewrite.
+  #
+  # Two ways the heavy lane is skipped (both leave only the `required`
+  # aggregator running — always green — so branch protection stays satisfied
+  # without spending compute):
+  #   1. The WHOLE PR vs main touches no alpenflight/ or ci.yml file (markdown-
+  #      only PR): `filter.next` is false.
+  #   2. THIS push / PR-sync's incremental diff is docs-only even though the PR
+  #      cumulatively contains code: `incremental.docs_only` is true (J-2 T-11).
+  #
+  # A THIRD way stands the heavy lane down but deliberately does NOT leave the
+  # gate green: the `.ci-troubleshooting` marker (see the step of that name).
+  # ---------------------------------------------------------------------------
+  changes:
+    name: detect changes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      next: ${{ steps.filter.outputs.next }}
+      docs_only: ${{ steps.incremental.outputs.docs_only }}
+      # Troubleshooting mode — see the "Detect troubleshooting marker" step.
+      # Only the heavy lane consumes this; `required` re-reads the marker itself
+      # so its red is caused by the marker, not by a skipped dependency.
+      troubleshooting: ${{ steps.troubleshooting.outputs.active }}
+      proof_spec: ${{ steps.proof_spec.outputs.spec }}
+      proof_journey: ${{ steps.proof_spec.outputs.journey }}
+      proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
+      mock_filter: ${{ steps.mock_spec.outputs.filter }}
+      mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
+    steps:
+      # fetch-depth: 0 so the `incremental` step below can diff against the
+      # PR/push "before" SHA (the parent of the pushed commits), which a
+      # shallow depth-1 checkout would not have locally.
+      - name: Check out every ref without historical file content
+        uses: actions/checkout@v4
+        timeout-minutes: 2
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Fail the whole run before any gate job spends compute: a ternary whose
+      # then-branch is falsy silently disables the branch it looks like it
+      # enables, so a gate guard can read as configured while never running.
+      - name: Workflow expression guard (falsy then-branch)
+        run: |
+          python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
+          python3 .github/scripts/gha-falsy-ternary-lint.py
+
+      - name: Journey-derive guard (J-33 — the proof lane and the mock lane each carry EVERY spec the journey declares, whatever separator declares it, and a declaration the lane cannot run is dropped loudly, never silently)
+        run: bash .github/scripts/journey-derive-selfcheck.sh
+
+      - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
+        run: python3 .github/scripts/required-gate-reds-when-a-required-job-skips-its-live-lane.py
+
+      - name: Fan-out verdict-reader guard (J-32 — the reader must tell a parity defect from a chain that could not run, from a spec that asserts no migrated data, and from a proven parity whose run went red at a later step; when two covering runs disagree, the newest run whose parity step went red must decide and must refuse the merge; it must still find the fan-out job, its parity step and every spec that step drives)
+        run: python3 .github/scripts/fanout-parity-verdict.py --selftest
+
+      - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
+        run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
+
+      - name: Absolute-flight-date-in-API-seed guard (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: node alpenflight/web/scripts/absolute-flight-date-in-api-seed-guard.mjs
+
+      - name: Realm-shape guard + its negative test (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: bash alpenflight/auth/scripts/check-realm-shape-rejects-planted-drift.sh
+
+      - name: Bring-up + real-OIDC-SPA-port guards (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: bash alpenflight/ops/test-bring-up-guards.sh
+
+      - name: Self-hosted-theme-resource guard + its negative test (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: |
+          bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh --selftest
+          bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh
+
+      - name: gh-pages guards + their negative tests
+        run: |
+          python3 .github/scripts/gh-pages-retention.py --selftest
+          python3 .github/scripts/check-gh-pages-payload-size.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py
+
+      # ---------------------------------------------------------------------
+      # Troubleshooting mode (fail-closed).
+      #
+      # Commit a `.ci-troubleshooting` file at the repo root to stand the heavy
+      # lane down, so repeated diagnosis can run as throwaway GitHub workflows
+      # in parallel with local coding instead of contending for a 2-core box.
+      # Delete the file to restore normal gating.
+      #
+      # While the marker exists the `required` gate hard-fails on the marker
+      # itself, so the PR is physically unable to go green and a forgotten
+      # re-enable cannot pass off an un-gated branch as a proven one. The file's
+      # content is free-form and is echoed into the failing gate's log — put the
+      # reason and the restore steps in it.
+      # ---------------------------------------------------------------------
+      - name: Detect troubleshooting marker
+        id: troubleshooting
+        run: |
+          set -euo pipefail
+          if [ -f .ci-troubleshooting ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+            echo "── .ci-troubleshooting present → heavy lane stands down, the required gate will FAIL ──"
+            cat .ci-troubleshooting
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "no .ci-troubleshooting marker → normal gating"
+          fi
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            next:
+              - '{.github/workflows/ci.yml,alpenflight/**}'
+              - '!**/*.md'
+
+      # ---------------------------------------------------------------------
+      # Incremental docs-only gate (J-2 T-11).
+      #
+      # `filter.next` above diffs the WHOLE PR against its base (`main`) — so on
+      # an `integration/**` branch that already carries earlier alpenflight/
+      # commits, `next` is ALWAYS true, even for a push that only edited docs.
+      # That re-ran the ~8-min build+proof on every doc-only push during J-1.
+      #
+      # This step instead looks at ONLY the commits introduced by THIS push /
+      # PR-sync (github.event.before..after) and sets `docs_only=true` iff that
+      # incremental diff touched zero heavy-lane files (alpenflight/** or this
+      # workflow, ignoring *.md). The heavy jobs gate on
+      # `next == 'true' && docs_only != 'true'`, so a doc-only push skips them
+      # while a code push still runs. FAIL-SAFE toward running: any case where
+      # the incremental range is undeterminable (new branch / force-push with a
+      # zero or missing `before`, freshly opened PR, workflow_dispatch) leaves
+      # docs_only=false so the heavy lane runs — we never risk false-skipping a
+      # real code push.
+      - name: Detect docs-only push (incremental)
+        id: incremental
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          zero='0000000000000000000000000000000000000000'
+          # No usable incremental range → run the heavy lane (fail-safe).
+          if [ -z "${BEFORE:-}" ] || [ "${BEFORE}" = "${zero}" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "no usable 'before' SHA (${BEFORE:-unset}) — not docs-only (run heavy lane)"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          head="${AFTER:-HEAD}"
+          if [ "${head}" != "HEAD" ] && ! git cat-file -e "${head}^{commit}" 2>/dev/null; then
+            head=HEAD
+          fi
+          echo "incremental diff range: ${BEFORE}..${head}"
+          changed="$(git diff --name-only "${BEFORE}" "${head}")"
+          echo "── files changed in this push ──"
+          echo "${changed}"
+          # A "heavy-lane" file is alpenflight/** or this workflow, EXCLUDING *.md.
+          # If the incremental diff contains any such file, it is NOT docs-only.
+          heavy="$(printf '%s\n' "${changed}" \
+            | grep -E '^(alpenflight/|\.github/workflows/ci\.yml$)' \
+            | grep -vE '\.md$' || true)"
+          if [ -n "${heavy}" ]; then
+            echo "── heavy-lane files touched → not docs-only ──"
+            echo "${heavy}"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "── no heavy-lane files in this push → docs-only (skip build+proof) ──"
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Derive journey proof spec
+        id: proof_spec
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: bash .github/scripts/derive-journey-lane.sh proof "${HEAD_REF:-${REF_NAME:-}}"
+
+      - name: Derive journey mock-e2e filter
+        id: mock_spec
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: bash .github/scripts/derive-journey-lane.sh mock "${HEAD_REF:-${REF_NAME:-}}"
+
+
+  # ---------------------------------------------------------------------------
+  # alpenflight/ build — FAIL-AGGREGATE split (J-7 T-13, J-5 retro rider).
+  #
+  # Previously ONE `next-build` job built server (Gradle) THEN web (Node) THEN
+  # ran `pnpm lint; pnpm format; pnpm test; pnpm build` in a single `run:` block.
+  # A server-build failure hid every web check; a `pnpm lint` failure hid the
+  # `pnpm test`/`build` reds — so a developer discovered reds layer-by-layer
+  # across fix-one-rerun cycles. Split into two PARALLEL jobs by toolchain (the
+  # two use entirely DISJOINT setups — JDK/Gradle vs Node/pnpm — so the split
+  # adds no duplicated expensive setup), and inside each job each check is its
+  # OWN step gated on `${{ !cancelled() }}` so a red step doesn't skip the
+  # later independent checks: one CI run now surfaces server build, web lint,
+  # web format, web test, and web build reds all at once. Both jobs gate the
+  # `required` aggregator (see `required.needs`); each carries the SAME
+  # `next == 'true' && docs_only != 'true'` path-filter as before, so a
+  # docs-only push skips both → they report `skipped` → the aggregator's
+  # skipped-to-success path keeps the gate green.
+  #
+  # `mock-e2e` was already a separate parallel job (`needs: changes`), so it
+  # reported independently before this split — this change closes the
+  # build/server-test/web-lint serial gap the rider names.
+  #
+  # Legacy lanes live in `nightly.yml` (cron + workflow_dispatch); PR CI
+  # only gates the rewrite.
+  # ---------------------------------------------------------------------------
+  next-build-server:
+    name: alpenflight build (server + migration-tool)
+    needs: changes
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect buildable Gradle subdirs
+        id: detect
+        run: |
+          if [ -f alpenflight/server/build.gradle.kts ] || [ -f alpenflight/server/build.gradle ]; then
+            echo "server=true" >> $GITHUB_OUTPUT
+          else
+            echo "server=false" >> $GITHUB_OUTPUT
+          fi
+          if [ -f alpenflight/migration-tool/build.gradle.kts ]; then
+            echo "migration_tool=true" >> $GITHUB_OUTPUT
+          else
+            echo "migration_tool=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 25
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      # `!cancelled()` (not the default fail-fast) so a red server build still
+      # lets the migration-tool build report its own status in the same run.
+      - name: Build alpenflight/server
+        if: ${{ !cancelled() && steps.detect.outputs.server == 'true' }}
+        working-directory: alpenflight/server
+        run: ./gradlew build --no-daemon
+
+      - name: Build alpenflight/migration-tool
+        if: ${{ !cancelled() && steps.detect.outputs.migration_tool == 'true' }}
+        working-directory: alpenflight/migration-tool
+        run: ./gradlew build --no-daemon
+
+  next-build-web:
+    name: alpenflight build (web)
+    needs: changes
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect buildable web subdir
+        id: detect
+        run: |
+          if [ -f alpenflight/web/package.json ]; then
+            echo "web=true" >> $GITHUB_OUTPUT
+          else
+            echo "web=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node 22
+        if: steps.detect.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        if: steps.detect.outputs.web == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        if: steps.detect.outputs.web == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        if: steps.detect.outputs.web == 'true'
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Drift gate for the generated TS API client (orval reads the committed
+      # openapi/openapi.json snapshot — Node-only, no JDK/server boot). We
+      # deliberately do NOT auto-commit the regenerated artifacts back to the PR
+      # branch: any push made with the workflow's GITHUB_TOKEN suppresses the
+      # `pull_request: synchronize` events for subsequent pushes on the same
+      # branch (GitHub's recursive-workflow protection), which leaves the PR's
+      # `required` check forever unsatisfied. Developers regenerate locally and
+      # commit the result.
+      #
+      # Each web check below is its OWN step gated on `${{ !cancelled() }}` so a
+      # red in one (e.g. lint) does NOT skip the later independent checks
+      # (format / test / build) — one run reports every web red at once. (The
+      # leading detect-gate `&& steps.detect.outputs.web == 'true'` keeps them
+      # no-ops when there is no web subdir.)
+      - name: Check generated API client is up to date
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: |
+          pnpm run generate-api
+          if git diff --quiet src/app/api/generated/; then
+            echo "Generated API client is up to date."
+            exit 0
+          fi
+          echo "::error::Generated API client is stale. Run 'pnpm run generate-api' in alpenflight/web/ and commit the result."
+          git --no-pager diff --stat src/app/api/generated/
+          exit 1
+
+      - name: Lint alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm lint
+
+      - name: Check formatting alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm format
+
+      - name: Test alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm test
+
+      - name: Build alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm build:prod
+
+  # ---------------------------------------------------------------------------
+  # Keycloak realm shape check (S-019). Cheap jq guard over
+  # alpenflight/auth/realm-export.json: PKCE-S256, bearer-only, no private key,
+  # seed users + clubId, ADR 0007 token policy. Reuses `changes.outputs.next`
+  # because the realm-export lives under alpenflight/auth/.
+  # ---------------------------------------------------------------------------
+  next-auth-realm-shape:
+    name: alpenflight auth realm shape
+    needs: changes
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Realm-export shape guard
+        if: hashFiles('alpenflight/auth/realm-export.json') != ''
+        run: bash alpenflight/auth/scripts/check-realm-shape.sh
+
+  # ---------------------------------------------------------------------------
+  # migration-bundle owns its own tests, and until J-33 T-42 no lane ran them.
+  # `next-build-server` builds alpenflight/server and alpenflight/migration-tool;
+  # both include migration-bundle as a Gradle COMPOSITE build, and a composite
+  # build runs an included build's `compileJava`/`jar` only — never its `test`.
+  # Measured on this tree: `./gradlew build --dry-run` in server, migration-tool
+  # and database/extract each lists `:migration-bundle:{compileJava,
+  # processResources,classes,jar}` and no `:migration-bundle:test`. So 492 unit
+  # tests — including the mapper foreign-key and legacy-binding guards J-33 T-05
+  # and T-37 shipped — scored nothing.
+  #
+  # This job sits at the GRAPH ROOT on purpose: no `paths:` filter, no `if:`,
+  # no `needs:`. extract.yml filtered itself away from the very file it
+  # validated and stayed red-but-invisible for about three months (J-31 T-18),
+  # so this lane refuses every mechanism that could stand it down.
+  #
+  # J-33 T-43 added the `parityTest` step. `./gradlew build` compiles
+  # `src/parity/java` but executes no parity case, so the oracle ran nowhere.
+  # `PARITY_REQUIRES_DOCKER=1` makes the harness RED on an unreachable Docker
+  # daemon instead of skipping the class: the `@EnabledIf(dockerAvailable)`
+  # guard otherwise turns the whole oracle green without one assertion.
+  #
+  # RESIDUAL LIMIT — `parityRejectTest` and `parityMetaTest` still run nowhere,
+  # because both hold zero tagged cases (S-187d owes them). See
+  # `[PARITY-REJECT-AND-META-TASKS-HOLD-ZERO-CASES]` in _BOYSCOUT.md.
+  # ---------------------------------------------------------------------------
+  migration-bundle-tests:
+    name: alpenflight migration-bundle (unit tests + parity oracle)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build + test alpenflight/migration-bundle
+        working-directory: alpenflight/migration-bundle
+        run: ./gradlew build --no-daemon
+
+      - name: Run the parity oracle (MSSQL + Postgres round-trip)
+        working-directory: alpenflight/migration-bundle
+        env:
+          PARITY_REQUIRES_DOCKER: '1'
+        run: ./gradlew parityTest --no-daemon
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-bundle-test-report-${{ github.run_id }}
+          path: |
+            alpenflight/migration-bundle/build/reports/tests/test
+            alpenflight/migration-bundle/build/reports/tests/parityTest
+            alpenflight/migration-bundle/build/reports/parity
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-proof — the per-push real-chain verticality proof (clean-seed)
+  # (S-062g, S-110).
+  #
+  # Brings up the real stack — Postgres + Keycloak + Mailpit + the alpenflight
+  # backend + `ng serve --configuration=development` — applies a CLEAN Flyway
+  # seed (NO legacy-up / NO MSSQL / NO migrate; the legacy→migrate half is
+  # DEFERRED to J-0b), then runs ONE real-idp spec against the real backend —
+  # the JOURNEY-UNDER-WORK's spec (derived in the `changes` job; see
+  # `proof_spec`). This is the run that proves verticality (real Keycloak JWT →
+  # @TenantId filter → Postgres) for the journey currently in flight.
+  #
+  # PROOF-SCOPING — two riders, one mechanism.
+  # ----------------------------------------------------------------------------
+  # This job used to ALSO run the J-1 aircraft + J-2 flight migration-parity
+  # specs. The known J-1 `aircraft-migration-parity.spec.ts` cross-process flake
+  # then intermittently RED-ed the per-push `required` gate on journeys that
+  # touch no aircraft at all (e.g. J-4 /profile).
+  #
+  #   • J-4 T-21+T-22 (operator Q1 2026-06-05): the aircraft + flight parity
+  #     specs MOVED to the nightly real-idp suite (`alpenflight-e2e-real-idp.yml`,
+  #     full `--project=real-idp` run), and this job was temporarily DROPPED from
+  #     the `required` aggregator's `needs` to stop the flake red-ing unrelated
+  #     journeys.
+  #   • J-5 T-14 (J-3 retro): the per-push spec is DERIVED off the integration
+  #     branch name, so during a journey's build-up this runs THAT journey's
+  #     real-idp spec only — not a fixed prior journey's, and not all of them.
+  #   • J-5 T-19 (operator decision 2026-06-06): with the proof now scoped to the
+  #     journey-under-work's OWN spec (T-14) and the aircraft flake fixed (T-15),
+  #     this job is BACK in the `required` aggregator's `needs` — a red real-idp
+  #     run for the journey in flight BLOCKS merge again (see `required` below).
+  #     A `parity_test:` that is NOT a clean-seed real-idp spec — a showcase
+  #     `tests/profile/` spec (J-4, own gating job), a mock-auth-only spec, or a
+  #     non-integration branch — falls back to the journey-agnostic J-0 Locations
+  #     baseline (`proof_is_baseline`), so the J-0 proof gallery + the per-PR
+  #     preview live-link-check (which greps for the J-0 Locations captions) keep
+  #     working on the baseline path, AND `alpenflight-dashboard-proof` can still
+  #     chain after it. (J-5 itself derives its real-idp
+  #     `reservations-migration-parity.spec.ts`, is_baseline=false.)
+  #
+  # The FULL cross-journey regression runs NIGHTLY (`alpenflight-e2e-real-idp.yml`,
+  # full `--project=real-idp`) + once at the §4 do-ship gate (e2e-driver's full
+  # chain) — never on every push. This per-push job stays a SINGLE spec (plus its
+  # `real-idp-setup` dependency, which Playwright runs automatically) to hold the
+  # ~8-min PR budget. Lives INSIDE ci.yml (not the nightly workflow) so it can
+  # build the same proof gallery the other in-repo proof jobs do.
+  #
+  # The `real-idp` project's `video: 'on'` (playwright.config.ts) retains the
+  # pass-video; the upload step archives it as J-0's acceptance artifact.
+  # ---------------------------------------------------------------------------
+  alpenflight-proof:
+    name: alpenflight proof (real-idp, clean-seed)
+    needs: changes
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    # Serialize gh-pages writes across workflows so concurrent deploys from
+    # different refs/workflows don't race the gh-pages ref.
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
+    # `contents: write` lets the gh-pages deploy steps push the proof gallery
+    # to the gh-pages branch (mirrors alpenflight-e2e.yml). Without it the
+    # deploy fails with 403; the rest of the job needs read.
+    # `pull-requests: write` (J-25) lets the preview step post/update the
+    # sticky PR comment carrying the per-branch preview URL.
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: read
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cross-project shared network (S-172). Create explicitly first so the
+      # bring-up scripts' inspect-first diag message isn't ambiguous on a
+      # clean runner.
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      # Registry-pull retry (J-25 T-05): the three docker steps below touch
+      # external registries (quay.io for Keycloak, registry-1.docker.io for
+      # mailpit/postgres/pgadmin) and fail red on transient 5xx/timeout blips
+      # (observed: quay.io 502 + docker.io timeout → manual reruns). Each is
+      # wrapped in a bounded 3-attempt retry with 15s backoff. A genuinely
+      # persistent failure still exits non-zero after the 3rd attempt (the
+      # `exit 1` after the loop), so real breakage stays red — only transient
+      # blips self-heal. The retry is scoped to image-pull/build/up ONLY; the
+      # test/gallery/deploy steps are deliberately NOT retried (a flaky spec
+      # must not be silently retried into green — different policy).
+      - name: Bring up alpenflight-infra (mailpit)
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Build pgAdmin + Keycloak images
+        env:
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
+
+      # Clean seed: Postgres + Keycloak only. No MSSQL / legacy-up / migrate
+      # (deferred to J-0b — see the J-0 journey file).
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Apply Flyway migrations against the target Postgres so the alpenflight
+      # backend has the (clean-seeded) schema it expects at boot. S-160: runs as
+      # the MIGRATOR role (alpenflight); APP_DB_PASSWORD is the password V54
+      # provisions the app role with, matched by the app-boot step below.
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      # S-160: the running backend boots as the APP role (alpenflight_app), while
+      # Flyway (spring.flyway.*) migrates as the migrator (alpenflight).
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
+          SPRING_PROFILES_ACTIVE: dev
+          # Pin log level so payload logging can't leak the canned dev
+          # password into the uploaded backend.log artifact.
+          LOGGING_LEVEL_ROOT: INFO
+          # Matches alpenflight-proof-fanout.yml's T-17 (host bootJar ↔
+          # host-mapped Keycloak). The backend runs as a HOST bootJar but
+          # Keycloak is a container host-published at localhost:8090 (compose
+          # `127.0.0.1:8090:8080`), so the compose-internal `http://keycloak:8080`
+          # is unresolvable from the host. The `dev` profile already redirects
+          # JWKS + issuer to localhost:8090, but `keycloak.admin.base-url`
+          # (application.yml) still defaults to `http://keycloak:8080` — latent
+          # until J-1's migration provisioning first exercises the admin client
+          # at ingest. Point the admin-base at the host port so the
+          # migration-provisioning admin client can reach Keycloak.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
+        run: |
+          # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
+          # not "server" — and the plain `jar` task also emits a non-executable
+          # *-plain.jar. Resolve the executable boot jar by excluding -plain.
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      # The JOURNEY-UNDER-WORK's real-idp proof spec (its `real-idp-setup`
+      # dependency runs automatically) — a SINGLE spec, NOT the full real-idp
+      # suite, and NOT every prior journey's spec.
+      #
+      # PROOF-SCOPING — two riders, one mechanism:
+      #   • J-4 T-21+T-22 (operator Q1 2026-06-05): the J-1 aircraft / J-2 flight
+      #     migration-parity specs MOVED to the nightly real-idp suite
+      #     (`alpenflight-e2e-real-idp.yml`'s full `--project=real-idp` run) — the
+      #     known `aircraft-migration-parity.spec.ts` flake intermittently red-ed
+      #     the per-push `required` gate on journeys touching no aircraft.
+      #   • J-5 T-14 (J-3 retro): the per-push spec set is now DERIVED off the
+      #     integration branch (`changes` job → `proof_spec`), so during a
+      #     journey's build-up this runs EVERY real-idp spec THAT journey
+      #     declares, not a fixed prior journey's. A `parity_test:` that names no
+      #     clean-seed real-idp spec (a showcase `tests/profile/` spec — J-4, own
+      #     gating job; a mock-auth-only spec) or a non-integration branch falls back to the
+      #     stable J-0 Locations baseline (`proof_is_baseline`), so this job still
+      #     proves the real Keycloak→@TenantId→Postgres vertical and emits the J-0
+      #     captions the per-PR preview live-link-check greps for. J-5 itself
+      #     derives its real-idp `reservations-migration-parity.spec.ts`
+      #     (is_baseline=false). The full cross-journey regression runs NIGHTLY
+      #     (the real-idp workflow) + at the §4 do-ship gate (e2e-driver's full
+      #     chain) — deliberately NOT on every push.
+      #   • J-5 T-19 (operator decision 2026-06-06): this journey-scoped run now GATES
+      #     `required` again — a failed Playwright assertion here exits the step
+      #     non-zero (`set -euo pipefail`; no `|| true`/continue-on-error/always()
+      #     on THIS step) → the job fails → `needs.alpenflight-proof.result` is
+      #     `failure` → the aggregator reds. The fail-soft maintainability +
+      #     gallery steps run AFTER and cannot mask this step's failure.
+      #
+      - name: Run real-idp proof specs (journey-under-work)
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 25
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          PROOF_SPEC: ${{ needs.changes.outputs.proof_spec }}
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+        run: |
+          set -euo pipefail
+          EMPTY_DERIVE_OUTPUT_STILL_PROVES_THE_REAL_CHAIN='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
+          read -r -a PROOF_SPECS <<< "${PROOF_SPEC:-}"
+          if [ "${#PROOF_SPECS[@]}" -eq 0 ]; then
+            PROOF_SPECS=("$EMPTY_DERIVE_OUTPUT_STILL_PROVES_THE_REAL_CHAIN")
+          fi
+          echo "running ${#PROOF_SPECS[@]} per-push proof spec(s) for ${PROOF_JOURNEY:-?}: ${PROOF_SPECS[*]}"
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            --workers=1 \
+            --max-failures=0 \
+            "${PROOF_SPECS[@]}"
+
+      # Upload the per-test failure artifacts (error-context.md + trace.zip +
+      # screenshot/video) BEFORE any later step mutates `test-results/`: the
+      # deployed-bookmark link-check re-invokes Playwright (`proof-gallery-links`),
+      # which CLEANS its output dir at run start and would delete THIS spec's
+      # artifacts. Gated on `failure()` and placed right after the proof spec so
+      # the trace is captured intact.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-alpenflight-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
+      # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
+      # panel renders. PRODUCE + STAGE only (T-13 reads these paths; no panel
+      # HTML here). FAIL-SOFT: a missing/failed report is informational and must
+      # NEVER red the proof gate (continue-on-error + `|| true` guards inside).
+      # Stable artifact paths consumed by the gallery deploy:
+      #   FE (fallow, journey delta): public/alpenflight/proof/maintainability/fallow-audit.json
+      #   FE (fallow, repo snapshot): public/alpenflight/proof/maintainability/fallow-health.json
+      #   BE (PMD):                   public/alpenflight/proof/maintainability/pmd-main.xml
+      #   BE (CPD):                   public/alpenflight/proof/maintainability/cpd-check.xml
+      # Placed BEFORE the gallery generate step so the JSON/XML are on disk under
+      # the gallery's --out root when T-13's generator scans for them, and so the
+      # always()-uploaded proof artifact carries them too.
+      - name: Emit maintainability reports (fail-soft)
+        id: maintainability
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="public/alpenflight/proof/maintainability"
+          mkdir -p "$OUT"
+          # --- Frontend (fallow) ---------------------------------------------
+          # audit = changed-files envelope (this journey's diff vs main):
+          # per-finding `introduced: true/false` attribution = the journey delta.
+          # Needs the base ref present (checkout is shallow) — fetch it best-effort.
+          git fetch --no-tags --depth=200 origin main:refs/remotes/origin/main 2>/dev/null || true
+          (
+            cd alpenflight/web
+            # audit exits non-zero on a fail/warn verdict — capture JSON regardless.
+            npx --yes fallow@latest audit --base origin/main --format json \
+              > ../../"$OUT"/fallow-audit.json 2>/dev/null || true
+            # health snapshot (overall grade/MI/dup/dead-code for the repo).
+            npx --yes fallow@latest health --format json \
+              > ../../"$OUT"/fallow-health.json 2>/dev/null || true
+          )
+          # --- Backend (PMD/CPD from T-11) -----------------------------------
+          (
+            cd alpenflight/server
+            ./gradlew :pmdMain :cpdCheck --no-daemon --console=plain --quiet || true
+          )
+          cp -f alpenflight/server/build/reports/pmd/main.xml "$OUT"/pmd-main.xml 2>/dev/null || true
+          cp -f alpenflight/server/build/reports/cpd/cpdCheck.xml "$OUT"/cpd-check.xml 2>/dev/null || true
+          echo "── staged maintainability reports ──" >&2
+          ls -l "$OUT" >&2 || true
+          exit 0
+
+      # J-6 T-17b — stage the PER-PUSH parity screenshots: PAIR the COMMITTED
+      # legacy-reference PNGs (`e2e/legacy-reference/<feature>/<view>.png`, made
+      # once + in git per T-17a — legacy flsweb is frozen) against the FRESH
+      # clean-seed AlpenFlight PNGs this run's proof spec just wrote to
+      # test-results/. This gives the per-push per-journey page its full
+      # legacy↔AlpenFlight visual pairing WITHOUT any dependency on the heavy
+      # nightly fanout — closing the "videos OR screenshots, depending on which
+      # job deployed last" pain (operator design, 2026-06-07).
+      #
+      # The view keys (`list`/`form`/`setup`) + journey id MUST match the
+      # fanout's J-6 declarations (alpenflight-proof-fanout.yml ~L1024-1035) so
+      # the per-push page reads identically to the nightly page. AF filenames
+      # differ per view (`setup` → `…-setup-form.png`); the per-journey block
+      # below maps them.
+      #
+      # `if: always()` so a red proof assertion still stages whatever PNGs the
+      # spec wrote BEFORE its deep assertions — the gate signal is `steps.pw`,
+      # not the gallery. A missing legacy ref OR a missing AF PNG simply DROPS
+      # that one entry (add_pair no-ops it) so the page degrades gracefully —
+      # never a declared-but-absent PNG that would red the AC5 link-check.
+      - name: Stage per-push parity screenshots (committed-legacy + fresh-AF)
+        if: always()
+        env:
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+        run: |
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          mkdir -p "$SHOT"
+          REF_DIR="alpenflight/web/e2e/legacy-reference"
+          AF_RESULTS="alpenflight/web/test-results"
+          SHOTS=""
+          # add_pair: stage the committed legacy ref + the fresh AF PNG for ONE
+          # view, declaring both sides under the same journey/view so the
+          # generator pairs them. $1 journey $2 feature $3 view $4 legacy-ref
+          # filename $5 AF filename $6 legacy-caption $7 AF-caption.
+          add_pair() {
+            local jrn="$1" feat="$2" view="$3" lref="$4" affile="$5" lcap="$6" acap="$7"
+            local lsrc="$REF_DIR/$feat/$lref"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -f "$lsrc" ]; then
+              cp "$lsrc" "$SHOT/legacy-${feat}-${view}.png"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"legacy\",\"view\":\"$view\",\"file\":\"legacy-${feat}-${view}.png\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$lcap")},"
+            else
+              echo "legacy ref $lsrc absent — skipping legacy ${feat}/${view}."
+            fi
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
+          # add_af_only: stage just the FRESH AF PNG for ONE view with NO legacy
+          # pairing — used for GREENFIELD screens (no legacy parity, e.g. the
+          # J-6b reservations Day/Week calendar). The generator renders a single
+          # AlpenFlight figure (the other pairing slot is simply absent).
+          # $1 journey $2 feature $3 view $4 AF filename $5 AF-caption.
+          add_af_only() {
+            local jrn="$1" feat="$2" view="$3" affile="$4" acap="$5"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
+          # ----- J-6 planning (list/form/setup — view keys match the fanout) ---
+          if [ "${PROOF_JOURNEY:-}" = "J-6" ]; then
+            add_pair "J-6" "planning" "list" "list.png" "alpenflight-planning-list.png" \
+              "Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) — the legacy planning table, paired before/after against AlpenFlight's /planning future-days list" \
+              "AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) — the clean-seed future-days list to eyeball against the legacy planning table"
+            add_pair "J-6" "planning" "form" "form.png" "alpenflight-planning-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location selectize · remarks · towing-pilot / flight-operator / instructor selectizes · the inline per-day reservations table) — paired against AlpenFlight's planning-day edit form" \
+              "AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form"
+            add_pair "J-6" "planning" "setup" "setup.png" "alpenflight-planning-setup-form.png" \
+              "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard" \
+              "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
+          fi
+          # ----- J-6b reservations & planning hardening + inline validation ----
+          # The Day/Week CALENDAR is GREENFIELD (no legacy parity per the oracle)
+          # → AlpenFlight-only shots. The edit FORMS pair against legacy where a
+          # committed legacy ref exists (planning form ref is committed; the
+          # reservation form + inline-validation refs are captured at T-17 — until
+          # then add_pair degrades to the AF side only). Filenames must match the
+          # PNGs the J-6b proof spec writes to test-results/.
+          if [ "${PROOF_JOURNEY:-}" = "J-6b" ]; then
+            add_af_only "J-6b" "reservations" "calendar-day" \
+              "alpenflight-reservations-calendar-day.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations DAY view — the aircraft×hour calendar with the Day/Week toggle (selected button legible) + a DD.MM.YYYY period label"
+            add_af_only "J-6b" "reservations" "calendar-week" \
+              "alpenflight-reservations-calendar-week.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations WEEK view — the aircraft×day matrix, paging by weeks with a DD.MM.YYYY – DD.MM.YYYY range label"
+            add_pair "J-6b" "planning" "form" "form.png" "alpenflight-planning-edit-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day reservations table)" \
+              "AlpenFlight: the planning-day edit form hardened — read-only renders all fields disabled with an Edit toggle, dates render DD.MM.YYYY, and inline validation surfaces per-field errors while typing"
+            # The ≥60% feature — inline validation — as an AF-only state shot
+            # (greenfield UX; legacy flsweb has no while-typing inline validation
+            # to pair against). The PNG the proof spec writes at the inline-validate
+            # assertion (reservations-planning-hardening.spec.ts ~L640).
+            add_af_only "J-6b" "planning" "inline-validate" \
+              "alpenflight-planning-inline-validate.png" \
+              "AlpenFlight (greenfield): the planning-day edit form mid-typing — the debounced inline per-field validation message surfaces under the field from the real validate endpoint (no full submit)"
+            # NOTE: the reservation-edit-form parity shot is DEFERRED (J-6b T-20):
+            # the reservation real-idp seeding is heavier (aircraft/type/pilot
+            # picker chain) and the planning inline-validate above already proves
+            # the FE→real-endpoint→real-rule→inline vertical. The proof spec does
+            # NOT write `alpenflight-reservation-edit-form.png`, so NO `add_pair`
+            # for it here — the page must never advertise a shot the run can't
+            # produce (would render a lone legacy figure / a dead pairing slot).
+          fi
+          # ----- J-7 flight reports (picker/result/custom) ------------------
+          # The legacy `reporting/{picker,result,custom}.png` refs are captured at
+          # the fanout (the legacy stack is unrunnable on the Alpine/musl box), so
+          # add_pair degrades to the AF side here; the AF parity PNGs land once
+          # flight-reports-parity.spec.ts is thickened. The block stages whatever
+          # exists — a side absent from $SHOT is simply not rendered.
+          if [ "${PROOF_JOURNEY:-}" = "J-7" ]; then
+            add_pair "J-7" "reporting" "picker" "picker.png" "alpenflight-flightreports-picker.png" \
+              "Legacy flsweb: the /flightreports picker - the person + location canned-report tile grid" \
+              "AlpenFlight: the /flightreports picker - person + location category tiles linking to each canned report"
+            add_pair "J-7" "reporting" "result" "result.png" "alpenflight-flightreports-result.png" \
+              "Legacy flsweb: a canned report's results - the filter-criteria panel + grouped summary + flights table" \
+              "AlpenFlight: a canned report's results page - derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows"
+            add_pair "J-7" "reporting" "custom" "custom.png" "alpenflight-flightreports-custom.png" \
+              "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
+              "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
+          fi
+          # ----- J-8 accounting rule filters (list/form — view keys match the
+          # fanout + expected-shots.json J-8) --------------------------------
+          # MIGRATION journey, but PER-CONTEXT producing (J-7 T-16 pattern, T-21):
+          # only the AlpenFlight halves are produced in the PER-PUSH proof context.
+          # The clean-seed real chain `accounting-rules-parity.spec.ts` runs HERE
+          # (the alpenflight-proof real-idp specs) and writes
+          # alpenflight-accountingrules-{list,form}.png to test-results/. The LEGACY
+          # halves are producible ONLY in the fanout (the flsweb stack runs there),
+          # so expected-shots.json tags legacy:list/form `producedBy: fanout` →
+          # tolerated-absent in this `proof` context. Hence add_af_only (not
+          # add_pair): we stage only the two AF halves the per-push run produces; the
+          # legacy peer is rendered in the fanout page (and from the committed
+          # capture-once refs). The view keys (list/form) + AF filenames match the
+          # fanout's J-8 add_shot declarations (alpenflight-proof-fanout.yml ~L1196)
+          # so the per-push page reads identically to the nightly page's AF column.
+          if [ "${PROOF_JOURNEY:-}" = "J-8" ]; then
+            add_af_only "J-8" "accounting" "list" \
+              "alpenflight-accountingrules-list.png" \
+              "AlpenFlight: the /accountingrules list — a created article-target rule renders with its server-derived target column (articleNumber + deliveryLineText), the rule-filter table to eyeball against the legacy ng-table (legacy peer in the fanout page)"
+            add_af_only "J-8" "accounting" "form" \
+              "alpenflight-accountingrules-form.png" \
+              "AlpenFlight: the /accountingrules edit form reopened over the real chain — every field round-trips (RuleFilterName · Description · the glider + stop-rule-engine flags · the article-target ArticleNumber + the filter_config-stored DeliveryLineText), the filter-type-driven edit form to eyeball against the legacy form (legacy peer in the fanout page)"
+          fi
+          # ----- J-26 hardening (membership / duplicate-code — AF-only) --------
+          # Hardening sprint: no new screen, no legacy parity peer (the shots are
+          # AlpenFlight-only hardening evidence). The view keys (membership,
+          # duplicate-code) match expected-shots.json J-26; the AF filenames match
+          # the PNGs the real-idp hardening-J26.spec.ts writes to test-results/
+          # BEFORE its deep assertions (so a partial red still stages them).
+          if [ "${PROOF_JOURNEY:-}" = "J-26" ]; then
+            add_af_only "J-26" "hardening" "membership" \
+              "alpenflight-hardening-membership.png" \
+              "AlpenFlight (hardening, T-04): a Person's membership edit re-opened after Save over the real chain — memberNumber, the toggled pilot-role flag and the changed member state all came back from the real backend (the data-loss fix: the form used to toast success while silently dropping them)"
+            add_af_only "J-26" "hardening" "duplicate-code" \
+              "alpenflight-hardening-duplicate-code.png" \
+              "AlpenFlight (hardening, T-05): creating a second flight type with a duplicate FlightCode over the real chain — the real ux_flight_type_club_code constraint / service pre-check returns a 409 that surfaces INLINE on the Code field (previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field)"
+          fi
+          # ----- J-2b flights hardening (#229 — AF-only) -----------------------
+          # Hardening sprint: no new screen, no committed legacy /flights ref (the
+          # J-2 legacy shots live in the fanout). The view keys (list, form) match
+          # expected-shots.json J-2b; the AF filenames match the PNGs the real-idp
+          # flight-migration-parity.spec.ts hardening block writes to test-results/
+          # on the state that RENDERS the asserted result (the list with the
+          # off-today affordance + real rows; the form reopened with every
+          # populated required field VALID).
+          if [ "${PROOF_JOURNEY:-}" = "J-2b" ]; then
+            add_af_only "J-2b" "flights" "list" \
+              "alpenflight-flights-hardening-list.png" \
+              "AlpenFlight (#229): the /flights logbook on the today-default range (legacy parity) with real glider rows + the post-save 'View it →' affordance for a flight saved outside the range — off-today flights are surfaced, not silently hidden"
+            add_af_only "J-2b" "flights" "form" \
+              "alpenflight-flights-hardening-form.png" \
+              "AlpenFlight (#229b): a fully-populated saved flight re-opened over the real chain — every populated required field (date · start type · start location) renders VALID, no stale 'Entry required.' (the root fix: the edit form had ZERO client validators; they are now wired + revalidate against the loaded values)"
+          fi
+          # ----- J-2c flights date-range filter hardening (AF-only) ------------
+          # Hardening sprint: no new screen, no legacy peer. The view keys
+          # (date-initial, date-mouse, date-keyboard) match expected-shots.json
+          # J-2c; the AF filenames match the PNGs the real-idp
+          # flights-date-filter-parity.spec.ts writes to test-results/ at each of
+          # the three control states under the zero-console-error guard.
+          if [ "${PROOF_JOURNEY:-}" = "J-2c" ]; then
+            add_af_only "J-2c" "flights" "date-initial" \
+              "alpenflight-flights-date-initial.png" \
+              "AlpenFlight: on initial /flights load the date-range filter inputs render today..today — the store's legacy-parity default surfaces in the visible control (it used to load blank), with zero uncaught browser-console errors"
+            add_af_only "J-2c" "flights" "date-mouse" \
+              "alpenflight-flights-date-mouse.png" \
+              "AlpenFlight: opening the date-range picker and selecting a from + to date refetches the list for the new range and the inputs reflect it — with zero uncaught browser-console errors (the control used to throw a burst on interaction)"
+            add_af_only "J-2c" "flights" "date-keyboard" \
+              "alpenflight-flights-date-keyboard.png" \
+              "AlpenFlight: typing a from + to date (dd.MM.yyyy) into the date-range fields commits on Enter, refetches the list for the typed range and sticks in the inputs — with zero uncaught browser-console errors (a typed date used to silently revert)"
+          fi
+          # ----- J-19 password recovery + email confirmation (form/confirm) ----
+          # The view keys (form, confirm) match the fanout's J-19 add_shot
+          # declarations (alpenflight-proof-fanout.yml ~L1318) and the legacy-ref
+          # filenames in e2e/legacy-reference/lostpassword/. Those legacy PNGs are
+          # NOT committed yet (PENDING.md holds the capture-once follow-up: the
+          # flsweb stack runs only in the fanout), so add_pair stages the AF half
+          # alone until they land, then pairs automatically with no further change.
+          # The AF filenames match the PNGs account-recovery.spec.ts writes to
+          # test-results/ on the state that RENDERS the asserted result: the
+          # /lostpassword page before the handoff, and /confirm after the theme back
+          # link lands on the verified outcome.
+          # NO legacy `success` pair: Keycloak owns the "check your email" screen,
+          # so AlpenFlight has no peer for it. That legacy shot stays in the fanout
+          # page — the per-push page must never advertise a half it cannot produce.
+          if [ "${PROOF_JOURNEY:-}" = "J-19" ]; then
+            add_pair "J-19" "lostpassword" "form" "form.png" "alpenflight-lostpassword-form.png" \
+              "Legacy flsweb: the /lostpassword form renders without a session. It shows one text field and one button." \
+              "AlpenFlight: the /lostpassword page renders without a session. It explains the four steps, it warns that the reset link works one time only, and its start action moves the browser to the Keycloak realm."
+            add_pair "J-19" "lostpassword" "confirm" "confirm.png" "alpenflight-confirm-verified.png" \
+              "Legacy flsweb: the /confirm form. The legacy application collects the new password itself. It shows two password fields and one button." \
+              "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
+          fi
+          if [ "${PROOF_JOURNEY:-}" = "J-32" ]; then
+            add_af_only "J-32" "audit" "attribution" \
+              "alpenflight-audit-actor-attribution.png" \
+              "AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names the administrator who made it, by username, and no row on the page leaves the actor cell empty."
+            add_af_only "J-32" "audit" "redaction" \
+              "alpenflight-audit-person-redacted.png" \
+              "AlpenFlight: one expanded /system/logs row for a Person write. Every value reads [redacted], and the name the operator typed is absent. The row keeps its action, its actor and its time."
+            add_af_only "J-32" "audit" "anonymous-actor" \
+              "alpenflight-audit-anonymous-actor.png" \
+              "AlpenFlight: the /system/logs rows for a public scenic-flight registration submitted with no token. The actor cell reads the public-form label, which differs from the label a scheduled job gets."
+            add_af_only "J-32" "audit" "tenant-isolation" \
+              "alpenflight-audit-tenant-isolation.png" \
+              "AlpenFlight: the /system/logs audit trail of the club-A administrator, filtered to CREATE and Location. Club B wrote a Location moments before. The club-A administrator reads the club-A row only."
+            add_af_only "J-32" "audit" "detail" \
+              "alpenflight-audit-row-detail.png" \
+              "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."
+          fi
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged per-push parity screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No per-push parity pairs staged for ${PROOF_JOURNEY:-?} — gallery renders videos only."
+          fi
+
+      # Build the proof gallery — ONE stable-bookmark index.html for the
+      # journey-under-work only. `always()` so it runs even when the spec is red
+      # (on red there is no proof video → a pending placeholder page). The
+      # generator exits non-zero on a missing caption / missing .webm (AC5
+      # link-check), which MUST fail the job — no `|| true` swallow.
+      - name: Build + link-check proof gallery
+        id: gallery
+        if: always()
+        working-directory: alpenflight/web
+        env:
+          # The journey-under-work id (derived in the `changes` job off the
+          # integration branch). A BASELINE run (the journey's own real-idp spec
+          # not yet thickened) ran the J-0 Locations spec, so it carries no
+          # journey-under-work page — drop the flag then so the page renders the
+          # baseline captions instead of an empty journey page.
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
+        run: |
+          # pipefail: the generator is piped into `tee` below, and without it a
+          # generator failure would be masked by tee's exit 0 — the deploy steps
+          # gate on this step's outcome.
+          set -o pipefail
+          JUW_ARG=""
+          if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
+            JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
+          fi
+          # Per-push parity screenshots: feed the staged screenshots.json dir
+          # (committed-legacy + fresh-AF, paired by view) so the generator renders
+          # the paired legacy↔AlpenFlight block. Absent dir/sidecar = no-op.
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
+          node e2e/proof-gallery/generate-gallery.mjs \
+            --report test-results/proof-manifest.json \
+            --out ../../public/alpenflight/proof \
+            $JUW_ARG \
+            $SHOT_ARG | tee /tmp/proof-gallery.log
+          # Hand the built page's stamp to the deployed link-check: it must read back
+          # THIS page, not whatever the gh-pages CDN still has cached at that URL.
+          sed -nE 's/^proof-gallery: generated-at (.+)$/generated_at=\1/p' /tmp/proof-gallery.log >> "$GITHUB_OUTPUT"
+
+      # Compute the per-PR preview destination + clickable bookmark URL. PR-only.
+      # Sanitize github.head_ref to a single path segment. Keep the sed
+      # byte-identical to proof-preview-reap.yml so the reaper removes the same
+      # subdir on PR close.
+      - name: Compute proof-preview destination
+        id: preview
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "proof preview → ${url}"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+          echo "── mailpit log ─────────────────────────────" >&2
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra logs --tail 100 mailpit >&2 || true
+
+      # The pass-video is J-0's acceptance artifact (`video: 'on'` on the
+      # real-idp project). Uploaded on always() so the report is available on
+      # red too, but on green it carries the proof video.
+      - name: Upload proof artifact (incl. pass-video)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-proof-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/test-results
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+            public/alpenflight/proof
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Payload-size guard — the published site must stay far under the GitHub Pages cap
+        id: payload_size_guard
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/check-gh-pages-payload-size.py
+
+      # Publish the single-bookmark gallery to the canonical gh-pages path on
+      # main. `!cancelled()` (not the implicit `success()`) so a red proof CASE
+      # still deploys the page the operator needs to see; `steps.gallery.outcome`
+      # still gates on a built page (never publish a never-built one). keep_files
+      # so it coexists with the e2e dashboard under /alpenflight/.
+      - name: Deploy proof gallery to gh-pages (main)
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      # Per-PR preview deploy of the SAME single page to a disjoint per-branch
+      # subpath. `!cancelled()` so a red proof case still deploys the bookmark.
+      - name: Deploy proof gallery to gh-pages (PR preview)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
+
+      # The DEPLOYED bookmark link-check — the catch the generator unit test can't
+      # make (the deploy path drifts independently). Asserts the live bookmark +
+      # every declared asset resolve 200, and — when a journey-under-work ran (not
+      # the baseline) — that the page is that journey's page, not a thin placeholder.
+      # The spec polls for gh-pages CDN propagation.
+      - name: Deployed-bookmark link-check
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        working-directory: alpenflight/web
+        env:
+          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
+          # The journey-under-work id, or '' on a baseline run so the
+          # deployed-journey assertion skips (that run renders the baseline page
+          # by design — see the gallery step's JUW_ARG). The empty string is
+          # FALSY in a GHA expression, so it has to sit on the `||` side: a
+          # `cond && '' || journey` ternary falls through and always yields the
+          # journey, demanding a page the baseline run never produced.
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey || '' }}
+          GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
+          GALLERY_LINKS_ONLY: '1'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[deployed'
+
+      - name: Surface proof bookmark (step summary)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          {
+            echo "### Proof gallery (this journey's bookmark)"
+            echo ""
+            echo "[$PREVIEW_URL]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-dashboard-proof — J-3's SHOWCASE-SEEDED dashboard display run.
+  #
+  # The J-3 dashboard variants only prove their worth against realistic data
+  # (empty cards / zero counts demonstrate nothing), so this job boots the SAME
+  # real stack as `alpenflight-proof` (Postgres + Keycloak + Mailpit + the
+  # alpenflight backend + `ng serve --configuration=development`), then loads the
+  # `@Profile("showcase")` seed (`./gradlew seedShowcase` — deterministic 2-club
+  # demo dataset: club-1 today=3/pending=4, 14 flights, the pilot1/clubadmin1/
+  # sysadmin principals) BEFORE starting the long-running backend, and runs ONLY
+  # `start-dashboard.spec.ts` against it with full real assertions.
+  #
+  # SEED-PROFILE SEPARATION (the critical J-3 constraint): the required
+  # `alpenflight-proof` job above runs the J-0/J-1/J-2 specs against a CLEAN
+  # `dev`-profile seed and asserts EXACT counts (e.g. aircraft = 3). Loading the
+  # showcase data there would pollute those counts (aircraft 6≠3). So the
+  # showcase seed lives in its OWN job, against its OWN Postgres, with the
+  # dashboard spec it serves — the two jobs share NO state and run in parallel.
+  #
+  # NON-BLOCKING DISPLAY RUN: this job is NOT in the `required` aggregator's
+  # `needs` (it's the journey's visual proof + gallery, not a branch-protection
+  # gate — mirroring the non-blocking `parity-legacy-video` posture). It deploys
+  # the 3 populated variant screenshots to a DISJOINT per-branch preview subpath
+  # (`alpenflight/proof-preview/<ref>/dashboard`) so it never clobbers the
+  # canonical proof gallery or the `alpenflight-proof` preview; the manager
+  # refreshes the PR sticky gallery comment after it lands.
+  # ---------------------------------------------------------------------------
+  alpenflight-dashboard-proof:
+    name: alpenflight dashboard proof (real-idp, showcase seed)
+    # CHAINED after `alpenflight-proof` (not parallel with it) — `needs:` it so the
+    # two full-stack real-chain jobs never contend for one runner's CPU/IO. The
+    # first live run (run 26988942197) brought the stack up + seeded + passed 5/6
+    # specs, but the pilot last-flight card (the only TWO-HOP chained-fetch
+    # assertion) timed out at 5s against a cold backend racing the dashboard's
+    # masterdata prefetch burst — a starved 4th heavy parallel job (alongside
+    # alpenflight-build + alpenflight-proof + mock-e2e) made the cold-start latency
+    # worse. Serialising behind `alpenflight-proof` gives this job an uncontended
+    # runner. STILL NON-BLOCKING: deliberately NOT added to the `required`
+    # aggregator's `needs` (it's the journey's visual proof + gallery, mirroring
+    # the non-blocking `parity-legacy-video` posture). `needs.alpenflight-proof`
+    # only orders it AFTER that job — it does not make THIS job gate the merge.
+    # `if: always()` so a red `alpenflight-proof` (the required gate's own signal)
+    # doesn't skip the display run — a `needs:`-ed job otherwise skips when its
+    # dependency fails, and we still want the showcase gallery on a proof red.
+    needs: [changes, alpenflight-proof]
+    if: >-
+      always()
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: Bring up alpenflight-infra (mailpit)
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Build pgAdmin + Keycloak images
+        env:
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
+
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # S-160: migrate as the migrator (alpenflight); APP_DB_PASSWORD is the
+      # password V54 provisions the app role with.
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      # Load the showcase seed BEFORE starting the long-running backend. The
+      # `seedShowcase` task boots a SHORT-LIVED app under `dev,showcase` +
+      # `exit-after-seed=true`: it fires the idempotent `ShowcaseSeeder` once
+      # (the deterministic 2-club demo dataset) and exits 0. No Keycloak needed
+      # here — the showcase principals are realm-export + Flyway-seeded `t_user`
+      # rows; the seeder only writes the DB rows that reference their subs.
+      # S-160: this short-lived app also boots as the app role (its own Flyway
+      # re-run is a no-op migrate as the migrator).
+      - name: Load showcase seed (gradlew seedShowcase)
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
+          LOGGING_LEVEL_ROOT: INFO
+        run: ./gradlew seedShowcase --no-daemon --console=plain --quiet
+
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      # Long-running backend on the `dev` profile (NOT showcase — the seed is
+      # already committed; the live backend just reads it). Same host-bootJar ↔
+      # host-mapped-Keycloak wiring as `alpenflight-proof`. S-160: boots as the
+      # app role (alpenflight_app); Flyway migrates as the migrator.
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
+          SPRING_PROFILES_ACTIVE: dev
+          LOGGING_LEVEL_ROOT: INFO
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
+        run: |
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      # Run ONLY the J-3 dashboard display spec (its `real-idp-setup` dependency
+      # runs automatically) against the showcase-seeded backend. The dashboard
+      # spec writes the 3 populated variant screenshots.
+      #
+      # PROOF-SCOPING (J-4 T-21+T-22, operator Q2 2026-06-05). The J-4
+      # `/profile` self-edit spec USED to ride along here (both showcase-seeded),
+      # but the operator made the profile UI proof a REQUIRED merge gate. A
+      # `required`-gating spec must NOT live in a non-blocking display job, so it
+      # moved to its own gating job `alpenflight-profile-proof` below (cloned
+      # from this job's showcase bring-up). This job stays J-3-only + NON-blocking
+      # (the journey's visual showcase + gallery), so J-4's gate is NOT coupled to
+      # J-3's `start-dashboard.spec.ts`.
+      - name: Run J-3 dashboard display proof (showcase seed)
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+        run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            --workers=1 \
+            e2e/tests/real-idp/start-dashboard.spec.ts
+
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded dashboard artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). Gated on `failure()`
+      # so it only fires on a red dashboard spec. Same path as the proof job —
+      # Playwright writes per-test dirs to `alpenflight/web/test-results/<test>/`.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-dashboard-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Stage the 3 populated variant screenshots + write the J-3 screenshots.json
+      # sidecar (greenfield → AlpenFlight-only, NO paired legacy shots) so the
+      # gallery renders them under the J-3 section. The spec wrote them as
+      # `alpenflight-start-<variant>.png` under test-results/<test>/; copy each by
+      # its stable name into the --screenshots dir + declare journey/side/view/
+      # caption. A DECLARED-yet-missing PNG fails the generator's AC5 link-check,
+      # so we declare strictly what we copied.
+      #
+      # PROOF-SCOPING (J-4 T-21+T-22, operator Q2). The J-4 /profile screenshots
+      # are now staged by the dedicated `alpenflight-profile-proof` job (which
+      # owns the now-required self-edit.spec.ts run), so this staging step is
+      # J-3-dashboard-only again.
+      - name: Stage J-3 dashboard screenshots + sidecar
+        if: always()
+        run: |
+          SHOT="${{ github.workspace }}/j3-screenshots"
+          mkdir -p "$SHOT"
+          SHOTS=""
+          add_shot() { # $1 journey  $2 stable-name  $3 view  $4 caption
+            local src; src="$(find alpenflight/web/test-results -name "$2" 2>/dev/null | head -1 || true)"
+            if [ -n "$src" ]; then
+              cp "$src" "$SHOT/$2"
+              SHOTS="$SHOTS{\"journey\":\"$1\",\"side\":\"alpenflight\",\"view\":\"$3\",\"file\":\"$2\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$4")},"
+            else
+              echo "screenshot $2 not found — skipping that entry."
+            fi
+          }
+          add_shot "J-3" "alpenflight-start-pilot.png" "pilot variant" \
+            "AlpenFlight: the /start PILOT dashboard, populated from the showcase seed — greeting + a FILLED last-flight card (pilot1 is PIC on a real seeded club-1 flight; not the empty state)"
+          add_shot "J-3" "alpenflight-start-clubadmin.png" "club-admin variant" \
+            "AlpenFlight: the /start CLUB-ADMIN dashboard (clubadmin1, club-1) — today's flights = 3 + pending-validation = 4, the exact tenant-scoped showcase club-1 counts"
+          add_shot "J-3" "alpenflight-start-sysadmin.png" "sysadmin variant" \
+            "AlpenFlight: the /start SYSADMIN dashboard — cross-tenant aggregates (≥2 clubs / ≥14 flights / ≥6 users across the showcase) + the tenant-enter control"
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged J-3 dashboard screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No J-3 dashboard PNGs found — the dashboard spec likely red before capture."
+          fi
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+
+      # The showcase dashboard screenshots upload as a run artifact (the in-flight
+      # journey's single-bookmark page is built + deployed by the alpenflight-proof
+      # job; this non-blocking showcase no longer deploys a separate sub-path gallery).
+      - name: Upload dashboard proof artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-dashboard-proof-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/test-results
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-profile-proof — J-4's SHOWCASE-SEEDED /profile self-edit gate.
+  #
+  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q2). The operator
+  # made J-4's `/profile` self-edit UI proof a REQUIRED per-push merge gate — it
+  # IS in the `required` aggregator's `needs` (see `required` below). It runs
+  # ONLY `e2e/tests/profile/self-edit.spec.ts` against the SAME showcase-seeded
+  # real stack `alpenflight-dashboard-proof` boots (Postgres + Keycloak + Mailpit
+  # + the alpenflight backend + `ng serve`), because the profile spec drives a
+  # real PILOT (pilot1) redirect login + asserts against the showcase Person.
+  #
+  # WHY ITS OWN JOB (shape A, not folding into dashboard-proof):
+  #   - A `required`-gating spec must not live in the NON-blocking dashboard
+  #     display job (`alpenflight-dashboard-proof` stays the journey's visual
+  #     showcase + gallery, NOT a branch-protection gate). Splitting keeps J-4's
+  #     gate from coupling to J-3's `start-dashboard.spec.ts` (and vice versa).
+  #   - It keeps the dashboard job's resilient gallery deploy
+  #     (`if: always()`/`!cancelled()`) intact.
+  # This is the per-push "current journey's spec" half of the proof-scoping
+  # rider; the full cross-journey regression (J-1 aircraft + J-2 flight parity)
+  # runs nightly in `alpenflight-e2e-real-idp.yml`.
+  #
+  # CHAINED after `alpenflight-dashboard-proof` (`needs:` it) so the two
+  # showcase full-stack jobs never contend for one runner's CPU/IO — same
+  # serialisation rationale as dashboard-proof chaining after alpenflight-proof.
+  # Path-filtered on the same `next == 'true' && docs_only != 'true'` gate as the
+  # other heavy jobs: a docs-only push skips it, it reports `skipped`, and the
+  # `required` aggregator's skipped-to-success path keeps the gate green.
+  #
+  # GATING `if:` (NOT `always()`): unlike the non-blocking dashboard job, this
+  # job must SKIP cleanly when its `changes` deps say docs-only/non-next — a
+  # `skipped` result the aggregator maps to success. But because it `needs:`
+  # the (non-required) dashboard-proof, a real RED in dashboard-proof would
+  # otherwise SKIP this job and silently un-gate J-4. We guard that with an
+  # explicit `needs.alpenflight-dashboard-proof.result != 'skipped'` allowance
+  # plus `always()` so this job still RUNS (and can gate red) even if the
+  # upstream display job failed — only the `changes`-driven path-filter skips it.
+  # ---------------------------------------------------------------------------
+  alpenflight-profile-proof:
+    name: alpenflight profile proof (real-idp, showcase seed)
+    needs: [changes, alpenflight-dashboard-proof]
+    if: >-
+      always()
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: Bring up alpenflight-infra (mailpit)
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Build pgAdmin + Keycloak images
+        env:
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
+
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # S-160: migrate as the migrator (alpenflight); APP_DB_PASSWORD is the
+      # password V54 provisions the app role with.
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      # Same showcase seed the dashboard job loads — the profile spec drives the
+      # PILOT pilot1 principal (a showcase Person with the full self-edit field
+      # set) and asserts against it. Loaded BEFORE the long-running backend.
+      # S-160: short-lived app boots as the app role; its Flyway re-run is a
+      # no-op migrate as the migrator.
+      - name: Load showcase seed (gradlew seedShowcase)
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
+          LOGGING_LEVEL_ROOT: INFO
+        run: ./gradlew seedShowcase --no-daemon --console=plain --quiet
+
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      # S-160: boots as the app role (alpenflight_app); Flyway migrates as the migrator.
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
+          SPRING_PROFILES_ACTIVE: dev
+          LOGGING_LEVEL_ROOT: INFO
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
+        run: |
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      # THE GATE: run ONLY the J-4 /profile self-edit spec against the
+      # showcase-seeded backend. Full-assertion (T-06..T-13 + T-20a locale fix
+      # landed): 4-tab round-trips, locale de→en flip + reload-survival, audit
+      # read, no-Person banner, tenant isolation. A red here MUST fail this job
+      # → fail `required` → block the merge (that is the whole point of the
+      # operator's Q2 decision). NO `continue-on-error`. The spec still captures
+      # each tab screenshot BEFORE its deep assertions (resilient capture), so a
+      # red assertion still leaves the gallery staging below something to publish.
+      - name: Run J-4 /profile self-edit proof (showcase seed) [REQUIRED]
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+        run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            --workers=1 \
+            e2e/tests/profile/self-edit.spec.ts
+
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded profile artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). This job is the
+      # REQUIRED /profile merge gate, so a red here blocks merge — exactly the
+      # case that must stay diagnosable from the run. Gated on `failure()`; same
+      # `alpenflight/web/test-results/<test>/` path as the other proof jobs.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-profile-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Stage the 4 per-tab /profile screenshots + the J-4 screenshots.json
+      # sidecar (AlpenFlight-only) so the gallery renders them under the J-4
+      # section. `if: always()` so a red assertion still publishes the captured
+      # shots — the gate signal is the spec result (`steps.pw`), not the gallery.
+      - name: Stage J-4 profile screenshots + sidecar
+        if: always()
+        run: |
+          SHOT="${{ github.workspace }}/j4-screenshots"
+          mkdir -p "$SHOT"
+          SHOTS=""
+          add_shot() { # $1 journey  $2 stable-name  $3 view  $4 caption
+            local src; src="$(find alpenflight/web/test-results -name "$2" 2>/dev/null | head -1 || true)"
+            if [ -n "$src" ]; then
+              cp "$src" "$SHOT/$2"
+              SHOTS="$SHOTS{\"journey\":\"$1\",\"side\":\"alpenflight\",\"view\":\"$3\",\"file\":\"$2\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$4")},"
+            else
+              echo "screenshot $2 not found — skipping that entry."
+            fi
+          }
+          add_shot "J-4" "alpenflight-profile-account.png" "Account tab" \
+            "AlpenFlight: /profile → Account tab (PILOT pilot1) — self-edit account fields (friendly name, notification email, phone, language) functional via PATCH /api/v1/me/profile; username + club read-only"
+          add_shot "J-4" "alpenflight-profile-personal.png" "Personal tab" \
+            "AlpenFlight: /profile → Personal tab (PILOT pilot1) — contact/address self-edit form (pilot1 has a linked Person)"
+          add_shot "J-4" "alpenflight-profile-pilot.png" "Pilot tab" \
+            "AlpenFlight: /profile → Pilot tab (PILOT pilot1) — licence/medical self-edit form (+ FADP audit on save)"
+          add_shot "J-4" "alpenflight-profile-notifications.png" "Notifications tab" \
+            "AlpenFlight: /profile → Notifications tab (PILOT pilot1) — the 3 notification-preference toggles"
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged J-4 profile screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No J-4 profile PNGs found — the profile spec likely red before capture."
+          fi
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+
+      # The showcase /profile screenshots upload as a run artifact (the in-flight
+      # journey's single-bookmark page is built + deployed by the alpenflight-proof
+      # job; this showcase no longer deploys a separate sub-path gallery).
+      - name: Upload profile proof artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-profile-proof-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/test-results
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-mock-e2e — the mock-auth chromium Playwright suite, folded into
+  # ci.yml so the `required` aggregator below can `needs:` it (J-3 T-12, operator
+  # J-2-retro decision). Previously this ran ONLY in the standalone
+  # `alpenflight-e2e.yml` workflow, invisible to `required` — so a red mock-auth
+  # e2e could slip past do-ship's gate to a "done" claim (J-2 T-47: a broken
+  # `proof-gallery.spec.ts` nobody watched). Now it gates exactly like
+  # `alpenflight build`.
+  #
+  # Self-contained: Playwright's webServer config starts
+  # `ng serve --configuration=mock-auth` (no Keycloak / no backend) — same as the
+  # steps lifted from alpenflight-e2e.yml. Test-only here: NO gh-pages publish /
+  # gallery (the proof galleries are owned by `alpenflight-proof` +
+  # `alpenflight-dashboard-proof`; the `/alpenflight/` e2e DASHBOARD publish stays
+  # in alpenflight-e2e.yml on main-push — see its header).
+  #
+  # TRIGGER SPLIT (no double-run of the suite, respecting the dedup comments in
+  # both workflow headers): this job is the PR gate, so it runs on PR syncs
+  # (integration/** + main) but is `if`-gated to SKIP on a `push` event —
+  # alpenflight-e2e.yml owns the `push`-to-main run (where it also publishes the
+  # dashboard). PR → here (gates `required`); main push (post-merge) →
+  # alpenflight-e2e.yml. The two never run the chromium suite on the same commit.
+  #
+  # Path-filtered on the same `next == 'true' && docs_only != 'true'` gate as the
+  # other heavy jobs: a docs-only push skips it, it reports `skipped`, and the
+  # `required` aggregator's skipped-to-success path keeps the gate green.
+  #
+  # SPEC-SCOPING (J-6 T-02b — mirrors J-5 T-14's real-idp scoping for the mock
+  # half). The per-push run is SCOPED to the JOURNEY-UNDER-WORK's own mock specs
+  # via `changes.outputs.mock_filter` (derived from the journey file's
+  # `mock_test:` frontmatter off the integration branch). So while a journey is
+  # in flight, ONLY its own `tests/<feature>/` mock specs gate `required` here —
+  # an unrelated flaky mock spec from a PRIOR journey can no longer red it
+  # (the J-5 `articles-crud` hostage case). The FULL chromium suite (all
+  # features) still runs NIGHTLY (`alpenflight-e2e.yml` on main-push, plus its
+  # own cron if any) + once at the §4 do-ship gate (e2e-driver's full chain) —
+  # the cross-journey mock regression is preserved, just not per-push.
+  # FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter /
+  # underivable filter / a filter whose specs are all still `test.fixme` (a
+  # scoped run there would execute nothing and report green) →
+  # `mock_is_full=true` + empty filter → the WHOLE chromium
+  # project runs (the pre-T-02b baseline), never a no-spec run.
+  # ---------------------------------------------------------------------------
+  # SHARDING (J-27 T-12). `workers` is a Playwright TOP-LEVEL option (the
+  # per-project `workers:N` was a silent no-op), so a single job ran the whole
+  # ~164-test suite on one runner and flaky-timed-out at the 5-min step cap even
+  # with all 4 workers busy. The suite is green-but-slow (a 12-min serial control
+  # run passed), so the fix is THROUGHPUT: split into a `--shard=i/4` matrix —
+  # four runners, each running ~41 tests across the top-level 4 workers in well
+  # under 5 min (a locally-measured single shard ran ~2 min on just 2 workers).
+  # Each shard emits `reporter: blob`; the `alpenflight-mock-e2e-merge` job below
+  # merges them and is the AUTHORITATIVE pass/fail (it is what `required` needs,
+  # and the name branch protection must require — the per-shard jobs are NOT the
+  # gate). The journey-scoped `mock_filter` (J-6 T-02b) passes through to every
+  # shard unchanged: Playwright shards whatever the filter selects.
+  alpenflight-mock-e2e:
+    name: alpenflight mock-auth e2e shard ${{ matrix.shard }}/4
+    needs: changes
+    if: >-
+      github.event_name != 'push'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    # A single shard (~41 tests / 4 workers) finishes in ~2-3 min; 6 min absorbs
+    # a cold pnpm/playwright cache + ng-serve boot. The 5-min step cap on the run
+    # below is the ceiling that keeps the gate fast.
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # `--reporter=blob` overrides the config's html/json reporters for the
+      # shard: each writes `blob-report/report-*.zip` for the merge job to stitch.
+      # `--workers=4` is belt-and-suspenders over the top-level config so the
+      # shard fans out to the runner's 4 vCPUs regardless of config drift (same
+      # posture as alpenflight-e2e.yml).
+      - name: Run Playwright (shard ${{ matrix.shard }}/4)
+        working-directory: alpenflight/web
+        timeout-minutes: 5
+        env:
+          MOCK_FILTER: ${{ needs.changes.outputs.mock_filter }}
+          MOCK_IS_FULL: ${{ needs.changes.outputs.mock_is_full }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          if [ "${MOCK_IS_FULL}" = 'true' ] || [ -z "${MOCK_FILTER:-}" ]; then
+            echo "running FULL chromium mock suite, shard ${SHARD}/4 (fail-safe / no journey scope)"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
+              --shard="${SHARD}/4" --workers=4 --reporter=blob
+          else
+            read -r -a MOCK_FILTERS <<< "${MOCK_FILTER}"
+            echo "running journey-scoped mock specs, shard ${SHARD}/4: ${MOCK_FILTERS[*]}"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
+              --shard="${SHARD}/4" --workers=4 --reporter=blob "${MOCK_FILTERS[@]}"
+          fi
+
+      # Blob + screenshots as SEPARATE artifacts (merge job merge-multiples each
+      # pattern into its own flat dir). `if: always()` so a red shard still
+      # uploads → the merge reflects the failure rather than ENOENT-ing.
+      - name: Upload shard blob report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-blob-${{ matrix.shard }}
+          path: alpenflight/web/blob-report
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload shard screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-screenshots-${{ matrix.shard }}
+          path: alpenflight/web/screenshots
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-mock-e2e-merge — the AUTHORITATIVE mock-suite pass/fail (J-27
+  # T-12). `needs:` all four shards, downloads their blobs, and `merge-reports`
+  # exits non-zero if ANY shard had a failure — so this single job is the gate
+  # the `required` aggregator needs and the name branch protection must require
+  # (replacing the old single-job `alpenflight mock-auth e2e (Run Playwright)`).
+  # It runs even when a shard failed (`needs.result` is checked, not `success()`)
+  # so a partial-red still merges into a diagnosable report. On a docs-only push
+  # the shards skip → this is skipped → the aggregator's skipped-to-success path
+  # keeps the gate green.
+  # ---------------------------------------------------------------------------
+  alpenflight-mock-e2e-merge:
+    name: alpenflight mock-auth e2e (merge shards)
+    needs: [changes, alpenflight-mock-e2e]
+    if: >-
+      always()
+      && github.event_name != 'push'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Guard: a shard that CRASHED (infra, not a failed test) may upload no blob,
+      # and merge-reports over the remaining blobs would silently go green minus
+      # that shard's tests. Fail the gate if any shard job didn't succeed, so a
+      # dropped shard can't false-green the suite.
+      - name: Assert all shards ran
+        env:
+          SHARDS_RESULT: ${{ needs.alpenflight-mock-e2e.result }}
+        run: |
+          set -euo pipefail
+          if [ "${SHARDS_RESULT}" != 'success' ]; then
+            echo "shard matrix result is '${SHARDS_RESULT}' (not success) — a shard failed or crashed"
+            exit 1
+          fi
+
+      # `merge-multiple: true` flattens every shard's blob into one dir, which is
+      # what `merge-reports` reads from (it scans the dir's TOP LEVEL for
+      # report-*.zip, not nested subdirs — verified locally). Screenshots come
+      # down separately so the merged-report artifact carries them for diagnosis.
+      - name: Download shard blobs
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/all-blob-reports
+          pattern: alpenflight-mock-e2e-blob-*
+          merge-multiple: true
+
+      - name: Download shard screenshots
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/screenshots
+          pattern: alpenflight-mock-e2e-screenshots-*
+          merge-multiple: true
+
+      # The merge exit code IS the gate: non-zero if any shard had a failed test.
+      - name: Merge shard reports
+        working-directory: alpenflight/web
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
+
+      # Surface the merged report + the shards' diagnostic screenshots so a red is
+      # debuggable from one artifact (preserves what the old single job uploaded).
+      - name: Upload merged report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-${{ github.sha }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/screenshots
+          retention-days: 14
+          if-no-files-found: warn
+
+  alpenflight-fanout-parity:
+    name: fan-out parity
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check out every ref so the gate can tell which commit a fan-out run covered
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Warn on every pull request while the newest fan-out on main is not green, so a scheduled red cannot rot unread (informs only, the next step is the gate)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/fanout-parity-verdict.py --report-latest-verdict-on-main
+
+      - name: Refuse the merge unless a real fan-out proved the producer files this branch changes, start one when the branch head moved past the run that refuses the merge, and wait for the run in flight to answer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          python3 .github/scripts/fanout-parity-verdict.py \
+            --base-sha "$PULL_REQUEST_BASE_SHA" \
+            --head-sha "$PULL_REQUEST_HEAD_SHA" \
+            --start-a-fanout-on-branch "$PULL_REQUEST_HEAD_BRANCH" \
+            --minutes-until-a-covering-run-must-appear 8 \
+            --minutes-until-the-covering-run-must-finish 45 \
+            --seconds-between-polls 30
+
+  # ---------------------------------------------------------------------------
+  # Aggregator — single check to wire into branch protection. Passes when
+  # every upstream job either succeeded or was correctly skipped (e.g.
+  # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
+  # is green).
+  #
+  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05; J-5 T-14/T-19).
+  # The per-push required proof is the CURRENT journey's real-idp spec, not the
+  # old cross-journey J-0/J-1/J-2 regression:
+  #   - `alpenflight-proof` GATES `required` (J-5 T-19, operator decision
+  #     2026-06-06 — re-added after a 2026-06-05 drop). It used to run the J-1
+  #     aircraft + J-2 flight parity specs, whose known aircraft flake red-ed
+  #     `required` on unrelated journeys, so it was dropped from `needs` on
+  #     2026-06-05. T-14 (the job now runs only the JOURNEY-UNDER-WORK's own
+  #     real-idp spec, derived in `changes` → `proof_spec`) + T-15 (fixed the
+  #     aircraft flake) removed that reason, so the real chain gates again: a red
+  #     real-idp run for the journey in flight now BLOCKS merge. The full
+  #     cross-journey regression stays nightly (`alpenflight-e2e-real-idp.yml`).
+  #   - `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit spec)
+  #     also gates the merge, and per-push is its ONLY executing lane: the
+  #     nightly `alpenflight-e2e-real-idp.yml` run passes `e2e/tests/real-idp/`
+  #     as its path argument, so it never collects `e2e/tests/profile/`, and its
+  #     `--grep-invert 'showcase seed'` drops `start-dashboard.spec.ts` too. The
+  #     J-3 dashboard display job (`alpenflight-dashboard-proof`) stays
+  #     NON-blocking (the visual showcase + gallery), so the gate isn't coupled
+  #     to `start-dashboard.spec.ts`; its red shows on the PR as a red check, not
+  #     as a merge block.
+  # `alpenflight-proof`'s `if:` guard is identical to next-build-server /
+  # next-build-web / next-auth-realm-shape (`next == 'true' && docs_only !=
+  # 'true'`), and
+  # `alpenflight-profile-proof` `needs:` the (non-required) dashboard-proof for
+  # runner serialisation only; on a docs-only push the whole heavy chain skips →
+  # all three report `skipped` → the skipped-to-success path below keeps the gate
+  # green (the `success|skipped)` case). That tolerance is exactly why
+  # troubleshooting mode gets its own hard-fail step instead of relying on the
+  # heavy lane's skips.
+  # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  required:
+    name: required
+    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, migration-bundle-tests, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge, alpenflight-fanout-parity]
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail-closed on troubleshooting mode. This reads the marker off the
+      # checkout rather than trusting the `changes` output, so the gate is red
+      # BECAUSE the marker is committed — not merely because its dependencies
+      # skipped. The two look identical in the UI but differ in consequence: a
+      # skip-derived red goes green again the moment a job is added or rewired,
+      # whereas a marker-derived red survives any change to the job graph.
+      # Runs before the upstream-result check so the aggregator cannot report a
+      # pass while diagnosis is in progress.
+      - name: Refuse to pass while CI is in troubleshooting mode
+        env:
+          T_CHANGES: ${{ needs.changes.outputs.troubleshooting }}
+        run: |
+          set -euo pipefail
+          if [ ! -f .ci-troubleshooting ] && [ "${T_CHANGES:-}" != 'true' ]; then
+            echo "no .ci-troubleshooting marker — normal gating"
+            exit 0
+          fi
+          echo "::error title=CI is in troubleshooting mode::.ci-troubleshooting is committed, so the heavy lane stood down and this gate cannot pass. Delete the marker, fold every test the scratch workflows introduced back into ci.yml, then confirm the heavy lane runs job-level green."
+          if [ -f .ci-troubleshooting ]; then
+            echo "── .ci-troubleshooting ──"
+            cat .ci-troubleshooting
+          fi
+          exit 1
+
+      - name: Check upstream job results
+        env:
+          R_CHANGES: ${{ needs.changes.result }}
+          # J-7 T-13 — `next-build` was split into two parallel toolchain jobs
+          # (server+migration-tool / web) so one run reports every build/lint/
+          # test red at once; the aggregator gates on BOTH (a red in either reds
+          # `required`; both `skipped` on a docs-only push → success path below).
+          R_NEXT_SERVER: ${{ needs.next-build-server.result }}
+          R_NEXT_WEB: ${{ needs.next-build-web.result }}
+          R_AUTH: ${{ needs.next-auth-realm-shape.result }}
+          R_MIGRATION_BUNDLE: ${{ needs.migration-bundle-tests.result }}
+          R_PROOF: ${{ needs.alpenflight-proof.result }}
+          R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
+          R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e-merge.result }}
+          R_FANOUT_PARITY: ${{ needs.alpenflight-fanout-parity.result }}
+          HEAVY_LANE_STOOD_DOWN: ${{ (needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          MOCK_E2E_LANE_STOOD_DOWN: ${{ (github.event_name == 'push' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          FANOUT_PARITY_LANE_STOOD_DOWN: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+        run: |
+          set -uo pipefail
+          printf "  heavy lane stood down for this event: %s (mock-e2e lane: %s, fan-out parity lane: %s)\n\n" \
+            "$HEAVY_LANE_STOOD_DOWN" "$MOCK_E2E_LANE_STOOD_DOWN" "$FANOUT_PARITY_LANE_STOOD_DOWN"
+          fail=0
+          for job_result_and_permitted_skip in \
+              "changes|$R_CHANGES|false" \
+              "alpenflight-build-server|$R_NEXT_SERVER|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-build-web|$R_NEXT_WEB|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-auth-realm-shape|$R_AUTH|$HEAVY_LANE_STOOD_DOWN" \
+              "migration-bundle-tests|$R_MIGRATION_BUNDLE|false" \
+              "alpenflight-proof|$R_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-profile-proof|$R_PROFILE_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-mock-e2e-merge|$R_MOCK_E2E|$MOCK_E2E_LANE_STOOD_DOWN" \
+              "alpenflight-fanout-parity|$R_FANOUT_PARITY|$FANOUT_PARITY_LANE_STOOD_DOWN" ; do
+            IFS='|' read -r name result skip_is_permitted <<< "$job_result_and_permitted_skip"
+            case "$result" in
+              success)
+                printf "  %-28s %s\n" "$name" "$result" ;;
+              skipped)
+                if [ "$skip_is_permitted" = 'true' ]; then
+                  printf "  %-28s %s   (its lane stood down)\n" "$name" "$result"
+                else
+                  printf "  %-28s %s  <-- skipped while its lane was live, so it gated nothing\n" "$name" "$result"
+                  fail=1
+                fi ;;
+              *)
+                printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
+            esac
+          done
+          if [ "$fail" != "0" ]; then
+            echo "::error title=required is red::A job above failed, or it skipped while next=='true' and docs_only!='true'. RESIDUAL LIMIT — this gate reads JOB RESULTS for the jobs in its own needs list only: it cannot see a step a job swallowed with continue-on-error, it cannot see a spec a job's command never selected, it does not cover alpenflight-dashboard-proof, which is deliberately non-blocking (its red shows as a red check on the PR, not as a merge block), and the fan-out parity job it now aggregates arms only on the producer trees that job's own failure message names."
+          fi
+          [ "$fail" = "0" ]
