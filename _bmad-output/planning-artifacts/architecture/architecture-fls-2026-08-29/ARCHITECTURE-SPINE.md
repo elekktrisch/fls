@@ -210,6 +210,14 @@ Cross-slice access runs through a published interface or a domain event. A direc
 
   **Authorization never leaves the product.** The provider proves who a person is. The role, the club membership, and the tenant boundary live in AlpenFlight tables, always. The access token names the subject; the club and the roles are resolved from `ClubMembership` on every request. A role change therefore writes an audit record under FR-8, and AD-2 still enforces the boundary in the database.
 
+### AD-23 — `ng-zorro-antd` is the base for every form control, hand-written where it has no match (PROVISIONAL)
+
+- **Binds:** UX-DR6 to UX-DR17, FR-18, FR-19, FR-60, FR-61; every screen with a form control
+- **Prevents:** forty screens each hand-rolling its own date picker and typeahead, and the drift that follows; and a second theming mechanism competing with the token bridge.
+- **Rule:** `ng-zorro-antd` supplies every form control that has a library match — button, input, select, date picker, autocomplete — themed to `DESIGN.md` through one `--ant-*` variable bridge in `client/platform`'s token stylesheet, built on the library's own dark stylesheet, never through Tailwind or a second CSS mechanism. `RecordList`, `RecordItem`, and a list's filter chip stay hand-written, because `ng-zorro-antd` carries no matching primitive and AD-17 already fixes their exact behavior. A component never reaches a raw `ant-*` class from outside its wrapper, and every corner stays at `--radius-default: 0` inside a library control, the same as everywhere else.
+
+  **Provisional, pending story 1.5's spike.** Attempt 1 proved the light-theme override cost is bounded, at about 150 lines. Nothing proves the dark-theme cost, because AlpenFlight is dark-only (NFR-8) and attempt 1 was not. Story 1.5 spikes `nz-select` and `nz-date-picker` against the dark bridge before this rule binds Epic 3. If the spike finds the cost materially larger than attempt 1's, this AD is revisited before it carries forward — never silently.
+
 ```mermaid
 graph LR
   Phone[Phone - offline queue] --> RP[Reverse proxy]

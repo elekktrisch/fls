@@ -2,8 +2,8 @@
 title: 'Story 1.4: The application shell and the design tokens'
 type: 'feature'
 created: '2026-08-30'
-status: 'done'
-review_loop_iteration: 0
+status: 'in-progress'
+review_loop_iteration: 1
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md', '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-fls-2026-08-24/DESIGN.md', '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-fls-2026-08-24/EXPERIENCE.md']
 baseline_commit: '8770e4d09ef9c16b2269090b27c8b54c270da78d'
 ---
@@ -20,6 +20,13 @@ router, `styles.css` is empty, and nothing enforces the dark-only, zero-radius, 
 with a route per destination, and build a shell component that hosts the router outlet plus the
 four-destination nav: a bottom tab bar under 768px, a top bar at 768px and above.
 
+**Amendment 2026-08-31, sprint change proposal:** add Tailwind v4 to `client/platform`, publishing
+the same tokens through its `@theme` directive instead of a plain `:root` block. `@theme` still
+emits a real CSS custom property per token, under the same names already in use
+(`--color-surface-base` and the rest), so no component built against this story changes. This
+reopens a `done` story because story 1.5 needs the token pipeline in place before it lands
+`ng-zorro-antd`; see the sprint change proposal for the full rationale.
+
 ## Boundaries & Constraints
 
 **Always:** token values match `DESIGN.md`'s frontmatter exactly (color, spacing, typography,
@@ -30,15 +37,23 @@ color alone. The focus ring is `2px solid {live}`, `1px` offset, and is never re
 **Ask First:** any token value that diverges from `DESIGN.md`. Any destination beyond
 Home/Operate/Plan/Records/Admin.
 
-**Never:** feature content inside a destination placeholder — that is stories 1.5+. A CSS or
-component library beyond plain CSS custom properties. A JS-based (`matchMedia`) breakpoint switch
-where a CSS media query does the job.
+**Never:** feature content inside a destination placeholder — that is stories 1.5+. A component
+library this story — Tailwind is a utility/build layer, not a component library, and story 1.5
+still owns that decision. A JS-based (`matchMedia`) breakpoint switch where a CSS media query does
+the job. A hand-written component's existing CSS rewritten into Tailwind utility classes this
+story — the amendment lands the token pipeline only, never a stylesheet rewrite of already-reviewed
+code.
 
 </frozen-after-approval>
 
 ## Code Map
 
-- `alpenflight/client/platform/src/styles.css` -- empty; add the tokens and global resets
+- `alpenflight/client/platform/src/styles.css` -- empty; add the tokens and global resets; amendment:
+  restructure the token block from a plain `:root { ... }` into `@import 'tailwindcss'; @theme { ... }`
+- `alpenflight/client/platform/package.json` -- amendment: add `tailwindcss` and
+  `@tailwindcss/postcss`
+- `alpenflight/client/platform/.postcssrc.json` -- amendment: new; wires `@tailwindcss/postcss` into
+  the Angular build
 - `alpenflight/client/platform/src/app/app.routes.ts` -- new; Home + four destination routes
 - `alpenflight/client/platform/src/app/app.config.ts` -- no `provideRouter` yet -- add it
 - `alpenflight/client/platform/src/app/shell/shell.ts` (+html+css) -- new; nav + `<router-outlet>`
@@ -78,6 +93,15 @@ where a CSS media query does the job.
   asserts the four destination links render with the routes from `app.routes.ts`, and the active
   link carries `routerLinkActive`'s class -- proves the nav stays in sync with the route table
 
+**Amendment 2026-08-31:**
+- [ ] `package.json` -- add `tailwindcss` and `@tailwindcss/postcss`
+- [ ] `.postcssrc.json` -- new; `{"plugins": {"@tailwindcss/postcss": {}}}`
+- [ ] `styles.css` -- replace `:root { ... }` with `@import 'tailwindcss'; @theme { ... }`, same
+  custom-property names as today, so every existing `var(--color-surface-base)` reference resolves
+  unchanged
+- [ ] `shell.spec.ts`, `app.spec.ts`, `home.spec.ts` -- rerun unchanged; the amendment must not
+  require a test edit, because no consuming component's output changes
+
 **Acceptance Criteria:**
 - Given a viewport narrower than 768px, when the shell renders, then the four destinations appear
   in a bottom tab bar and no top bar is present.
@@ -89,6 +113,9 @@ where a CSS media query does the job.
   system status card with its output unchanged from today.
 - Given any focusable element in the shell, when it receives keyboard focus, then a visible 2px
   `{colors.live}` ring appears, at `1px` offset, never removed.
+- Given the token pipeline after the amendment, when a component references
+  `var(--color-surface-base)` unchanged from before, then it resolves to the same value as before,
+  and a new component may use the Tailwind utility `bg-surface-base` for the same token.
 
 ## Design Notes
 
@@ -100,6 +127,14 @@ change needed.
 **CSS custom properties, not a framework.** `client/platform` pulls in no CSS library today, and
 `DESIGN.md` already gives concrete values, not utility classes. `:root` custom properties are the
 smallest step that makes every token available to every component, with no new dependency.
+*(Superseded by the 2026-08-31 amendment below — kept for the record, not the current state.)*
+
+**Amendment: Tailwind lands as the token pipeline, not a styling rewrite.** Roman is used to
+Tailwind and attempt 1 proved the `@theme` + `ng-zorro-antd` `--ant-*` bridge combination works.
+`@theme` is additive to what this story already built: it emits the same custom-property names,
+so `shell.css`, `destination-placeholder`, and `home` need no change. The only new surface is the
+build pipeline (`tailwindcss`, `@tailwindcss/postcss`, `.postcssrc.json`) and the token block's own
+syntax. Story 1.5 is the first story that gets to spend a Tailwind utility class.
 
 **The nav breakpoint is one judgment call.** `EXPERIENCE.md`'s table names only Phone (< 768px) and
 Pointer device (≥ 1200px) for navigation, with no documented 768–1199px nav treatment. This story
@@ -119,6 +154,8 @@ worth confirming, not a silent assumption.
 - Resize the running app (`npm start --workspace=platform`) across 768px: confirm the nav visually
   swaps from bottom tab bar to top bar with no layout shift in the routed content, and that the
   active destination's cyan text and rule both appear.
+- After the amendment: confirm the shell renders pixel-identical to before — the Tailwind pipeline
+  changes how tokens publish, never their values.
 
 ## Suggested Review Order
 

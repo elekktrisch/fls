@@ -61,9 +61,20 @@ file per column — and prove every mapping against `flsserver/`.
 **The rules are not here.** `CLAUDE.md` owns them — the three primary directives, ASD-STE100, and the
 triage table. Read it. This file never restates a rule, so the two can never disagree.
 
+**`ng-zorro-antd`'s dark-theme cost is unproven, unlike its light-theme cost.** Attempt 1 proved the
+*light*-theme override is bounded, at about 150 lines of `!important` rules for corner radius and
+control height. AlpenFlight is dark-only (NFR-8), and attempt 1 was not, so that number does not
+carry over. Story 1.5 spikes `nz-select` and `nz-date-picker` against `ng-zorro-antd.dark.css` before
+AD-23 (provisional) binds Epic 3's typeahead and date field. Read the spike's finding before
+assuming the light-theme cost applies.
+
 ## The stack
 
-Java 25 LTS, Spring Boot 4.1.1, PostgreSQL 18.6, Angular 22.0.1, REST with OpenAPI. Gradle
+Java 25 LTS, Spring Boot 4.1.1, PostgreSQL 18.6, Angular 22.0.1, REST with OpenAPI. `ng-zorro-antd`
+as the base component library for form controls (AD-23, provisional pending story 1.5's dark-mode
+spike), themed through Tailwind v4's `@theme` token pipeline (added by amendment to story 1.4).
+`RecordList`/`RecordItem`/`FilterChip`/`SortControl` stay hand-written — no library match, and AD-17
+already fixes their behavior. Gradle
 multi-module. Flyway. Keycloak as the reference identity provider, reached through a port, so any
 Keycloak-compatible provider serves the SaaS. One container image for the application; Compose starts
 PostgreSQL and the identity provider beside it. Kubernetes is permitted and never required. Remaining
