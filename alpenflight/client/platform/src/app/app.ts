@@ -1,11 +1,10 @@
 import { Component } from '@angular/core';
-import { SystemStatusCard } from '../../../features/system-status/system-status-card';
+import { Shell } from './shell/shell';
 
 @Component({
   selector: 'app-root',
-  imports: [SystemStatusCard],
+  imports: [Shell],
   templateUrl: './app.html',
-  styleUrl: './app.css'
 })
 export class App {
 }

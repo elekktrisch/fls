@@ -1,0 +1,16 @@
+<nav class="destinations" aria-label="Destinations">
+  @for (destination of destinations; track destination.path) {
+    <a
+      class="destination"
+      [routerLink]="destination.path"
+      routerLinkActive="destination--active"
+      ariaCurrentWhenActive="page"
+    >
+      {{ destination.label }}
+    </a>
+  }
+</nav>
+
+<div class="content">
+  <router-outlet />
+</div>
