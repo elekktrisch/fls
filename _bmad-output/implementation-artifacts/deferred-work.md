@@ -78,3 +78,31 @@ existing entries.
     new migration (`V3__club_data_kind.sql`) and a new Testcontainers-backed check
     (`server/core/src/integrationTest/.../DataKindAndRlsGateIT.java`) and is self-contained enough
     to land as a fast follow-up patch to the same `.github/workflows/ci.yml` this story creates.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: The shell's `:focus-visible` ring (`2px solid {live}`, `1px` offset, never removed) has
+    no automated regression test.
+  evidence: Verifying a CSS outline rule needs visual/e2e tooling this early build stage does not
+    have yet; `alpenflight/` has no e2e suite of its own (AD-21). Revisit once one exists.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: `DESIGN.md`'s `components.topbar` entry defines `wordmarkColor`/`wordmarkType` for a
+    brand wordmark in the top bar; the shell's top bar renders only the four nav links.
+  evidence: Neither `EXPERIENCE.md`'s navigation table nor this story's spec calls for a wordmark
+    in the shell itself (Home already shows the "AlpenFlight" heading). Whether the top bar should
+    carry one is an open design question for a later story, not an omission this story's Code Map
+    committed to.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: The shell's nav and routed content apply no `--spacing-container-max` (1440px)
+    constraint, so both can stretch unbounded on a very wide viewport.
+  evidence: Token exists and is published in `styles.css`; no current screen has content that
+    would look broken at 1440px+ yet. Apply it once a feature slice's layout needs the cap.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: A hard refresh or direct URL entry at `/operate`, `/plan`, `/records`, or `/admin`
+    against the production build has no server-side SPA fallback (`historyApiFallback`) verified;
+    the Spring Boot static-resource serving this story's client build lands in was never checked
+    for a catch-all forward to `index.html`.
+  evidence: Purely server-side deployment concern, outside `client/platform`'s scope and this
+    story's Code Map; `ng serve`'s dev server already handles it transparently for local dev.

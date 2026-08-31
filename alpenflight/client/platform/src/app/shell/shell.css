@@ -1,0 +1,71 @@
+:host {
+  display: block;
+}
+
+/* Phone (< 768px): bottom tab bar, {spacing.tabbar-h}. */
+.destinations {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  height: var(--spacing-tabbar-h);
+  background: var(--color-surface-panel);
+  border-top: 1px solid var(--color-line-strong);
+}
+
+.destination {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 2px solid transparent;
+  font-family: var(--font-family-body);
+  font-size: var(--font-micro-size);
+  font-weight: var(--font-micro-weight);
+  line-height: var(--font-micro-line-height);
+  letter-spacing: var(--font-micro-letter-spacing);
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--color-ink-secondary);
+}
+
+/* The active destination carries both a text color and a rule, never color alone. */
+.destination--active {
+  color: var(--color-live);
+  border-top-color: var(--color-live);
+}
+
+.content {
+  padding-bottom: var(--spacing-tabbar-h);
+}
+
+/* Pointer device (>= 768px): top bar, {spacing.topbar-h}. Same nav, repositioned by the query. */
+@media (min-width: 768px) {
+  .destinations {
+    top: 0;
+    bottom: auto;
+    height: var(--spacing-topbar-h);
+    border-top: none;
+    border-bottom: 1px solid var(--color-line-strong);
+    justify-content: flex-end;
+  }
+
+  .destination {
+    flex: 0 0 auto;
+    padding: 0 var(--spacing-4);
+    border-top: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  .destination--active {
+    border-top-color: transparent;
+    border-bottom-color: var(--color-live);
+  }
+
+  .content {
+    padding-bottom: 0;
+    padding-top: var(--spacing-topbar-h);
+  }
+}
