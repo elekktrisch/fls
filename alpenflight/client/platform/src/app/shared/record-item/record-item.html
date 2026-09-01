@@ -1,0 +1,11 @@
+<span class="identity value">{{ record().identity }}</span>
+<span class="meta micro">{{ meta() }}</span>
+<span
+  class="metric value"
+  [class.metric--live]="record().metricLive && !record().settled"
+  [class.metric--absent]="!hasMetric()"
+  >{{ metricText() }}</span
+>
+@if (record().marker; as marker) {
+  <span class="marker micro marker--{{ marker.tone }}">{{ marker.label }}</span>
+}

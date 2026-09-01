@@ -1,0 +1,172 @@
+/* Page chrome — this app's own tokens directly, same as every other component. */
+.spike {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  max-width: 420px;
+  padding: var(--spacing-6);
+}
+
+.spike-title {
+  font-size: var(--font-display-size);
+  font-weight: var(--font-display-weight);
+  line-height: var(--font-display-line-height);
+  margin: 0;
+}
+
+.spike-note {
+  color: var(--color-ink-secondary);
+  font-size: var(--font-body-size);
+  margin: 0;
+}
+
+.spike-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.spike-label {
+  font-size: var(--font-micro-size);
+  font-weight: var(--font-micro-weight);
+  line-height: var(--font-micro-line-height);
+  letter-spacing: var(--font-micro-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
+.spike-control {
+  width: 100%;
+}
+
+/* --- ng-zorro-antd override zone ------------------------------------------------------------
+   The only file in the app that reaches a raw `ant-*` class (see styles.css's bridge comment).
+   ng-zorro-antd 22.0.1 exposes no CSS custom property for any property overridden below — every
+   rule is a literal override of the compiled `ng-zorro-antd.dark.css` selector, pointed at this
+   app's `--ant-*` bridge (styles.css), which derives from this app's own tokens.
+
+   Two DOM situations, two techniques:
+   - The closed field (`.ant-select-selector`/`.ant-picker`) renders inline, inside this
+     component's own view -- `:host ::ng-deep` correctly scopes to it (verified: computed
+     border-radius is 0 on both).
+   - The dropdown/calendar panel is portaled by the CDK overlay to a container appended near
+     `<body>`, entirely outside this component's DOM subtree -- `:host ::ng-deep` cannot reach it
+     (a `:host`-prefixed selector requires real DOM descendance, which portaled content never has).
+     Verified empirically: with `:host ::ng-deep`, the panel's computed background-color was
+     `rgb(31, 31, 31)` -- ng-zorro-antd's own dark-theme default, not this bridge's
+     `--color-surface-raised` (`#1c242e`) -- proving the override never matched. These rules use
+     `::ng-deep` alone (no `:host` prefix) instead: Angular's Emulated encapsulation would
+     otherwise auto-attach a scoping attribute even to a plain, unprefixed selector, which
+     portaled content -- rendered by ng-zorro-antd's own internal components, carrying no
+     attribute from this component's view at all -- would still never carry. Bare `::ng-deep`
+     is the one construct that compiles to genuinely global CSS, which is the documented pattern
+     for theming CDK-overlay content from a single owning component's stylesheet. */
+
+/* Closed field — select and date picker share the same chrome */
+:host ::ng-deep .ant-select-selector,
+:host ::ng-deep .ant-picker {
+  background-color: var(--ant-color-bg-container) !important;
+  border-color: var(--ant-color-border) !important;
+  border-radius: var(--ant-border-radius) !important;
+}
+
+:host ::ng-deep .ant-select-selection-item,
+:host ::ng-deep .ant-picker input {
+  color: var(--ant-color-text);
+}
+
+:host ::ng-deep .ant-select-selection-placeholder,
+:host ::ng-deep .ant-picker input::placeholder {
+  color: var(--ant-color-text-disabled);
+}
+
+:host ::ng-deep .ant-select-arrow,
+:host ::ng-deep .ant-select-clear,
+:host ::ng-deep .ant-picker-suffix,
+:host ::ng-deep .ant-picker-clear {
+  color: var(--ant-color-text-secondary);
+  background: var(--ant-color-bg-container);
+}
+
+:host ::ng-deep .ant-select-focused:not(.ant-select-disabled) .ant-select-selector,
+:host ::ng-deep .ant-picker-focused {
+  border-color: var(--ant-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Dropdown / panel — portaled into the CDK overlay; ::ng-deep alone, see the zone comment above. */
+::ng-deep .ant-select-dropdown,
+::ng-deep .ant-picker-dropdown .ant-picker-panel-container,
+::ng-deep .ant-picker-panel {
+  background-color: var(--ant-color-bg-elevated);
+  border-color: var(--ant-color-border);
+  border-radius: var(--ant-border-radius);
+  box-shadow: var(--ant-box-shadow-secondary);
+}
+
+::ng-deep .ant-select-item {
+  border-radius: var(--ant-border-radius);
+}
+
+/* Matches the library's own compound selector specificity (.ant-picker-cell .ant-picker-cell-inner)
+   -- a bare .ant-picker-cell-inner rule loses that cascade fight and silently keeps the 2px
+   default, found and fixed after this exact regression during verification. */
+::ng-deep .ant-picker-cell .ant-picker-cell-inner {
+  border-radius: var(--ant-border-radius);
+}
+
+::ng-deep .ant-select-item {
+  color: var(--ant-color-text);
+}
+
+::ng-deep .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--ant-color-bg-container-hover);
+}
+
+::ng-deep .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: var(--ant-color-bg-container-selected);
+  color: var(--ant-color-primary);
+  font-weight: var(--font-value-weight);
+}
+
+/* Calendar — header, cells */
+::ng-deep .ant-picker-header {
+  color: var(--ant-color-text);
+  border-bottom-color: var(--ant-color-split);
+}
+
+::ng-deep .ant-picker-header > button {
+  color: var(--ant-color-text-secondary);
+}
+
+::ng-deep .ant-picker-header > button:hover,
+::ng-deep .ant-picker-today-btn {
+  color: var(--ant-color-text);
+}
+
+::ng-deep .ant-picker-content th {
+  color: var(--ant-color-text-secondary);
+}
+
+::ng-deep .ant-picker-cell {
+  color: var(--ant-color-text-disabled);
+}
+
+::ng-deep .ant-picker-cell-in-view {
+  color: var(--ant-color-text);
+}
+
+::ng-deep .ant-picker-cell:hover:not(.ant-picker-cell-selected):not(.ant-picker-cell-disabled)
+  .ant-picker-cell-inner {
+  background: var(--ant-color-bg-container-hover);
+}
+
+::ng-deep .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background: var(--ant-color-primary);
+  color: var(--ant-color-text-on-primary);
+}
+
+::ng-deep .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: var(--ant-color-primary);
+  border-radius: var(--ant-border-radius);
+}

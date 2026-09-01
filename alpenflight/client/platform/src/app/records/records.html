@@ -1,0 +1,9 @@
+<app-list-toolbar
+  searchLabel="Search flights"
+  [chips]="chips"
+  [sortFields]="sortFields"
+  [(query)]="query"
+  [(activeChipKeys)]="activeChipKeys"
+  [(sort)]="sort"
+/>
+<app-record-list [items]="records()" [groupBy]="groupBy()" />

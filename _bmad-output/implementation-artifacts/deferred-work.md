@@ -106,3 +106,82 @@ existing entries.
     for a catch-all forward to `index.html`.
   evidence: Purely server-side deployment concern, outside `client/platform`'s scope and this
     story's Code Map; `ng serve`'s dev server already handles it transparently for local dev.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: No automated test anywhere in `client/platform` asserts on the *compiled* CSS -- the
+    Angular `test` build target never loads `styles.css`, so a regression in `@theme static`, the
+    blanket `--*: initial` reset, or the `@layer theme, base, utilities;` ordering (e.g. a future
+    revert to bare `@theme`, silently tree-shaking design tokens back out) would ship with
+    `./gradlew build` staying green.
+  evidence: Three review passes on the Tailwind amendment each caught a real regression only
+    through a human manually rebuilding and reading the emitted CSS -- the same class of gap
+    already deferred for this story's focus-ring test, now extended by Tailwind's on-demand
+    compilation model, which a plain `:root` block never risked.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: `--motion-instant`/`--motion-fast`/`--motion-reveal` have no `prefers-reduced-motion:
+    reduce` override anywhere in the client.
+  evidence: The tokens exist but nothing consumes them yet this story; revisit once a component
+    actually applies a transition using them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: Skipping Tailwind's Preflight (to avoid an unwanted global reset) also skips its native
+    form-control normalization -- `button`/`input`/`select`/`textarea` keep native OS font/spacing/
+    appearance, with no compensating reset in this story's own `@layer base`.
+  evidence: No form control exists in the client yet. `DESIGN.md` already specs a `field-row`
+    component; revisit when a story first builds an input-heavy screen.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: `shell.css` hardcodes `z-index: 10` and the `768px` nav breakpoint as bare literals, with
+    no corresponding token in `styles.css` or `DESIGN.md`'s frontmatter.
+  evidence: Shipped in the original (done) story 1.4, unrelated to and untouched by the Tailwind
+    amendment; surfaced incidentally while reviewing the amendment's token surface.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `ng-zorro-antd`'s dark theme ships as one 761 KB monolithic stylesheet covering all ~70
+    components, with no per-component dark-only split; adopting it for even one control pushed the
+    production initial bundle to 1.40 MB, forcing the budget up from `500kB/1MB` to `900kB/1.5MB`.
+  evidence: Confirmed by the dark-mode override cost spike. Before Epic 3 commits more components
+    to `ng-zorro-antd`, evaluate lazy-loading its modules per feature and a non-global,
+    dynamically-injected dark stylesheet, rather than accepting the app-wide cost by default.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-the-record-list-and-the-list-toolbar.md`
+  summary: Spike `nz-select` and `nz-date-picker` in isolation on a `/dev/component-spike` route,
+    against the dark-mode `--ant-*` bridge, to price the override cost against `DESIGN.md`'s
+    palette and 7:1 contrast floor before Epic 3 commits the typeahead and the date field to
+    `ng-zorro-antd`.
+  evidence: Story 1.5's spec exceeded the 1,600-token ceiling (~2,798 tokens) with the spike
+    included. `RecordItem`/`RecordList`/`ListToolbar` plus the `SearchField` `nz-input` wrapper
+    form one complete, working `/records` slice on their own; the spike is a self-contained
+    risk-reduction probe on its own route, never wired to a real screen, and is self-contained
+    enough to land as a fast follow-up before Epic 3 needs the answer.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `/dev/component-spike` is wired into `app.routes.ts` as a static top-level import, not
+    `loadComponent`, so `NzSelectModule`/`NzDatePickerModule` ship in every user's initial bundle
+    for a route that is never a real destination.
+  evidence: Surfaced during story 1.5's review as the likely reason `angular.json`'s initial
+    bundle budget rose from `500kB/1MB` to `900kB/1.5MB`. Convert the route to lazy `loadComponent`
+    before the spike's cost is treated as a permanent, app-wide baseline.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `/dev/component-spike` has no dev-only guard (no environment check, no build-time
+    exclusion) despite being framed as an internal risk probe, so it stays reachable by direct URL
+    in a production build.
+  evidence: Surfaced during story 1.5's review. Absent from `DESTINATIONS`/the nav, but no URL
+    guard or build-time exclusion has been added.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `app.config.ts` calls `provideNzDateFnsAdapter()`, but `date-fns` is not listed as a
+    direct dependency in `client/platform/package.json` -- it resolves today only because
+    `ng-zorro-antd` happens to depend on it transitively.
+  evidence: Surfaced during story 1.5's review. Works today but is fragile to an `ng-zorro-antd`
+    version bump changing its own dependency tree; add `date-fns` as an explicit direct dependency.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-the-record-list-and-the-list-toolbar.md`
+  summary: No automated test covers the Acceptance Criterion "a focused toolbar control shows the
+    existing focus ring" -- `search-field.ts` restates `outline: 2px solid var(--color-live)` on
+    `.ant-input:focus` in its own component styles, unverified by any spec.
+  evidence: Same class of gap already deferred for story 1.4's shell focus ring -- verifying a CSS
+    `:focus` outline rule needs visual/e2e tooling this build stage does not have yet (no `alpenflight/`
+    e2e suite, AD-21).

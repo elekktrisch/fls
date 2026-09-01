@@ -1,0 +1,10 @@
+<label class="sr-only" [for]="inputId">{{ label() }}</label>
+<input
+  nz-input
+  type="search"
+  autocomplete="off"
+  [id]="inputId"
+  [placeholder]="label()"
+  [ngModel]="query()"
+  (ngModelChange)="query.set($event)"
+/>

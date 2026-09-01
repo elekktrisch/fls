@@ -1,0 +1,111 @@
+/* Phone (< 768px), mobile-first default: two columns sized by content, never a fixed zone
+   width — identity/meta stack on the left, metric/marker stack on the right. */
+:host {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'identity metric'
+    'meta marker';
+  column-gap: var(--spacing-3);
+  row-gap: var(--spacing-1);
+  align-items: start;
+  min-height: var(--spacing-item-h);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-base);
+}
+
+:host(:hover) {
+  background: var(--color-surface-hover);
+}
+
+.identity {
+  grid-area: identity;
+  font-size: var(--font-value-lead-size);
+  font-weight: var(--font-value-lead-weight);
+  line-height: var(--font-value-lead-line-height);
+  color: var(--color-ink-primary);
+}
+
+.meta {
+  grid-area: meta;
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric {
+  grid-area: metric;
+  justify-self: end;
+  color: var(--color-ink-primary);
+}
+
+.metric--live {
+  color: var(--color-live);
+}
+
+.metric--absent {
+  color: var(--color-ink-disabled);
+}
+
+.marker {
+  grid-area: marker;
+  justify-self: end;
+  padding: 2px var(--spacing-2);
+  border: 1px solid;
+}
+
+.marker--open {
+  color: var(--color-live);
+  border-color: var(--color-live-dim);
+}
+
+.marker--airborne {
+  color: var(--color-live);
+  border-color: var(--color-live);
+}
+
+.marker--locked {
+  color: var(--color-caution);
+  border-color: var(--color-caution-dim);
+}
+
+.marker--billed {
+  color: var(--color-ink-settled);
+  border-color: var(--color-line-strong);
+}
+
+.marker--unsent {
+  color: var(--color-warning);
+  border-color: var(--color-warning-dim);
+}
+
+/* A settled record colors every zone ink-settled — it recedes as a whole, not one field at a
+   time. Higher specificity than the tone/live rules above (a :host(...) descendant selector),
+   so it always wins regardless of which tone or live state the record also carries. */
+:host(.record-item--settled) .identity,
+:host(.record-item--settled) .meta,
+:host(.record-item--settled) .metric,
+:host(.record-item--settled) .marker {
+  color: var(--color-ink-settled);
+}
+
+:host(.record-item--settled) .marker {
+  border-color: var(--color-line-strong);
+}
+
+/* Pointer device (>= 768px): four zones side by side, identity and metric at their fixed
+   widths — alignment is the reason for the fixed widths, per DESIGN.md. */
+@media (min-width: 768px) {
+  :host {
+    grid-template-columns: var(--spacing-zone-identity) 1fr var(--spacing-zone-metric);
+    grid-template-areas:
+      'identity meta metric'
+      'identity meta marker';
+    align-items: center;
+  }
+
+  .meta {
+    justify-self: start;
+  }
+}

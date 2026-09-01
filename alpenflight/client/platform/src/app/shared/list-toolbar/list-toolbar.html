@@ -1,0 +1,13 @@
+<div class="toolbar">
+  <app-search-field class="toolbar__search" [label]="searchLabel()" [(query)]="query" />
+  <div class="toolbar__chips">
+    @for (chip of chips(); track chip.key) {
+      <app-filter-chip
+        [label]="chip.label"
+        [active]="isActive(chip)"
+        (activeChange)="onChipActiveChange(chip, $event)"
+      />
+    }
+  </div>
+  <app-sort-control [fields]="sortFields()" [(sort)]="sort" />
+</div>

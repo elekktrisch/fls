@@ -1,0 +1,18 @@
+<span class="inline-flex items-center gap-2" role="group" aria-label="Sort by">
+  @for (field of fields(); track field.key) {
+    <button
+      type="button"
+      class="micro appearance-none bg-surface-panel border rounded h-[32px] px-3 cursor-pointer"
+      [class]="
+        sort().key === field.key ? 'border-live text-live' : 'border-line-strong text-ink-secondary'
+      "
+      [attr.aria-current]="sort().key === field.key ? 'true' : null"
+      (click)="select(field)"
+    >
+      {{ field.label }}
+      @if (sort().key === field.key) {
+        {{ sort().direction === 'asc' ? '↑' : '↓' }}
+      }
+    </button>
+  }
+</span>

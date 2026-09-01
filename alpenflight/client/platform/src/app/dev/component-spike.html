@@ -1,0 +1,32 @@
+<main class="spike">
+  <h1 class="spike-title">Component spike — ng-zorro-antd dark theme</h1>
+  <p class="spike-note">
+    Isolated risk probe. Not wired to any real screen. See deferred-work.md, source_spec
+    spec-1-5.
+  </p>
+
+  <section class="spike-field">
+    <label class="spike-label" for="spike-aircraft">Aircraft</label>
+    <nz-select
+      id="spike-aircraft"
+      class="spike-control"
+      nzPlaceHolder="Select aircraft"
+      nzAllowClear
+      [(ngModel)]="aircraft"
+    >
+      @for (option of aircraftOptions; track option.value) {
+        <nz-option [nzValue]="option.value" [nzLabel]="option.label"></nz-option>
+      }
+    </nz-select>
+  </section>
+
+  <section class="spike-field">
+    <label class="spike-label" for="spike-date">Flight date</label>
+    <nz-date-picker
+      id="spike-date"
+      class="spike-control"
+      nzPlaceHolder="Select date"
+      [(ngModel)]="flightDate"
+    ></nz-date-picker>
+  </section>
+</main>
