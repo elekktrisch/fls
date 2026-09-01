@@ -1,0 +1,24 @@
+<span
+  class="inline-flex items-center h-[32px] border rounded overflow-hidden"
+  [class]="active() ? 'bg-live-dim border-live' : 'bg-surface-panel border-line-strong'"
+>
+  <button
+    type="button"
+    class="micro appearance-none bg-transparent border-0 m-0 h-full px-3 cursor-pointer"
+    [class]="active() ? 'text-live' : 'text-ink-secondary'"
+    [attr.aria-pressed]="active()"
+    (click)="toggle()"
+  >
+    {{ label() }}
+  </button>
+  @if (active()) {
+    <button
+      type="button"
+      class="micro appearance-none bg-transparent border-0 m-0 h-full pr-3 pl-1 cursor-pointer text-live"
+      [attr.aria-label]="'Clear ' + label()"
+      (click)="clear()"
+    >
+      ×
+    </button>
+  }
+</span>

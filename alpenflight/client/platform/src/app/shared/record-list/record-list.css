@@ -1,0 +1,13 @@
+/* One list background, no row rule — the composition and the group headers do the separating. */
+:host {
+  display: block;
+  background: var(--color-surface-base);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--spacing-6) var(--spacing-3);
+  color: var(--color-ink-disabled);
+  font-family: var(--font-family-body);
+  font-size: var(--font-body-size);
+}

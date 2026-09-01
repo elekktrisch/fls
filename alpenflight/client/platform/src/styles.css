@@ -148,10 +148,10 @@
   --font-display-line-height: 1.2;
 }
 
-/* ng-zorro-antd dark-theme bridge — spike only. Consumed exclusively by
-   `app/dev/component-spike.css` (Story 1.5 deferred spike, see deferred-work.md), which is the
-   only file in this app allowed to reach a raw `ant-*` class. No other component may set or read
-   a `--ant-*` variable.
+/* ng-zorro-antd dark-theme bridge. Consumed by `app/dev/component-spike.css` (Story 1.5 deferred
+   spike, see deferred-work.md) and by `app/shared/search-field/search-field.ts` (Story 1.5's own
+   `nz-input` wrapper) — the only files in this app allowed to reach a raw `ant-*` class, each
+   scoped to its own component. No other component may set or read a `--ant-*` variable.
 
    IMPORTANT — verified against the installed `ng-zorro-antd@22.0.1` package source
    (`ng-zorro-antd.dark.css`, e.g. `.ant-select-selector`, `.ant-picker`, `.ant-select-dropdown`):
@@ -221,6 +221,19 @@
     line-height: var(--font-value-line-height);
     letter-spacing: var(--font-value-letter-spacing);
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Field labels, column headings, tab labels, state markers, and button labels share this role.
+     Story 1.5 introduces it (mirroring `.value` above) so its Tailwind-utility-first components
+     (list-group-header, filter-chip, sort-control) and record-item's own zones have one reusable
+     class for the micro type role, instead of six hand-copied declarations per component. */
+  .micro {
+    font-family: var(--font-family-body);
+    font-size: var(--font-micro-size);
+    font-weight: var(--font-micro-weight);
+    line-height: var(--font-micro-line-height);
+    letter-spacing: var(--font-micro-letter-spacing);
+    text-transform: uppercase;
   }
 
   /* The focus ring is never removed. */

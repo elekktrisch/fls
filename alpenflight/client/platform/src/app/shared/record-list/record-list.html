@@ -1,0 +1,14 @@
+@if (items().length === 0) {
+  <p class="empty">No record matches.</p>
+} @else if (isGrouped()) {
+  @for (group of groups(); track group.name) {
+    <app-list-group-header [name]="group.name" [count]="group.items.length" />
+    @for (item of group.items; track item.id) {
+      <app-record-item [record]="item" />
+    }
+  }
+} @else {
+  @for (item of items(); track item.id) {
+    <app-record-item [record]="item" />
+  }
+}

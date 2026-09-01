@@ -11,9 +11,10 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(),
     provideRouter(routes),
     // NzI18nService/NzDateAdapter are providedIn: 'root', so ng-zorro-antd requires these at the
-    // app root regardless of which route uses a component from the library — only the
-    // /dev/component-spike route (story 1.5 deferred spike) does today. Inert everywhere else.
+    // app root regardless of which route uses a component from the library — the /records route's
+    // SearchField (NzInputModule) and the /dev/component-spike route (story 1.5 deferred spike)
+    // both do today. Inert everywhere else.
     provideNzI18n(en_US),
     provideNzDateFnsAdapter(),
-  ]
+  ],
 };

@@ -1,0 +1,24 @@
+:host {
+  display: block;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--color-surface-base);
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.toolbar__search {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.toolbar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}

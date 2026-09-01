@@ -155,3 +155,33 @@ existing entries.
     form one complete, working `/records` slice on their own; the spike is a self-contained
     risk-reduction probe on its own route, never wired to a real screen, and is self-contained
     enough to land as a fast follow-up before Epic 3 needs the answer.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `/dev/component-spike` is wired into `app.routes.ts` as a static top-level import, not
+    `loadComponent`, so `NzSelectModule`/`NzDatePickerModule` ship in every user's initial bundle
+    for a route that is never a real destination.
+  evidence: Surfaced during story 1.5's review as the likely reason `angular.json`'s initial
+    bundle budget rose from `500kB/1MB` to `900kB/1.5MB`. Convert the route to lazy `loadComponent`
+    before the spike's cost is treated as a permanent, app-wide baseline.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `/dev/component-spike` has no dev-only guard (no environment check, no build-time
+    exclusion) despite being framed as an internal risk probe, so it stays reachable by direct URL
+    in a production build.
+  evidence: Surfaced during story 1.5's review. Absent from `DESTINATIONS`/the nav, but no URL
+    guard or build-time exclusion has been added.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `app.config.ts` calls `provideNzDateFnsAdapter()`, but `date-fns` is not listed as a
+    direct dependency in `client/platform/package.json` -- it resolves today only because
+    `ng-zorro-antd` happens to depend on it transitively.
+  evidence: Surfaced during story 1.5's review. Works today but is fragile to an `ng-zorro-antd`
+    version bump changing its own dependency tree; add `date-fns` as an explicit direct dependency.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-the-record-list-and-the-list-toolbar.md`
+  summary: No automated test covers the Acceptance Criterion "a focused toolbar control shows the
+    existing focus ring" -- `search-field.ts` restates `outline: 2px solid var(--color-live)` on
+    `.ant-input:focus` in its own component styles, unverified by any spec.
+  evidence: Same class of gap already deferred for story 1.4's shell focus ring -- verifying a CSS
+    `:focus` outline rule needs visual/e2e tooling this build stage does not have yet (no `alpenflight/`
+    e2e suite, AD-21).
