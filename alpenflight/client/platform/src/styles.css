@@ -1,7 +1,38 @@
 /* AlpenFlight design tokens — values fixed by DESIGN.md's frontmatter. Do not diverge without
-   renegotiating the design. */
-:root {
-  color-scheme: dark;
+   renegotiating the design.
+
+   Tailwind v4 publishes the tokens (`.postcssrc.json` wires `@tailwindcss/postcss` into the
+   build). Preflight is skipped on purpose: importing `tailwindcss/theme` and
+   `tailwindcss/utilities` separately, never the bare `@import 'tailwindcss'`, keeps this
+   stylesheet's own resets below as the only global reset. */
+@layer theme, base, utilities;
+
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities) source(none);
+
+/* Scope Tailwind's class scanner to this project. Never let automatic project-root detection
+   walk up to the monorepo's `.git` root — that would reach `flsserver/`/`flsweb/`. Excludes
+   generated code and spec files: neither carries real template markup, so scanning them only
+   grows the odds of an incidental word match. Tailwind's scanner is a plain text scan for
+   class-shaped tokens, not a class-attribute parser — an ordinary word in a comment or identifier
+   anywhere still-scanned (e.g. "table", "absolute") can compile as a non-token, non-theme
+   structural utility (position/display keywords). These compile as inert, unused CSS unless a
+   template actually applies them as a class, which none do; no `@theme` reset can prevent this,
+   since these utilities carry no theme namespace to reset. Not a DESIGN.md violation — that closed
+   set governs color/spacing/radius/typography, not layout primitives. */
+@source './';
+@source not './generated/**/*';
+@source not './**/*.spec.ts';
+
+/* `@theme static` (never bare `@theme`) forces every declared token to always emit into the
+   compiled CSS, not only the ones some other rule already references via `var(...)`. The blanket
+   `--*: initial` below — Tailwind v4's own documented way to discard its entire default theme —
+   clears every namespace Tailwind ships (color, spacing, the bare spacing multiplier, radius,
+   font-family, font-weight, tracking, leading, shadow, and the rest) in one line, so no
+   theme-derived stock Tailwind class (`bg-red-500`, `text-xl`, `rounded-lg`, `font-bold`,
+   `tracking-wide`, etc.) survives alongside DESIGN.md's closed, exact-match set. */
+@theme static {
+  --*: initial;
 
   /* Colors — surfaces */
   --color-surface-base: #0a0e13;
@@ -30,44 +61,17 @@
   --color-warning: #ff6b6b;
   --color-warning-dim: #3a1618;
 
-  /* Typography — families */
+  /* Typography — families. The one legitimate occupant of the reserved --font-* namespace; every
+     other typography sub-property lives in the plain :root block below, never here. */
   --font-family-body: system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-family-value: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
 
-  /* Typography — micro (labels, headings, tab labels, state markers, button labels) */
-  --font-micro-size: 11px;
-  --font-micro-weight: 600;
-  --font-micro-line-height: 1.2;
-  --font-micro-letter-spacing: 0.12em;
-
-  /* Typography — body (names, prose, remarks, help text) */
-  --font-body-size: 14px;
-  --font-body-weight: 400;
-  --font-body-line-height: 1.45;
-
-  /* Typography — value (every number and identifier) */
-  --font-value-size: 15px;
-  --font-value-weight: 500;
-  --font-value-line-height: 1.25;
-  --font-value-letter-spacing: -0.01em;
-
-  /* Typography — value-lead (sticky summary, airborne row, rule order number) */
-  --font-value-lead-size: 19px;
-  --font-value-lead-weight: 600;
-  --font-value-lead-line-height: 1.15;
-
-  /* Typography — heading (section and panel headings) */
-  --font-heading-size: 16px;
-  --font-heading-weight: 600;
-  --font-heading-line-height: 1.3;
-
-  /* Typography — display (screen titles only) */
-  --font-display-size: 22px;
-  --font-display-weight: 600;
-  --font-display-line-height: 1.2;
-
-  /* Shape — every corner is square, except the account portrait (not built this story) */
+  /* Shape — every corner is square, except the account portrait (not built this story).
+     --radius-default is this token set's own name; --radius is Tailwind's own unsuffixed
+     default-radius slot (drives the bare `rounded` utility) and derives from --radius-default so
+     the two can never drift independently. */
   --radius-default: 0;
+  --radius: var(--radius-default);
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
@@ -105,39 +109,83 @@
   --motion-reveal: 140ms linear;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* Typography — size/weight/line-height/letter-spacing per role. These are not individual
+   Tailwind utilities on their own — they compose into semantic classes like .value below — so
+   they stay out of @theme and the reserved --font-* namespace, in a plain :root block instead. */
+:root {
+  color-scheme: dark;
+
+  /* micro (labels, headings, tab labels, state markers, button labels) */
+  --font-micro-size: 11px;
+  --font-micro-weight: 600;
+  --font-micro-line-height: 1.2;
+  --font-micro-letter-spacing: 0.12em;
+
+  /* body (names, prose, remarks, help text) */
+  --font-body-size: 14px;
+  --font-body-weight: 400;
+  --font-body-line-height: 1.45;
+
+  /* value (every number and identifier) */
+  --font-value-size: 15px;
+  --font-value-weight: 500;
+  --font-value-line-height: 1.25;
+  --font-value-letter-spacing: -0.01em;
+
+  /* value-lead (sticky summary, airborne row, rule order number) */
+  --font-value-lead-size: 19px;
+  --font-value-lead-weight: 600;
+  --font-value-lead-line-height: 1.15;
+
+  /* heading (section and panel headings) */
+  --font-heading-size: 16px;
+  --font-heading-weight: 600;
+  --font-heading-line-height: 1.3;
+
+  /* display (screen titles only) */
+  --font-display-size: 22px;
+  --font-display-weight: 600;
+  --font-display-line-height: 1.2;
 }
 
-html,
-body {
-  height: 100%;
-}
+/* @layer base: an unlayered rule always outranks a layer(...) rule regardless of specificity or
+   source order, so these hand-authored resets stay in a named layer, ordered before `utilities`
+   above, letting a future Tailwind utility class override them normally. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-body {
-  margin: 0;
-  background: var(--color-surface-base);
-  color: var(--color-ink-primary);
-  font-family: var(--font-family-body);
-  font-size: var(--font-body-size);
-  font-weight: var(--font-body-weight);
-  line-height: var(--font-body-line-height);
-}
+  html,
+  body {
+    height: 100%;
+  }
 
-/* Every number and every identifier is monospaced and column aligned. */
-.value {
-  font-family: var(--font-family-value);
-  font-size: var(--font-value-size);
-  font-weight: var(--font-value-weight);
-  line-height: var(--font-value-line-height);
-  letter-spacing: var(--font-value-letter-spacing);
-  font-variant-numeric: tabular-nums;
-}
+  body {
+    margin: 0;
+    background: var(--color-surface-base);
+    color: var(--color-ink-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-body-size);
+    font-weight: var(--font-body-weight);
+    line-height: var(--font-body-line-height);
+  }
 
-/* The focus ring is never removed. */
-:focus-visible {
-  outline: 2px solid var(--color-live);
-  outline-offset: 1px;
+  /* Every number and every identifier is monospaced and column aligned. */
+  .value {
+    font-family: var(--font-family-value);
+    font-size: var(--font-value-size);
+    font-weight: var(--font-value-weight);
+    line-height: var(--font-value-line-height);
+    letter-spacing: var(--font-value-letter-spacing);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The focus ring is never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-live);
+    outline-offset: 1px;
+  }
 }

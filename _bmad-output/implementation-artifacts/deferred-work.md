@@ -106,3 +106,33 @@ existing entries.
     for a catch-all forward to `index.html`.
   evidence: Purely server-side deployment concern, outside `client/platform`'s scope and this
     story's Code Map; `ng serve`'s dev server already handles it transparently for local dev.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: No automated test anywhere in `client/platform` asserts on the *compiled* CSS -- the
+    Angular `test` build target never loads `styles.css`, so a regression in `@theme static`, the
+    blanket `--*: initial` reset, or the `@layer theme, base, utilities;` ordering (e.g. a future
+    revert to bare `@theme`, silently tree-shaking design tokens back out) would ship with
+    `./gradlew build` staying green.
+  evidence: Three review passes on the Tailwind amendment each caught a real regression only
+    through a human manually rebuilding and reading the emitted CSS -- the same class of gap
+    already deferred for this story's focus-ring test, now extended by Tailwind's on-demand
+    compilation model, which a plain `:root` block never risked.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: `--motion-instant`/`--motion-fast`/`--motion-reveal` have no `prefers-reduced-motion:
+    reduce` override anywhere in the client.
+  evidence: The tokens exist but nothing consumes them yet this story; revisit once a component
+    actually applies a transition using them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: Skipping Tailwind's Preflight (to avoid an unwanted global reset) also skips its native
+    form-control normalization -- `button`/`input`/`select`/`textarea` keep native OS font/spacing/
+    appearance, with no compensating reset in this story's own `@layer base`.
+  evidence: No form control exists in the client yet. `DESIGN.md` already specs a `field-row`
+    component; revisit when a story first builds an input-heavy screen.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-the-application-shell-and-the-design-tokens.md`
+  summary: `shell.css` hardcodes `z-index: 10` and the `768px` nav breakpoint as bare literals, with
+    no corresponding token in `styles.css` or `DESIGN.md`'s frontmatter.
+  evidence: Shipped in the original (done) story 1.4, unrelated to and untouched by the Tailwind
+    amendment; surfaced incidentally while reviewing the amendment's token surface.
