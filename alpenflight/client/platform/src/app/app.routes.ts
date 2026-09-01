@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { Home } from './home/home';
 import { DestinationPlaceholder } from './shell/destination-placeholder';
+import { ComponentSpike } from './dev/component-spike';
 
 export interface Destination {
   readonly path: string;
@@ -23,5 +24,11 @@ export const routes: Routes = [
     component: DestinationPlaceholder,
     data: { label: destination.label },
   })),
+  // Story 1.5 deferred spike (deferred-work.md, source_spec spec-1-5): ng-zorro-antd dark-theme
+  // override cost probe. Never a real destination — deliberately absent from DESTINATIONS/the nav.
+  // Its NzI18n/NzDateAdapter providers live in app.config.ts, not here: NzI18nService is
+  // providedIn: 'root', so a route-scoped provider can't reach it (root services resolve their
+  // constructor injections against the root injector, not the requesting route's injector).
+  { path: 'dev/component-spike', component: ComponentSpike },
   { path: '**', redirectTo: '' },
 ];

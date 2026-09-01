@@ -136,3 +136,22 @@ existing entries.
     no corresponding token in `styles.css` or `DESIGN.md`'s frontmatter.
   evidence: Shipped in the original (done) story 1.4, unrelated to and untouched by the Tailwind
     amendment; surfaced incidentally while reviewing the amendment's token surface.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-component-spike-dark-mode-cost.md`
+  summary: `ng-zorro-antd`'s dark theme ships as one 761 KB monolithic stylesheet covering all ~70
+    components, with no per-component dark-only split; adopting it for even one control pushed the
+    production initial bundle to 1.40 MB, forcing the budget up from `500kB/1MB` to `900kB/1.5MB`.
+  evidence: Confirmed by the dark-mode override cost spike. Before Epic 3 commits more components
+    to `ng-zorro-antd`, evaluate lazy-loading its modules per feature and a non-global,
+    dynamically-injected dark stylesheet, rather than accepting the app-wide cost by default.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-the-record-list-and-the-list-toolbar.md`
+  summary: Spike `nz-select` and `nz-date-picker` in isolation on a `/dev/component-spike` route,
+    against the dark-mode `--ant-*` bridge, to price the override cost against `DESIGN.md`'s
+    palette and 7:1 contrast floor before Epic 3 commits the typeahead and the date field to
+    `ng-zorro-antd`.
+  evidence: Story 1.5's spec exceeded the 1,600-token ceiling (~2,798 tokens) with the spike
+    included. `RecordItem`/`RecordList`/`ListToolbar` plus the `SearchField` `nz-input` wrapper
+    form one complete, working `/records` slice on their own; the spike is a self-contained
+    risk-reduction probe on its own route, never wired to a real screen, and is self-contained
+    enough to land as a fast follow-up before Epic 3 needs the answer.

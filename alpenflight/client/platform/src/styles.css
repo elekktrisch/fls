@@ -148,6 +148,46 @@
   --font-display-line-height: 1.2;
 }
 
+/* ng-zorro-antd dark-theme bridge — spike only. Consumed exclusively by
+   `app/dev/component-spike.css` (Story 1.5 deferred spike, see deferred-work.md), which is the
+   only file in this app allowed to reach a raw `ant-*` class. No other component may set or read
+   a `--ant-*` variable.
+
+   IMPORTANT — verified against the installed `ng-zorro-antd@22.0.1` package source
+   (`ng-zorro-antd.dark.css`, e.g. `.ant-select-selector`, `.ant-picker`, `.ant-select-dropdown`):
+   that stylesheet is a fully Less-compiled artifact. It declares **zero** CSS custom properties
+   for a component's background, border, radius, or text color — every value is a literal
+   (`border: 1px solid #434343`, `border-radius: 2px`, `background-color: #1f1f1f`). The only
+   `--ant-*` custom properties `ng-zorro-antd` publishes anywhere are ~38 unrelated semantic accent
+   colors (primary/success/warning/error/info) in a separate, light-themed `ng-zorro-antd.variable
+   .css`, which this app does not import. ng-zorro-antd 22.0.1 does not implement Ant Design v5's
+   token-based CSS-variable theming.
+
+   The names below are therefore this app's OWN indirection layer, not a variable ng-zorro-antd
+   reads natively. They derive from this app's existing tokens in one place, so
+   `component-spike.css`'s override rules for `.ant-select-*`/`.ant-picker-*` have one source of
+   truth to target instead of a scattered set of hardcoded literals. Named after Ant Design v5's
+   real token vocabulary (colorBgContainer, colorBorder, …) on purpose: if a future
+   `ng-zorro-antd` version adopts that CSS-variable system, this bridge starts working literally
+   instead of only by convention. */
+:root {
+  --ant-color-bg-container: var(--color-surface-input);
+  --ant-color-bg-elevated: var(--color-surface-raised);
+  --ant-color-bg-container-hover: var(--color-surface-hover);
+  --ant-color-bg-container-selected: var(--color-surface-selected);
+  --ant-color-border: var(--color-line-strong);
+  --ant-color-split: var(--color-line-hairline);
+  --ant-color-primary: var(--color-live);
+  --ant-color-primary-bg: var(--color-live-dim);
+  --ant-color-text: var(--color-ink-primary);
+  --ant-color-text-secondary: var(--color-ink-secondary);
+  --ant-color-text-disabled: var(--color-ink-disabled);
+  --ant-color-text-on-primary: var(--color-ink-on-live);
+  --ant-border-radius: var(--radius-default);
+  --ant-box-shadow-secondary: var(--elevation-overlay);
+  --ant-motion-duration-fast: var(--motion-fast);
+}
+
 /* @layer base: an unlayered rule always outranks a layer(...) rule regardless of specificity or
    source order, so these hand-authored resets stay in a named layer, ordered before `utilities`
    above, letting a future Tailwind utility class override them normally. */
