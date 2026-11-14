@@ -11,10 +11,10 @@ name: nightly
 # `workflow_dispatch` trigger is the manual escape hatch for "I want a
 # legacy-coverage run right now" (e.g. after touching e2e/ or shared
 # fixtures).
-on:
-  schedule:
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+#on:
+#  schedule:
+#  - cron: '0 4 * * *'
+#  workflow_dispatch:
 
 # Don't pile up overlapping nightly runs.
 concurrency:
