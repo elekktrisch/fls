@@ -45,11 +45,7 @@ on:
       - 'alpenflight/migration-tool/**'
       - '!alpenflight/migration-bundle/**/*.md'
       - '!alpenflight/migration-tool/**/*.md'
-  schedule:
-    # 05:00 UTC — after nightly.yml (04:00) and alpenflight-e2e-real-idp (03:00)
-    # so a shared-runner-minute spike doesn't stack on the same instant.
-    - cron: '0 5 * * *'
-  workflow_dispatch:
+  
 
 concurrency:
   group: alpenflight-proof-fanout-${{ github.ref }}
